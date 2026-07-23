@@ -75,7 +75,10 @@
     }
 
     .btn:hover { background: var(--accent-hover); }
-    .file-input { display: none; }
+    .editable { caret-color: transparent; cursor: default; user-select: none; }
+    .editable:focus { outline: none; }
+    .editable.editing { outline: 1px solid var(--scrollbar-hover); outline-offset: 2px; caret-color: auto; cursor: text; user-select: text; }
+    .editable::selection { background: rgba(110, 118, 129, .45); color: var(--text-primary); }
 
     .control-bar { display: flex; align-items: center; gap: .35rem; }
     .control-bar[hidden] { display: none; }
@@ -103,20 +106,22 @@
     main::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-hover); }
 
     .release {
-      flex: 0 0 16%;
-      min-width: 208px;
+      flex: 0 0 calc((100% - 3.75rem) / 6);
+      min-width: 0;
       border: 1px solid var(--border-color);
       border-radius: 10px;
       background: var(--bg-tertiary);
       box-shadow: var(--shadow);
       overflow: hidden;
+      transition: border-color .15s;
     }
 
-    .release-header { padding: .65rem .75rem; background: var(--bg-secondary); border-bottom: 1px solid var(--border-color); }
+    .release-header { padding: .65rem .75rem; background: var(--bg-secondary); border-bottom: 1px solid var(--border-color); cursor: pointer; }
+    .release-header:focus-visible { outline: 2px solid var(--link); outline-offset: -2px; }
 
     .release-heading { position: relative; }
     .release-title { padding: 0 3rem; font-size: 1.05rem; font-weight: 600; text-align: center; }
-    .release-check { position: absolute; top: 0; left: 0; color: var(--accent-hover); font-size: 1rem; font-weight: 700; }
+    .release-check { position: absolute; top: 0; left: 0; color: var(--accent-hover); font-size: 1rem; font-weight: 700; caret-color: transparent; user-select: none; }
     .release-version { position: absolute; top: .1rem; right: 0; color: var(--text-secondary); font-size: .82rem; text-align: right; }
     .release-meta { display: none; margin-top: .4rem; padding-top: .35rem; border-top: 1px solid var(--border-color); }
     .show-dates .release-meta { display: block; }
@@ -137,9 +142,11 @@
       background: var(--bg-secondary);
       border-radius: 8px;
       box-shadow: var(--shadow);
+      transition: border-color .15s;
     }
 
     .column.complete { border-color: var(--accent); }
+    .column:has(> .column-header:hover) { border-color: var(--scrollbar-hover); box-shadow: inset 0 0 0 3px var(--scrollbar-hover); }
 
     .column-header {
       display: flex;
@@ -148,10 +155,15 @@
       gap: .5rem;
       padding-bottom: .5rem;
       border-bottom: 2px solid var(--border-color);
+      cursor: pointer;
     }
 
+    .column-header:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
+    .column.collapsed .column-header { padding-bottom: 0; border-bottom: 0; }
+    .column.collapsed .card-list { display: none; }
+
     .column-title { font-size: .95rem; font-weight: 600; }
-    .feature-progress { flex: 0 0 auto; color: var(--text-secondary); font-size: .78rem; font-weight: 600; }
+    .feature-progress { flex: 0 0 auto; color: var(--text-secondary); font-size: .78rem; font-weight: 600; caret-color: transparent; pointer-events: none; user-select: none; }
     .column.complete .feature-progress { color: var(--accent-hover); }
 
     .card-list { display: grid; gap: .5rem; margin-top: .6rem; }
@@ -162,24 +174,25 @@
       border-radius: 6px;
       background: var(--bg-secondary);
       cursor: pointer;
-      transition: transform .2s, box-shadow .2s;
+      transition: border-color .15s;
     }
 
-    .card:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); }
+    .card:has(> .card-header:hover) { border-color: var(--scrollbar-hover); box-shadow: inset 0 0 0 3px var(--scrollbar-hover); }
     .card:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
     .card-header { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
     .card-title { font-size: .85rem; font-weight: 600; }
-    .task-progress { flex: 0 0 auto; padding: .1rem .35rem; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-tertiary); color: var(--text-secondary); font-size: .72rem; font-weight: 600; }
+    .task-progress { flex: 0 0 auto; padding: .1rem .35rem; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-tertiary); color: var(--text-secondary); font-size: .72rem; font-weight: 600; caret-color: transparent; pointer-events: none; user-select: none; }
     .card.complete .task-progress { border-color: var(--accent); background: var(--accent); color: #fff; }
     .card-body { color: var(--text-secondary); font-size: .8rem; }
     .card-body:not([hidden]) { margin-top: .55rem; }
     .card-body[hidden] { display: none; }
     .card-body p + p, .card-body ul + p, .card-body p + ul { margin-top: .6rem; }
-    .card-body ul { padding-left: 1.2rem; }
+    .card-body ul { padding-left: 0; list-style: none; }
     .card-body li + li { margin-top: .25rem; }
     .card-body code { padding: .1rem .3rem; border-radius: 3px; background: var(--bg-primary); }
     .card-body a { color: var(--link); }
-    .checkbox { display: inline-block; width: 1.15rem; color: var(--accent); }
+    .checkbox { display: inline-block; width: 1.15rem; color: var(--text-secondary); cursor: pointer; }
+    .checkbox.checked { color: var(--accent-hover); }
 
     .empty, .error {
       padding: 1.5rem 1rem;
@@ -191,9 +204,42 @@
     }
 
     main > .empty, main > .error { flex: 1; }
-    .start-arrow { font-size: 1.6rem; }
+    .start-screen { display: flex; flex-direction: column; align-items: center; gap: 1rem; }
+    .recent-files { width: min(32rem, 100%); text-align: center; }
+    .recent-files-title { margin-bottom: .4rem; color: var(--text-primary); font-size: .85rem; }
+    .recent-files-list { display: grid; gap: .35rem; }
+    .recent-file {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: .75rem;
+      width: 100%;
+      padding: .5rem .65rem;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+      font: inherit;
+      cursor: pointer;
+    }
+    .recent-file:hover { border-color: var(--text-secondary); background: var(--border-color); }
+    .recent-file-name { overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+    .recent-file-time { flex: 0 0 auto; color: var(--text-secondary); font-size: .75rem; }
+    .recent-files-empty { color: var(--text-secondary); font-size: .8rem; }
 
-    .collapse-view main {
+    .watermark {
+      position: fixed;
+      bottom: 22px;
+      left: .75rem;
+      z-index: 10;
+      color: var(--text-secondary);
+      font-size: .78rem;
+      font-weight: 300;
+    }
+    .watermark a { color: inherit; text-decoration: none; }
+    .watermark a:hover { text-decoration: underline; }
+
+    .toggle-grid-view main {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(max(208px, calc((100% - 3.75rem) / 6)), 1fr));
       align-content: start;
@@ -201,18 +247,17 @@
       overflow-x: hidden;
     }
 
-    .collapse-view .release { min-width: 0; height: 100%; }
-    .collapse-view .board { gap: .4rem; padding: .5rem; }
-    .collapse-view .column { padding: .5rem; }
-    .collapse-view .card-list { display: none; }
-    .collapse-view main > .empty, .collapse-view main > .error { grid-column: 1 / -1; }
+    .toggle-grid-view .release { min-width: 0; }
+    .toggle-grid-view .board { gap: .4rem; padding: .5rem; }
+    .toggle-grid-view .column { padding: .5rem; }
+    .toggle-grid-view .column-header { padding-bottom: 0; border-bottom: 0; }
+    .toggle-grid-view main > .empty, .toggle-grid-view main > .error { grid-column: 1 / -1; }
 
     .error { color: #ef4444; }
 
     @media (max-width: 700px) {
       .header, main { padding: .6rem; }
       .project-title { font-size: 1rem; }
-      .release { flex-basis: 85%; }
     }
   </style>
 </head>
@@ -224,33 +269,134 @@
       <div class="header-actions">
         <nav class="control-bar" id="viewerControls" aria-label="Viewer controls" hidden>
           <button class="btn control-btn" id="toggleDates" type="button" aria-pressed="false">Toggle Dates</button>
-          <button class="btn control-btn" id="collapseView" type="button" aria-pressed="false">Collapse View</button>
+          <button class="btn control-btn" id="toggleGridView" type="button" aria-pressed="false">Toggle Grid View</button>
         </nav>
-        <label class="btn open-label" for="fileInput"><span>Open Markdown</span></label>
+        <button class="btn open-label" id="openFile" type="button">Open Markdown</button>
       </div>
-      <input class="file-input" id="fileInput" type="file" accept=".md,text/markdown,text/plain">
     </div>
   </header>
 
   <main id="content" aria-live="polite">
-    <div class="empty"><span class="start-arrow">↗</span><br>Open a Markdown file in the top-right ...</div>
+    <div class="empty start-screen">
+      <section class="recent-files" aria-labelledby="recentFilesTitle">
+        <h2 class="recent-files-title" id="recentFilesTitle">Recent files</h2>
+        <div class="recent-files-list" id="recentFiles"></div>
+      </section>
+    </div>
   </main>
+
+  <div class="watermark">© 2026 MD_Manager · Tim Krüger (Zang3th) · <a href="https://github.com/Zang3th" target="_blank" rel="noopener noreferrer">GitHub</a></div>
 
   <script>
     const content = document.getElementById("content");
     const projectTitle = document.getElementById("projectTitle");
-    const fileInput = document.getElementById("fileInput");
+    const openFile = document.getElementById("openFile");
     const viewerControls = document.getElementById("viewerControls");
     const toggleDates = document.getElementById("toggleDates");
-    const collapseView = document.getElementById("collapseView");
+    const toggleGridView = document.getElementById("toggleGridView");
+    let currentFileHandle = null;
+    let currentProject = null;
+    let writeQueue = Promise.resolve();
+
+    function openRecentDatabase() {
+      return new Promise((resolve, reject) => {
+        const request = indexedDB.open("MD_Manager", 1);
+        request.onupgradeneeded = () => request.result.createObjectStore("recentFiles", { keyPath: "id" });
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+    }
+
+    async function getRecentFiles() {
+      const database = await openRecentDatabase();
+      const entries = await new Promise((resolve, reject) => {
+        const request = database.transaction("recentFiles").objectStore("recentFiles").getAll();
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      database.close();
+      return entries.sort((left, right) => right.openedAt - left.openedAt).slice(0, 5);
+    }
+
+    async function rememberRecentFile(fileHandle) {
+      const entries = await getRecentFiles();
+      let existing = null;
+      for (const entry of entries) {
+        if (await entry.handle.isSameEntry(fileHandle)) {
+          existing = entry;
+          break;
+        }
+      }
+
+      const record = {
+        id: existing?.id || `${Date.now()}-${Math.random()}`,
+        name: fileHandle.name,
+        openedAt: Date.now(),
+        handle: fileHandle
+      };
+      const updatedEntries = entries.filter(entry => entry.id !== record.id).concat(record)
+        .sort((left, right) => right.openedAt - left.openedAt);
+      const database = await openRecentDatabase();
+      await new Promise((resolve, reject) => {
+        const transaction = database.transaction("recentFiles", "readwrite");
+        const store = transaction.objectStore("recentFiles");
+        store.put(record);
+        for (const entry of updatedEntries.slice(5)) store.delete(entry.id);
+        transaction.oncomplete = resolve;
+        transaction.onerror = () => reject(transaction.error);
+      });
+      database.close();
+    }
+
+    async function renderRecentFiles() {
+      const list = document.getElementById("recentFiles");
+      if (!list) return;
+      const entries = await getRecentFiles();
+      if (!document.getElementById("recentFiles")) return;
+      list.replaceChildren();
+      if (!entries.length) {
+        list.innerHTML = '<p class="recent-files-empty">No recent files</p>';
+        return;
+      }
+
+      for (const entry of entries) {
+        const button = document.createElement("button");
+        button.className = "recent-file";
+        button.type = "button";
+        const name = document.createElement("span");
+        name.className = "recent-file-name";
+        name.textContent = entry.name;
+        const time = document.createElement("time");
+        time.className = "recent-file-time";
+        time.dateTime = new Date(entry.openedAt).toISOString();
+        time.textContent = new Date(entry.openedAt).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" });
+        button.append(name, time);
+        button.addEventListener("click", async () => {
+          try {
+            await openMarkdownHandle(entry.handle);
+          } catch (error) {
+            list.innerHTML = `<p class="recent-files-empty">The file could not be opened: ${escapeHtml(error.message)}</p>`;
+          }
+        });
+        list.append(button);
+      }
+    }
+
+    function showStartPage() {
+      viewerControls.hidden = true;
+      content.innerHTML = '<div class="empty start-screen"><section class="recent-files" aria-labelledby="recentFilesTitle"><h2 class="recent-files-title" id="recentFilesTitle">Recent files</h2><div class="recent-files-list" id="recentFiles"></div></section></div>';
+      renderRecentFiles();
+    }
 
     function parseProject(markdown) {
-      const project = { title: "Untitled Project", releases: [] };
+      const newline = markdown.includes("\r\n") ? "\r\n" : "\n";
+      const lines = markdown.replace(/\r\n?/g, "\n").split("\n");
+      const project = { title: "Untitled Project", titleLine: -1, releases: [], sourceLines: lines, newline };
       let release = null;
       let feature = null;
       let card = null;
 
-      for (const line of markdown.replace(/\r\n?/g, "\n").split("\n")) {
+      for (const [lineIndex, line] of lines.entries()) {
         const heading = line.match(/^(#{1,4})\s+(.+?)\s*#*\s*$/);
 
         if (heading) {
@@ -259,16 +405,17 @@
 
           if (level === 1) {
             project.title = title;
+            project.titleLine = lineIndex;
           } else if (level === 2) {
-            release = { title, version: "", dates: [], features: [] };
+            release = { title, titleLine: lineIndex, version: "", versionLine: -1, dates: [], features: [] };
             project.releases.push(release);
             feature = card = null;
           } else if (level === 3 && release) {
-            feature = { title, cards: [] };
+            feature = { title, titleLine: lineIndex, cards: [] };
             release.features.push(feature);
             card = null;
           } else if (level === 4 && feature) {
-            card = { title, lines: [] };
+            card = { title, titleLine: lineIndex, lines: [], lineIndices: [] };
             feature.cards.push(card);
           }
           continue;
@@ -280,21 +427,31 @@
           const value = metadata[2].trim();
           if (label.toLowerCase() === "version") {
             release.version = value;
+            release.versionLine = lineIndex;
           } else {
             const range = value.match(/^(.+?)(?:\s+-\s+(.+))?$/);
-            release.dates.push({ label, from: range[1].trim(), to: range[2]?.trim() || "" });
+            release.dates.push({ label, from: range[1].trim(), to: range[2]?.trim() || "", lineIndex });
           }
           continue;
         }
 
-        if (card) card.lines.push(line);
+        if (card) {
+          card.lines.push(line);
+          card.lineIndices.push(lineIndex);
+        }
       }
 
       for (const item of project.releases) {
         for (const column of item.features) {
           for (const task of column.cards) {
-            while (task.lines[0]?.trim() === "") task.lines.shift();
-            while (task.lines.at(-1)?.trim() === "") task.lines.pop();
+            while (task.lines[0]?.trim() === "") {
+              task.lines.shift();
+              task.lineIndices.shift();
+            }
+            while (task.lines.at(-1)?.trim() === "") {
+              task.lines.pop();
+              task.lineIndices.pop();
+            }
           }
         }
       }
@@ -333,8 +490,8 @@
           listOpen = true;
           const checkbox = listItem[1].match(/^\[([ xX])]\s+(.*)$/);
           parts.push(checkbox
-            ? `<li><span class="checkbox">${checkbox[1].toLowerCase() === "x" ? "☑" : "☐"}</span>${inlineMarkdown(checkbox[2])}</li>`
-            : `<li>${inlineMarkdown(listItem[1])}</li>`);
+            ? `<li><span class="checkbox${checkbox[1].toLowerCase() === "x" ? " checked" : ""}">${checkbox[1].toLowerCase() === "x" ? "☑" : "☐"}</span><span class="todo-text">${inlineMarkdown(checkbox[2])}</span></li>`
+            : `<li><span class="checkbox">☐</span><span class="todo-text">${inlineMarkdown(listItem[1])}</span></li>`);
         } else {
           closeList();
           if (rawLine.trim()) parts.push(`<p>${inlineMarkdown(rawLine.trim())}</p>`);
@@ -344,10 +501,117 @@
       return parts.join("");
     }
 
-    function renderProject(project) {
+    function getTodoStates(lines) {
+      return lines.map(line => line.match(/^\s*[-*+]\s+(?:\[([ xX])]\s+)?/))
+        .filter(Boolean)
+        .map(todo => todo[1]?.toLowerCase() === "x");
+    }
+
+    function captureViewState() {
+      return {
+        features: [...document.querySelectorAll(".column")].map(column => column.classList.contains("collapsed")),
+        tasks: [...document.querySelectorAll(".card")].map(card => card.getAttribute("aria-expanded") === "true")
+      };
+    }
+
+    function restoreViewState(viewState) {
+      if (!viewState) return;
+
+      document.querySelectorAll(".column").forEach((column, index) => {
+        const collapsed = viewState.features[index] ?? true;
+        column.classList.toggle("collapsed", collapsed);
+        column.querySelector(".column-header").setAttribute("aria-expanded", String(!collapsed));
+      });
+
+      document.querySelectorAll(".card").forEach((card, index) => {
+        const expanded = viewState.tasks[index] ?? false;
+        card.setAttribute("aria-expanded", String(expanded));
+        card.querySelector(".card-body").hidden = !expanded;
+      });
+
+      document.querySelectorAll(".release").forEach(release => {
+        const columns = [...release.querySelectorAll(".column")];
+        release.querySelector(".release-header").setAttribute(
+          "aria-expanded",
+          String(columns.some(column => !column.classList.contains("collapsed")))
+        );
+      });
+    }
+
+    function writeProjectFile() {
+      if (!currentFileHandle || !currentProject) return Promise.resolve();
+      const markdown = currentProject.sourceLines.join(currentProject.newline);
+      const fileHandle = currentFileHandle;
+      writeQueue = writeQueue.then(async () => {
+        const writable = await fileHandle.createWritable();
+        await writable.write(markdown);
+        await writable.close();
+      });
+      return writeQueue;
+    }
+
+    function makeEditable(element, originalValue, saveValue) {
+      if (!currentFileHandle) return;
+      let savedValue = originalValue;
+      let cancelled = false;
+      element.classList.add("editable");
+      element.contentEditable = "false";
+      element.spellcheck = false;
+      element.oncontextmenu = event => {
+        event.preventDefault();
+        element.contentEditable = "plaintext-only";
+        element.focus();
+      };
+      element.onfocus = () => {
+        element.classList.add("editing");
+        requestAnimationFrame(() => {
+          const selection = window.getSelection();
+          const range = document.createRange();
+          range.selectNodeContents(element);
+          selection.removeAllRanges();
+          selection.addRange(range);
+        });
+      };
+      element.onkeydown = event => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          element.blur();
+        } else if (event.key === "Escape") {
+          event.preventDefault();
+          cancelled = true;
+          element.textContent = savedValue;
+          element.blur();
+        }
+      };
+      element.onblur = () => {
+        element.classList.remove("editing");
+        element.contentEditable = "false";
+        if (cancelled) {
+          cancelled = false;
+          return;
+        }
+        const value = element.textContent.trim();
+        if (!value) {
+          element.textContent = savedValue;
+          return;
+        }
+        if (value === savedValue) return;
+        saveValue(value);
+        savedValue = element.textContent.trim();
+        writeProjectFile();
+      };
+    }
+
+    function renderProject(project, viewState = null) {
+      currentProject = project;
       viewerControls.hidden = false;
       projectTitle.textContent = project.title;
       document.title = `${project.title} – MD_Manager`;
+      makeEditable(projectTitle, project.title, value => {
+        project.title = value;
+        project.sourceLines[project.titleLine] = `# ${value}`;
+        document.title = `${value} – MD_Manager`;
+      });
 
       if (!project.releases.length) {
         content.innerHTML = '<div class="empty">No releases found. At least one level <code>##</code> heading is required.</div>';
@@ -356,10 +620,8 @@
 
       content.replaceChildren(...project.releases.map(item => {
         const releaseComplete = item.features.length > 0 && item.features.every(columnData => {
-          const checkboxes = columnData.cards.flatMap(cardData => cardData.lines
-            .map(line => line.match(/^\s*[-*+]\s+\[([ xX])]\s+/))
-            .filter(Boolean));
-          return checkboxes.length > 0 && checkboxes.every(checkbox => checkbox[1].toLowerCase() === "x");
+          const todos = columnData.cards.flatMap(cardData => getTodoStates(cardData.lines));
+          return todos.length > 0 && todos.every(Boolean);
         });
         const section = document.createElement("section");
         section.className = "release";
@@ -374,22 +636,54 @@
           ? `<div class="release-meta"><ul class="release-dates">${item.dates.map(date => `<li>${escapeHtml(date.from)}${date.to ? ` – ${escapeHtml(date.to)}` : ""}</li>`).join("")}</ul></div>`
           : ""}`;
 
+        const releaseTitle = header.querySelector(".release-title");
+        makeEditable(releaseTitle, item.title, value => {
+          item.title = value;
+          project.sourceLines[item.titleLine] = `## ${value}`;
+          equalizeReleaseHeaderHeights();
+        });
+
+        const releaseVersion = header.querySelector(".release-version");
+        if (releaseVersion) {
+          makeEditable(releaseVersion, `v${item.version}`, value => {
+            item.version = value.replace(/^v/i, "").trim();
+            releaseVersion.textContent = `v${item.version}`;
+            project.sourceLines[item.versionLine] = `- #Version: ${item.version}`;
+          });
+        }
+
+        header.querySelectorAll(".release-dates li").forEach((dateElement, index) => {
+          const date = item.dates[index];
+          const originalValue = `${date.from}${date.to ? ` – ${date.to}` : ""}`;
+          makeEditable(dateElement, originalValue, value => {
+            const range = value.match(/^(.+?)(?:\s+[–-]\s+(.+))?$/);
+            date.from = range[1].trim();
+            date.to = range[2]?.trim() || "";
+            dateElement.textContent = `${date.from}${date.to ? ` – ${date.to}` : ""}`;
+            project.sourceLines[date.lineIndex] = `- #${date.label}: ${date.from}${date.to ? ` - ${date.to}` : ""}`;
+            equalizeReleaseHeaderHeights();
+          });
+        });
+
         const board = document.createElement("div");
         board.className = "board";
         board.append(...item.features.map(columnData => {
           const column = document.createElement("article");
-          column.className = "column";
-          const featureCheckboxes = columnData.cards.flatMap(cardData => cardData.lines
-            .map(line => line.match(/^\s*[-*+]\s+\[([ xX])]\s+/))
-            .filter(Boolean));
-          const featureCompleted = featureCheckboxes.filter(checkbox => checkbox[1].toLowerCase() === "x").length;
-          const featureProgress = featureCheckboxes.length
-            ? Math.round(featureCompleted / featureCheckboxes.length * 100)
+          column.className = "column collapsed";
+          const featureTodos = columnData.cards.flatMap(cardData => getTodoStates(cardData.lines));
+          const featureCompleted = featureTodos.filter(Boolean).length;
+          const featureProgress = featureTodos.length
+            ? Math.round(featureCompleted / featureTodos.length * 100)
             : 0;
-          if (featureCheckboxes.length && featureCompleted === featureCheckboxes.length) {
+          if (featureTodos.length && featureCompleted === featureTodos.length) {
             column.classList.add("complete");
           }
           column.innerHTML = `<header class="column-header"><h3 class="column-title">${escapeHtml(columnData.title)}</h3><span class="feature-progress">${featureProgress}%</span></header>`;
+          const columnTitle = column.querySelector(".column-title");
+          makeEditable(columnTitle, columnData.title, value => {
+            columnData.title = value;
+            project.sourceLines[columnData.titleLine] = `### ${value}`;
+          });
 
           const cardList = document.createElement("div");
           cardList.className = "card-list";
@@ -398,16 +692,51 @@
           for (const cardData of columnData.cards) {
             const cardElement = document.createElement("section");
             cardElement.className = "card";
-            const checkboxes = cardData.lines
-              .map(line => line.match(/^\s*[-*+]\s+\[([ xX])]\s+/))
-              .filter(Boolean);
-            const completedCount = checkboxes.filter(checkbox => checkbox[1].toLowerCase() === "x").length;
-            if (checkboxes.length && completedCount === checkboxes.length) {
+            const todos = getTodoStates(cardData.lines);
+            const completedCount = todos.filter(Boolean).length;
+            if (todos.length && completedCount === todos.length) {
               cardElement.classList.add("complete");
             }
             cardElement.tabIndex = 0;
             cardElement.setAttribute("aria-expanded", "false");
-            cardElement.innerHTML = `<header class="card-header"><h4 class="card-title">${escapeHtml(cardData.title)}</h4><span class="task-progress">${completedCount}/${checkboxes.length}</span></header><div class="card-body" hidden>${renderCardBody(cardData.lines)}</div>`;
+            cardElement.innerHTML = `<header class="card-header"><h4 class="card-title">${escapeHtml(cardData.title)}</h4><span class="task-progress">${completedCount}/${todos.length}</span></header><div class="card-body" hidden>${renderCardBody(cardData.lines)}</div>`;
+
+            const cardTitle = cardElement.querySelector(".card-title");
+            makeEditable(cardTitle, cardData.title, value => {
+              cardData.title = value;
+              project.sourceLines[cardData.titleLine] = `#### ${value}`;
+            });
+
+            const todoLines = cardData.lines.map((line, lineOffset) => ({
+              lineOffset,
+              match: line.match(/^(\s*[-*+]\s+)(?:\[([ xX])]\s+)?(.*)$/)
+            })).filter(item => item.match);
+            cardElement.querySelectorAll(".todo-text").forEach((todoElement, index) => {
+              const todo = todoLines[index];
+              makeEditable(todoElement, todoElement.textContent, value => {
+                todo.match[3] = value;
+                const checkbox = todo.match[2] === undefined ? "" : `[${todo.match[2]}] `;
+                const updatedLine = `${todo.match[1]}${checkbox}${value}`;
+                cardData.lines[todo.lineOffset] = updatedLine;
+                project.sourceLines[cardData.lineIndices[todo.lineOffset]] = updatedLine;
+              });
+
+              const checkboxElement = todoElement.parentElement.querySelector(".checkbox");
+              if (checkboxElement) {
+                checkboxElement.addEventListener("click", event => {
+                  event.stopPropagation();
+                  todo.match[2] = todo.match[2]?.toLowerCase() === "x" ? " " : "x";
+                  const updatedLine = `${todo.match[1]}[${todo.match[2]}] ${todo.match[3]}`;
+                  cardData.lines[todo.lineOffset] = updatedLine;
+                  project.sourceLines[cardData.lineIndices[todo.lineOffset]] = updatedLine;
+                  const viewState = captureViewState();
+                  if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+                  window.getSelection()?.removeAllRanges();
+                  writeProjectFile();
+                  renderProject(project, viewState);
+                });
+              }
+            });
 
             const cardBody = cardElement.querySelector(".card-body");
             const toggleCard = () => {
@@ -416,10 +745,10 @@
               cardBody.hidden = expanded;
             };
             cardElement.addEventListener("click", event => {
-              if (!event.target.closest("a")) toggleCard();
+              if (!event.target.closest("a, .editing")) toggleCard();
             });
             cardElement.addEventListener("keydown", event => {
-              if (!event.target.closest("a") && (event.key === "Enter" || event.key === " ")) {
+              if (!event.target.closest("a, .editing") && (event.key === "Enter" || event.key === " ")) {
                 event.preventDefault();
                 toggleCard();
               }
@@ -428,15 +757,55 @@
             cardList.append(cardElement);
           }
 
+          const columnHeader = column.querySelector(".column-header");
+          columnHeader.tabIndex = 0;
+          columnHeader.setAttribute("aria-expanded", "false");
+          const toggleFeature = () => {
+            const collapsed = column.classList.toggle("collapsed");
+            columnHeader.setAttribute("aria-expanded", String(!collapsed));
+          };
+          columnHeader.addEventListener("click", event => {
+            if (!event.target.closest(".editing")) toggleFeature();
+          });
+          columnHeader.addEventListener("keydown", event => {
+            if (!event.target.closest(".editing") && (event.key === "Enter" || event.key === " ")) {
+              event.preventDefault();
+              toggleFeature();
+            }
+          });
+
           column.append(cardList);
           return column;
         }));
 
         if (!item.features.length) board.innerHTML = '<div class="empty">This release does not contain any features yet.</div>';
+        if (item.features.length) {
+          header.tabIndex = 0;
+          header.setAttribute("aria-expanded", "false");
+          const toggleRelease = () => {
+            const columns = [...board.querySelectorAll(".column")];
+            const expand = columns.every(column => column.classList.contains("collapsed"));
+            for (const column of columns) {
+              column.classList.toggle("collapsed", !expand);
+              column.querySelector(".column-header").setAttribute("aria-expanded", String(expand));
+            }
+            header.setAttribute("aria-expanded", String(expand));
+          };
+          header.addEventListener("click", event => {
+            if (!event.target.closest(".editing")) toggleRelease();
+          });
+          header.addEventListener("keydown", event => {
+            if (!event.target.closest(".editing") && (event.key === "Enter" || event.key === " ")) {
+              event.preventDefault();
+              toggleRelease();
+            }
+          });
+        }
         section.append(header, board);
         return section;
       }));
 
+      restoreViewState(viewState);
       equalizeReleaseHeaderHeights();
     }
 
@@ -444,18 +813,12 @@
       requestAnimationFrame(() => {
         const titles = [...document.querySelectorAll(".release-title")];
         const headers = [...document.querySelectorAll(".release-header")];
-        const releases = [...document.querySelectorAll(".release")];
         for (const title of titles) title.style.height = "auto";
         for (const header of headers) header.style.height = "auto";
-        for (const release of releases) release.style.height = "auto";
         const titleHeight = Math.max(0, ...titles.map(title => title.offsetHeight));
         for (const title of titles) title.style.height = `${titleHeight}px`;
         const headerHeight = Math.max(0, ...headers.map(header => header.offsetHeight));
         for (const header of headers) header.style.height = `${headerHeight}px`;
-        if (document.body.classList.contains("collapse-view")) {
-          const releaseHeight = Math.max(0, ...releases.map(release => release.offsetHeight));
-          for (const release of releases) release.style.height = `${releaseHeight}px`;
-        }
       });
     }
 
@@ -467,10 +830,14 @@
       equalizeReleaseHeaderHeights();
     });
 
-    collapseView.addEventListener("click", () => {
-      const active = document.body.classList.toggle("collapse-view");
-      collapseView.setAttribute("aria-pressed", String(active));
+    toggleGridView.addEventListener("click", () => {
+      const active = document.body.classList.toggle("toggle-grid-view");
+      toggleGridView.setAttribute("aria-pressed", String(active));
       if (active) {
+        for (const column of document.querySelectorAll(".column")) {
+          column.classList.add("collapsed");
+          column.querySelector(".column-header").setAttribute("aria-expanded", "false");
+        }
         for (const card of document.querySelectorAll(".card")) {
           card.setAttribute("aria-expanded", "false");
           card.querySelector(".card-body").hidden = true;
@@ -479,28 +846,39 @@
       equalizeReleaseHeaderHeights();
     });
 
+    async function openMarkdownHandle(fileHandle) {
+      const permission = await fileHandle.requestPermission({ mode: "readwrite" });
+      if (permission !== "granted") return;
+      const file = await fileHandle.getFile();
+      currentFileHandle = fileHandle;
+      renderProject(parseProject(await file.text()));
+      await rememberRecentFile(fileHandle);
+    }
+
     async function loadDefaultFile() {
       try {
         const response = await fetch("Layout.md", { cache: "no-store" });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         renderProject(parseProject(await response.text()));
       } catch (error) {
-        content.innerHTML = '<div class="empty"><span class="start-arrow">↗</span><br>Open a Markdown file in the top-right ...</div>';
+        showStartPage();
       }
     }
 
-    fileInput.addEventListener("change", async event => {
-      const file = event.target.files[0];
-      if (!file) return;
+    openFile.addEventListener("click", async () => {
       try {
-        renderProject(parseProject(await file.text()));
+        const [fileHandle] = await window.showOpenFilePicker({
+          types: [{ description: "Markdown", accept: { "text/markdown": [".md"] } }],
+          multiple: false
+        });
+        await openMarkdownHandle(fileHandle);
       } catch (error) {
+        if (error.name === "AbortError") return;
         content.innerHTML = `<div class="error">The file could not be read: ${escapeHtml(error.message)}</div>`;
-      } finally {
-        fileInput.value = "";
       }
     });
 
+    renderRecentFiles();
     loadDefaultFile();
   </script>
 </body>
