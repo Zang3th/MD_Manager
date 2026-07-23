@@ -57,7 +57,7 @@
 
     .project-title { font-size: 1.25rem; font-weight: 600; }
     .app-logo { width: 2rem; height: 2rem; object-fit: contain; }
-    .open-label { justify-self: end; }
+    .header-actions { display: flex; align-items: center; gap: .5rem; justify-self: end; }
     .btn {
       display: inline-flex;
       align-items: center;
@@ -76,6 +76,12 @@
 
     .btn:hover { background: var(--accent-hover); }
     .file-input { display: none; }
+
+    .control-bar { display: flex; align-items: center; gap: .35rem; }
+    .control-bar[hidden] { display: none; }
+    .control-btn { border-color: var(--border-color); background: var(--bg-tertiary); color: var(--text-secondary); }
+    .control-btn:hover { background: var(--border-color); color: var(--text-primary); }
+    .control-btn[aria-pressed="true"] { background: var(--border-color); color: var(--text-primary); }
 
     main {
       display: flex;
@@ -110,8 +116,10 @@
 
     .release-heading { position: relative; }
     .release-title { padding: 0 3rem; font-size: 1.05rem; font-weight: 600; text-align: center; }
+    .release-check { position: absolute; top: 0; left: 0; color: var(--accent-hover); font-size: 1rem; font-weight: 700; }
     .release-version { position: absolute; top: .1rem; right: 0; color: var(--text-secondary); font-size: .82rem; text-align: right; }
-    .release-meta { margin-top: .4rem; padding-top: .35rem; border-top: 1px solid var(--border-color); }
+    .release-meta { display: none; margin-top: .4rem; padding-top: .35rem; border-top: 1px solid var(--border-color); }
+    .show-dates .release-meta { display: block; }
     .release-dates { color: var(--text-secondary); font-size: .78rem; font-weight: 400; list-style: none; text-align: center; }
 
     .board {
@@ -125,10 +133,13 @@
     .column {
       width: 100%;
       padding: .65rem;
+      border: 1px solid transparent;
       background: var(--bg-secondary);
       border-radius: 8px;
       box-shadow: var(--shadow);
     }
+
+    .column.complete { border-color: var(--accent); }
 
     .column-header {
       display: flex;
@@ -141,6 +152,7 @@
 
     .column-title { font-size: .95rem; font-weight: 600; }
     .feature-progress { flex: 0 0 auto; color: var(--text-secondary); font-size: .78rem; font-weight: 600; }
+    .column.complete .feature-progress { color: var(--accent-hover); }
 
     .card-list { display: grid; gap: .5rem; margin-top: .6rem; }
 
@@ -181,6 +193,20 @@
     main > .empty, main > .error { flex: 1; }
     .start-arrow { font-size: 1.6rem; }
 
+    .collapse-view main {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(max(208px, calc((100% - 3.75rem) / 6)), 1fr));
+      align-content: start;
+      align-items: stretch;
+      overflow-x: hidden;
+    }
+
+    .collapse-view .release { min-width: 0; height: 100%; }
+    .collapse-view .board { gap: .4rem; padding: .5rem; }
+    .collapse-view .column { padding: .5rem; }
+    .collapse-view .card-list { display: none; }
+    .collapse-view main > .empty, .collapse-view main > .error { grid-column: 1 / -1; }
+
     .error { color: #ef4444; }
 
     @media (max-width: 700px) {
@@ -195,7 +221,13 @@
     <div class="header-content">
       <h1 class="project-title" id="projectTitle">MD_Manager</h1>
       <img class="app-logo" src="res/Logo.svg" alt="MD_Manager logo">
-      <label class="btn open-label" for="fileInput"><span>Open Markdown</span></label>
+      <div class="header-actions">
+        <nav class="control-bar" id="viewerControls" aria-label="Viewer controls" hidden>
+          <button class="btn control-btn" id="toggleDates" type="button" aria-pressed="false">Toggle Dates</button>
+          <button class="btn control-btn" id="collapseView" type="button" aria-pressed="false">Collapse View</button>
+        </nav>
+        <label class="btn open-label" for="fileInput"><span>Open Markdown</span></label>
+      </div>
       <input class="file-input" id="fileInput" type="file" accept=".md,text/markdown,text/plain">
     </div>
   </header>
@@ -208,6 +240,9 @@
     const content = document.getElementById("content");
     const projectTitle = document.getElementById("projectTitle");
     const fileInput = document.getElementById("fileInput");
+    const viewerControls = document.getElementById("viewerControls");
+    const toggleDates = document.getElementById("toggleDates");
+    const collapseView = document.getElementById("collapseView");
 
     function parseProject(markdown) {
       const project = { title: "Untitled Project", releases: [] };
@@ -310,6 +345,7 @@
     }
 
     function renderProject(project) {
+      viewerControls.hidden = false;
       projectTitle.textContent = project.title;
       document.title = `${project.title} – MD_Manager`;
 
@@ -319,12 +355,20 @@
       }
 
       content.replaceChildren(...project.releases.map(item => {
+        const releaseComplete = item.features.length > 0 && item.features.every(columnData => {
+          const checkboxes = columnData.cards.flatMap(cardData => cardData.lines
+            .map(line => line.match(/^\s*[-*+]\s+\[([ xX])]\s+/))
+            .filter(Boolean));
+          return checkboxes.length > 0 && checkboxes.every(checkbox => checkbox[1].toLowerCase() === "x");
+        });
         const section = document.createElement("section");
         section.className = "release";
 
         const header = document.createElement("header");
         header.className = "release-header";
-        header.innerHTML = `<div class="release-heading"><h2 class="release-title">${escapeHtml(item.title)}</h2>${item.version
+        header.innerHTML = `<div class="release-heading">${releaseComplete
+          ? '<span class="release-check" title="Complete" aria-label="Complete">✓</span>'
+          : ""}<h2 class="release-title">${escapeHtml(item.title)}</h2>${item.version
           ? `<p class="release-version">v${escapeHtml(item.version)}</p>`
           : ""}</div>${item.dates.length
           ? `<div class="release-meta"><ul class="release-dates">${item.dates.map(date => `<li>${escapeHtml(date.from)}${date.to ? ` – ${escapeHtml(date.to)}` : ""}</li>`).join("")}</ul></div>`
@@ -342,6 +386,9 @@
           const featureProgress = featureCheckboxes.length
             ? Math.round(featureCompleted / featureCheckboxes.length * 100)
             : 0;
+          if (featureCheckboxes.length && featureCompleted === featureCheckboxes.length) {
+            column.classList.add("complete");
+          }
           column.innerHTML = `<header class="column-header"><h3 class="column-title">${escapeHtml(columnData.title)}</h3><span class="feature-progress">${featureProgress}%</span></header>`;
 
           const cardList = document.createElement("div");
@@ -397,16 +444,40 @@
       requestAnimationFrame(() => {
         const titles = [...document.querySelectorAll(".release-title")];
         const headers = [...document.querySelectorAll(".release-header")];
+        const releases = [...document.querySelectorAll(".release")];
         for (const title of titles) title.style.height = "auto";
         for (const header of headers) header.style.height = "auto";
+        for (const release of releases) release.style.height = "auto";
         const titleHeight = Math.max(0, ...titles.map(title => title.offsetHeight));
         for (const title of titles) title.style.height = `${titleHeight}px`;
         const headerHeight = Math.max(0, ...headers.map(header => header.offsetHeight));
         for (const header of headers) header.style.height = `${headerHeight}px`;
+        if (document.body.classList.contains("collapse-view")) {
+          const releaseHeight = Math.max(0, ...releases.map(release => release.offsetHeight));
+          for (const release of releases) release.style.height = `${releaseHeight}px`;
+        }
       });
     }
 
     window.addEventListener("resize", equalizeReleaseHeaderHeights);
+
+    toggleDates.addEventListener("click", () => {
+      const visible = document.body.classList.toggle("show-dates");
+      toggleDates.setAttribute("aria-pressed", String(visible));
+      equalizeReleaseHeaderHeights();
+    });
+
+    collapseView.addEventListener("click", () => {
+      const active = document.body.classList.toggle("collapse-view");
+      collapseView.setAttribute("aria-pressed", String(active));
+      if (active) {
+        for (const card of document.querySelectorAll(".card")) {
+          card.setAttribute("aria-expanded", "false");
+          card.querySelector(".card-body").hidden = true;
+        }
+      }
+      equalizeReleaseHeaderHeights();
+    });
 
     async function loadDefaultFile() {
       try {
