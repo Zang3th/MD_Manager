@@ -72,6 +72,14 @@ window.MDManager = window.MDManager || {};
     }
   });
 
+  app.interactions.setRemoveRecent(async index => {
+    const entry = recentFiles[index];
+    if (!entry) return;
+    await app.files.forget(entry.id);
+    recentFiles.splice(index, 1);
+    app.render.start(recentFiles);
+  });
+
   app.interactions.setHistoryActions({
     save,
     undo() {

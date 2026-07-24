@@ -90,3 +90,141 @@
 - [x] ~2. Resources and Descriptors~
 - [x] ~3. Commands and Command Buffers~
 - [x] ~4. Pipelines and Stages~
+
+## Refactoring der Basics
+
+#Version
+- 0.0.1
+
+#Date
+- 23.04.25 - 19.05.25
+
+### Allgemeines
+
+- [x] ~Projekt erstellen (initiales Git-Repo)~
+- [x] ~README.md schreiben~
+- [x] ~CMake-Konfiguration aufsetzen (3 separare Files, Engine als Static-Library etc.)~
+- [x] ~fmt inkludieren (als CMake-Subdirectory)~
+- [x] ~Dünnen Logging-Wrapper mittels Defines bauen (Ergänzung von Levels via Farben und Uhrzeit)~
+- [x] ~LSP funktioniert (CMake_EXPORT_COMPILE_COMMANDS)~
+- [x] ~Vulkan SDK ans laufen kriegen~
+- [x] ~GLFW ans laufen kriegen~
+- [x] ~ChatGPT-Projekt aufsetzen~
+- [x] ~Altes Projekt ans laufen kriegen~
+- [x] ~Projekt aufräumen~
+- [x] ~Vulkan Base Applikation erstellen (ordentlich, modular, verständlich) => API: https://x.com/SebAaltonen/status/1848311998376738892~
+- [x] ~Designated struct initializers + structured bindings verwenden~
+- [x] ~Imgui updaten~
+- [x] ~VulkanMemoryAllocator integrieren~
+- [x] ~VulkanSamples klonen~
+
+### Core
+
+- [x] ~Log implementieren~
+- [x] ~Types implementieren~
+- [x] ~Memory implementieren~
+- [x] ~Window implementieren~
+
+### Vulkan
+
+- [x] ~VulkanAssert~
+- [x] ~VulkanContext~
+- [x] ~VulkanDebug + DebugMessenger (=> VulkanContext)~
+- [x] ~vk::Instance (=> VulkanContext)~
+- [x] ~vk::SurfaceKHR (=> VulkanContext)~
+- [x] ~VulkanPhysicalDevice implementieren~
+- [x] ~VulkanDevice implementieren~
+- [x] ~VulkanSwapchain~
+- [x] ~vk::Image + vk::ImageView (=> VulkanSwapchain)~
+- [x] ~VulkanShader~
+- [x] ~VulkanModel~
+- [x] ~vk:Buffer und VmaAllocation (VulkanModel)~
+- [x] ~vk::CommandPool~
+- [x] ~vk::CommandBuffer~
+- [x] ~VulkanPipeline~
+- [x] ~DrawFrame()~
+- [x] ~Shutdown-Prozess ordentlich tracken/loggen + fixen~
+- [x] ~Swapchain refactoren~
+- [x] ~Resize fixen~
+- [x] ~Engine crashed wenn FRAMES_IN_FLIGHT =! 3~
+- [x] ~Engine allokiert jeden Frame mehr Speicher => Fixen (Passiert bei mir bei allen Vulkan-Programmen. Scheint am GLFW Wayland-Layer zu liegen)~
+
+### Graphics
+
+- [x] ~Applikationsinterface definieren und erste API überlegen~
+- [x] ~Ersten Rendererentwurf implementieren~
+
+### Fixes
+
+- [x] ~Richtige Types in Utility.cpp verwenden~
+- [x] ~Das Device an den Allocator durchreichen~
+- [x] ~Surface per const& an die Swapchain~
+- [x] ~Grep nach uint32_t, int32_t, float und double~
+
+### Kofi Game Engine Series
+
+- [x] ~Video 0~
+- [x] ~Video 2~
+- [x] ~Video 3~
+- [x] ~Video 5~
+- [x] ~Video 6~
+- [x] ~Video 7~
+- [x] ~Video 8~
+- [x] ~Video 9~
+- [x] ~Video 11~
+- [x] ~Video 12~
+- [x] ~Video 13~
+- [x] ~Video 14~
+- [x] ~Video 15~
+- [x] ~Video 16~
+- [x] ~Video 17~
+
+## Windows
+
+#Version
+- 0.1.0
+
+#Date
+- 09.12.25 - 06.01.26
+- 21.05.26 - 05.06.26
+
+### Allgemeines
+
+**Software & Tooling**
+- [x] ~RenderDoc~
+- [x] ~Blender~
+- [x] ~F3D~
+
+**Project**
+- [x] ~Vulkan SDK installieren (Winget)~
+- [x] ~CheckDependencies.py schreiben (VulkanSDK, GLSLC, CMake, Clang++/Linker, Ninja) + alle Tools welche andere Skripte verwenden~
+- [x] ~Einmal pro Woche das Projekt auf dem Laptop bauen~
+- [x] ~LogStats.py schreiben~
+- [x] ~BuildEngine.py schreiben (--debug, --release, --all, --clean)~
+- [x] ~AnalyzeSources.py schreiben (--tidy, --verify)~
+- [x] ~FormatFiles.py schreiben~
+
+**Github**
+- [x] ~README überarbeiten (u.A. mit Projektstruktur). Orientierung an SalinityGL~
+- [x] ~Minimale build instructions für Windows und Linux hinzufügen (Voraussetzungen erläutern)~
+- [x] ~Tags zum Repo hinzufügen~
+
+### Bugs
+
+- [x] ~Validation_Layer laufen auf 1.4.328 während die SDK schon auf 1.4.350 läuft => Alte SDKs müssen deinstalliert werden und man auch immer den neuesten Vulkan Configurator launchen~
+- [x] ~Minimieren reparieren~
+- [x] ~vkQueueSubmit(): Swapchain image 0 was presented but was not re-acquired => Unterschiedliche Plattformen erstellen unterschiedliche Menge an Bildern => WSI Image-Acquisition von VulkanFrame::Sync trennen~
+
+### Improvements
+
+- [x] ~Typo im Objloader.cpp~
+- [x] ~Typo in README (Punkt fehlt bei vorletzter Zeile)~
+- [x] ~std::source_location im Logging ergänzen~
+- [x] ~Aufruf der Skripte ohne Params fixen~
+- [x] ~Richtige Namespaces wie Engine::Core, Engine::Graphics etc. überall ergänzen~
+- [x] ~Skript-Output besser formatieren~
+- [x] ~RAD_Debugger Skript bauen~
+
+#Info
+- Kann ich das Logging verbessern oder muss alles zwangsläufig durch stderr laufen? => Läuft eh unter Windows nicht
+- Wie spiele ich clangd Vorschläge ("fixes available") in Neovim ein? => code_action (ga)

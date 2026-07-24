@@ -2,7 +2,7 @@ window.MDManager = window.MDManager || {};
 
 (function (app) {
   let gridContentKey = "";
-  const deleteIcon = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 4 8 8m0-8-8 8"/></svg>';
+  const deleteIcon = '<span aria-hidden="true">✕</span>';
 
   function escapeHtml(value) {
     return value.replace(/[&<>"']/g, character => ({
@@ -137,8 +137,27 @@ window.MDManager = window.MDManager || {};
   function render(project, viewState) {
     document.getElementById("viewerControls").hidden = false;
     document.getElementById("historyControls").hidden = false;
+    document.getElementById("appVersion").hidden = true;
     document.getElementById("watermark").hidden = true;
     document.getElementById("projectTitle").textContent = project.title;
+    const projectTasks = project.features.flatMap(feature => feature.tasks);
+    const projectTodos = projectTasks.flatMap(todos);
+    const completedFeatures = project.features.filter(feature => {
+      const featureTodos = feature.tasks.flatMap(todos);
+      return featureTodos.length > 0 && featureTodos.every(todo => todo.checked);
+    }).length;
+    const completedTasks = projectTasks.filter(task => {
+      const taskTodos = todos(task);
+      return taskTodos.length > 0 && taskTodos.every(todo => todo.checked);
+    }).length;
+    const completedTodos = projectTodos.filter(todo => todo.checked).length;
+    function statMarkup(label, completed, total) {
+      const state = total > 0 && completed === total ? " complete" : completed > 0 ? " in-progress" : "";
+      return `<span class="project-stat${state}"><span>${label}</span><strong>${completed} / ${total}</strong></span>`;
+    }
+    const stats = document.getElementById("projectStats");
+    stats.hidden = false;
+    stats.innerHTML = `${statMarkup("Features", completedFeatures, project.features.length)}${statMarkup("Tasks", completedTasks, projectTasks.length)}${statMarkup("ToDos", completedTodos, projectTodos.length)}`;
     document.title = `${project.title} – MD_Manager`;
     const content = document.getElementById("content");
     if (!project.features.length) {
@@ -179,10 +198,12 @@ window.MDManager = window.MDManager || {};
   function showStart(entries) {
     document.getElementById("viewerControls").hidden = true;
     document.getElementById("historyControls").hidden = true;
+    document.getElementById("appVersion").hidden = false;
+    document.getElementById("projectStats").hidden = true;
     document.getElementById("watermark").hidden = false;
     document.getElementById("content").innerHTML = `<div class="empty start-screen">
       <section class="recent-files" aria-labelledby="recentFilesTitle"><h2 id="recentFilesTitle">Recent files</h2>
-        <div class="recent-files-list">${entries.length ? entries.map((entry, index) => `<button class="recent-file" data-recent="${index}" type="button"><span class="recent-file-name">${escapeHtml(entry.name)}</span><time class="recent-file-time" datetime="${new Date(entry.openedAt).toISOString()}">${new Date(entry.openedAt).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" })}</time></button>`).join("") : '<p class="recent-files-empty">No recent files</p>'}</div>
+        <div class="recent-files-list">${entries.length ? entries.map((entry, index) => `<div class="recent-file"><button class="recent-file-open" data-recent="${index}" type="button"><span class="recent-file-name">${escapeHtml(entry.name)}</span><time class="recent-file-time" datetime="${new Date(entry.openedAt).toISOString()}">${new Date(entry.openedAt).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" })}</time></button><div class="recent-file-actions"><button class="recent-delete" data-remove-recent="${index}" type="button" aria-label="Remove ${escapeHtml(entry.name)} from recent files" title="Remove from recent files">${deleteIcon}</button></div></div>`).join("") : '<p class="recent-files-empty">No recent files</p>'}</div>
       </section></div>`;
   }
 

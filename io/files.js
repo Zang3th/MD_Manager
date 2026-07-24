@@ -52,6 +52,17 @@ window.MDManager = window.MDManager || {};
     database.close();
   }
 
+  async function forget(id) {
+    const database = await openRecentDatabase();
+    await new Promise((resolve, reject) => {
+      const transaction = database.transaction("recentFiles", "readwrite");
+      transaction.objectStore("recentFiles").delete(id);
+      transaction.oncomplete = resolve;
+      transaction.onerror = () => reject(transaction.error);
+    });
+    database.close();
+  }
+
   async function read(handle) {
     if (await handle.requestPermission({ mode: "readwrite" }) !== "granted") return null;
     return { handle, markdown: await (await handle.getFile()).text() };
@@ -75,5 +86,5 @@ window.MDManager = window.MDManager || {};
     return writeQueue;
   }
 
-  app.files = { open, read, save, recent, remember };
+  app.files = { open, read, save, recent, remember, forget };
 })(window.MDManager);

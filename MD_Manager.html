@@ -18,15 +18,17 @@
 <body>
   <header class="header">
     <div class="header-content">
+      <img class="app-logo" src="res/Logo.svg" alt="MD_Manager logo">
       <div class="header-left">
         <h1 class="project-title" id="projectTitle">MD_Manager</h1>
+        <span class="app-version" id="appVersion">v0.0.3</span>
         <div class="history-controls" id="historyControls" hidden>
           <button class="btn save-btn" id="saveFile" type="button">Save</button>
           <button class="btn control-btn" id="undoChange" type="button" disabled>Undo</button>
           <button class="btn control-btn" id="redoChange" type="button" disabled>Redo</button>
         </div>
       </div>
-      <img class="app-logo" src="res/Logo.svg" alt="MD_Manager logo">
+      <div class="project-stats" id="projectStats" aria-label="Completed and total project elements" hidden></div>
       <div class="header-actions">
         <nav class="control-bar" id="viewerControls" aria-label="Viewer controls" hidden>
           <button class="btn control-btn" id="toggleMetadata" type="button" aria-pressed="false">Toggle Metadata</button>
@@ -37,6 +39,6 @@
     </div>
   </header>
   <main id="content" aria-live="polite"></main>
-  <div class="watermark" id="watermark">© 2026 MD_Manager · Tim Krüger (Zang3th) · <a href="https://github.com/Zang3th" target="_blank" rel="noopener noreferrer">GitHub</a></div>
+  <div class="watermark" id="watermark">© 2026 MD_Manager v0.0.3 · Tim Krüger (Zang3th) · <a href="https://github.com/Zang3th" target="_blank" rel="noopener noreferrer">GitHub</a></div>
 </body>
 </html>

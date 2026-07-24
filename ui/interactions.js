@@ -5,6 +5,7 @@ window.MDManager = window.MDManager || {};
   let changed = null;
   let sortables = [];
   let openRecent = null;
+  let removeRecent = null;
   let save = null;
   let undo = null;
   let redo = null;
@@ -90,7 +91,13 @@ window.MDManager = window.MDManager || {};
   }
 
   document.getElementById("content").addEventListener("click", event => {
-    const recentFile = event.target.closest(".recent-file");
+    const removeRecentButton = event.target.closest(".recent-delete");
+    if (removeRecentButton) {
+      removeRecent(Number(removeRecentButton.dataset.removeRecent));
+      return;
+    }
+
+    const recentFile = event.target.closest(".recent-file-open");
     if (recentFile) {
       openRecent(Number(recentFile.dataset.recent));
       return;
@@ -176,6 +183,7 @@ window.MDManager = window.MDManager || {};
     setProject,
     getViewState: captureViewState,
     setOpenRecent(callback) { openRecent = callback; },
+    setRemoveRecent(callback) { removeRecent = callback; },
     setHistoryActions(actions) { save = actions.save; undo = actions.undo; redo = actions.redo; },
     setHistoryState(state) {
       document.getElementById("saveFile").classList.toggle("dirty", state.dirty);
