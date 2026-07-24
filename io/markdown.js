@@ -18,7 +18,7 @@ window.MDManager = window.MDManager || {};
           project.title = title;
           project.beforeFeatures.push(line);
         } else if (level === 2) {
-          feature = { title, headerLines: [], version: "", dates: [], tasks: [] };
+          feature = { title, headerLines: [], version: "", dates: [], notes: [], tasks: [] };
           project.features.push(feature);
           task = null;
           featureMetadata = null;
@@ -33,18 +33,23 @@ window.MDManager = window.MDManager || {};
       if (task) task.lines.push(line);
       else if (feature) {
         feature.headerLines.push(line);
-        const metadataMarker = line.match(/^\s*#(Version|Date)\s*$/i);
+        const metadataMarker = line.match(/^\s*#(Version|Date|Info|Warn)\s*$/i);
         if (metadataMarker) {
           featureMetadata = metadataMarker[1].toLowerCase();
+          if (featureMetadata === "info" || featureMetadata === "warn") {
+            feature.notes.push({ type: featureMetadata, items: [] });
+          }
           continue;
         }
-        const metadataValue = line.match(/^\s*[-*+]\s+(.+?)\s*$/);
+        const metadataValue = line.match(/^(\s*)[-*+]\s+(.+?)\s*$/);
         if (metadataValue && featureMetadata === "version") {
-          if (!feature.version) feature.version = metadataValue[1];
+          if (!feature.version) feature.version = metadataValue[2];
           featureMetadata = null;
         } else if (metadataValue && featureMetadata === "date") {
-          const range = metadataValue[1].match(/^(.+?)(?:\s+-\s+(.+))?$/);
+          const range = metadataValue[2].match(/^(.+?)(?:\s+-\s+(.+))?$/);
           feature.dates.push({ from: range[1].trim(), to: range[2]?.trim() || "" });
+        } else if (metadataValue && (featureMetadata === "info" || featureMetadata === "warn")) {
+          feature.notes.at(-1).items.push({ text: metadataValue[2], indent: metadataValue[1].replace(/\t/g, "    ").length });
         } else if (line.trim()) {
           featureMetadata = null;
         }
@@ -53,15 +58,36 @@ window.MDManager = window.MDManager || {};
     return project;
   }
 
+  function serializeTaskLines(task) {
+    let note = false;
+    return task.lines.map(line => {
+      if (/^\s*#(?:Info|Warn)\s*$/i.test(line)) {
+        note = true;
+        return line;
+      }
+      if (/^\s*\*\*.+\*\*\s*$/.test(line)) {
+        note = false;
+        return line;
+      }
+      if (note) return line;
+
+      const todo = line.match(/^(\s*[-*+]\s+)(?:\[([ xX])\]\s+)?(.*)$/);
+      if (!todo) return line;
+      const checked = todo[2]?.toLowerCase() === "x" || /^~.*~$/.test(todo[3]);
+      const text = checked && !/^~.*~$/.test(todo[3]) ? `~${todo[3]}~` : todo[3];
+      return `${todo[1]}[${checked ? "x" : " "}] ${text}`;
+    });
+  }
+
   function serialize(project) {
     const lines = project.beforeFeatures.slice();
     const titleIndex = lines.findIndex(line => /^#\s+/.test(line));
     if (titleIndex >= 0) lines[titleIndex] = `# ${project.title}`;
     for (const feature of project.features) {
       lines.push(`## ${feature.title}`, ...feature.headerLines);
-      for (const task of feature.tasks) lines.push(`### ${task.title}`, ...task.lines);
+      for (const task of feature.tasks) lines.push(`### ${task.title}`, ...serializeTaskLines(task));
     }
-    const cleaned = lines.map(line => line.replace(/^(\s*[-*+]\s+)\[[ xX]\]\s+(.*)$/, "$1$2"));
+    const cleaned = lines;
     const normalized = [];
     for (let index = 0; index < cleaned.length; index++) {
       const line = cleaned[index];

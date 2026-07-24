@@ -38,12 +38,12 @@ window.MDManager = window.MDManager || {};
         result.blocks.push(group);
         return;
       }
-      const listItem = line.match(/^\s*[-*+]\s+(?:\[([ xX])\]\s+)?(.*)$/);
+      const listItem = line.match(/^(\s*)[-*+]\s+(?:\[([ xX])\]\s+)?(.*)$/);
       if (listItem) {
-        if (note) note.items.push(listItem[2]);
+        if (note) note.items.push({ text: listItem[3], indent: listItem[1].replace(/\t/g, "    ").length });
         else {
-          const checked = listItem[1]?.toLowerCase() === "x" || /^~.*~$/.test(listItem[2]);
-          const todo = { type: "todo", lineIndex, checked, text: listItem[2].replace(/^~(.*)~$/, "$1") };
+          const checked = listItem[2]?.toLowerCase() === "x" || /^~.*~$/.test(listItem[3]);
+          const todo = { type: "todo", lineIndex, checked, text: listItem[3].replace(/^~(.*)~$/, "$1") };
           group.todos.push(todo);
           result.todos.push(todo);
         }
@@ -56,10 +56,21 @@ window.MDManager = window.MDManager || {};
     return taskContent(task).todos;
   }
 
+  function notesMarkup(notes) {
+    return notes.map(note => {
+      const noteType = note.noteType || note.type;
+      return `<section class="task-note task-${noteType}"><h4>${noteType === "warn" ? "Warn" : "Info"}</h4><ul>${note.items.map(item => {
+      const text = typeof item === "string" ? item : item.text;
+      const indent = typeof item === "string" ? 0 : item.indent;
+      return `<li${indent ? ` style="margin-left:${indent}ch"` : ""}>${inlineMarkdown(text)}</li>`;
+      }).join("")}</ul></section>`;
+    }).join("");
+  }
+
   function taskBody(task) {
     const content = taskContent(task);
     const notes = content.blocks.filter(block => block.type === "note");
-    return `${notes.length ? `<div class="task-notes">${notes.map(note => `<section class="task-note task-${note.noteType}"><h4>${note.noteType === "warn" ? "Warn" : "Info"}</h4><ul>${note.items.map(text => `<li>${inlineMarkdown(text)}</li>`).join("")}</ul></section>`).join("")}</div>` : ""}
+    return `${notes.length ? `<div class="task-notes">${notesMarkup(notes)}</div>` : ""}
       <div class="task-blocks">${content.blocks.map(block => {
       if (block.type === "note") return "";
       if (block.type === "paragraph") {
@@ -117,7 +128,7 @@ window.MDManager = window.MDManager || {};
         element.style.whiteSpace = "";
         return width;
       });
-      content.style.setProperty("--grid-card-width", `${Math.min(Math.max(208, ...widths), content.clientWidth)}px`);
+      content.style.setProperty("--grid-card-width", `${Math.min(Math.max(240, ...widths), content.clientWidth)}px`);
       gridContentKey = contentKey;
       equalizeReleaseHeaders();
     });
@@ -147,13 +158,14 @@ window.MDManager = window.MDManager || {};
           <h2 class="release-title">${escapeHtml(feature.title)}</h2>
           ${feature.version ? `<p class="release-version">v${escapeHtml(feature.version)}</p>` : ""}
         </div>${feature.dates.length ? `<div class="release-meta"><ul class="release-dates">${feature.dates.map(date => `<li>${escapeHtml(date.from)}${date.to ? ` – ${escapeHtml(date.to)}` : ""}</li>`).join("")}</ul></div>` : ""}</header>
+        ${feature.notes.length ? `<div class="feature-notes task-notes">${notesMarkup(feature.notes)}</div>` : ""}
         <div class="board">${feature.tasks.map((task, taskIndex) => {
           const taskTodos = todos(task);
           const done = taskTodos.filter(todo => todo.checked).length;
           const taskComplete = taskTodos.length > 0 && done === taskTodos.length;
           const taskInProgress = done > 0 && !taskComplete;
           return `<section class="card${taskComplete ? " complete" : ""}${taskInProgress ? " in-progress" : ""}${taskTodos.length ? "" : " empty-task"}" data-task="${taskIndex}" tabindex="0" aria-expanded="${taskTodos.length ? "false" : "true"}">
-            <header class="card-header">${taskComplete ? '<span class="task-check" title="Complete" aria-label="Complete">✓</span>' : ""}<h3 class="card-title">${escapeHtml(task.title)}</h3><span class="task-progress">${done}/${taskTodos.length}</span><button class="delete-btn" data-delete="task" type="button" aria-label="Delete task" title="Delete task">${deleteIcon}</button></header>
+            <header class="card-header"><h3 class="card-title">${escapeHtml(task.title)}</h3><span class="task-status">${taskComplete ? '<span class="task-check" title="Complete" aria-label="Complete">✓</span>' : ""}<span class="task-progress">${done}/${taskTodos.length}</span></span><button class="delete-btn" data-delete="task" type="button" aria-label="Delete task" title="Delete task">${deleteIcon}</button></header>
             <div class="card-body"${taskTodos.length ? " hidden" : ""}>${taskBody(task)}</div>
           </section>`;
         }).join("")}</div>

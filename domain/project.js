@@ -42,7 +42,7 @@ window.MDManager = window.MDManager || {};
       const match = task.lines[lineIndex].match(/^(\s*[-*+]\s+)(?:\[[ xX]\]\s+)?(.*)$/);
       if (!match) return;
       const text = match[2].replace(/^~(.*)~$/, "$1");
-      task.lines[lineIndex] = `${match[1]}${checked ? `~${text}~` : text}`;
+      task.lines[lineIndex] = `${match[1]}[${checked ? "x" : " "}] ${checked ? `~${text}~` : text}`;
     }
   };
 })(window.MDManager);
