@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no" ?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="902" height="902" viewBox="0 0 1080 1080" xml:space="preserve">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="1080" height="1080" viewBox="0 0 1080 1080" xml:space="preserve">
 <desc>Created with Fabric.js 6.5.3</desc>
 <defs>
 </defs>
-<g transform="matrix(6.6667 0 0 6.6667 543.3333 543.3333)"  >
-<circle style="stroke: none; stroke-width: 1; stroke-dasharray: none; stroke-linecap: butt; stroke-dashoffset: 0; stroke-linejoin: miter; stroke-miterlimit: 4; fill: rgb(9,36,73); fill-rule: nonzero; opacity: 1;"  cx="0" cy="0" r="75" />
+<g transform="matrix(5.5679 0 0 5.5679 540 540)"  >
+<circle style="stroke: none; stroke-width: 1; stroke-dasharray: none; stroke-linecap: butt; stroke-dashoffset: 0; stroke-linejoin: miter; stroke-miterlimit: 4; fill: rgb(40,40,40); fill-rule: nonzero; opacity: 1;"  cx="0" cy="0" r="75" />
 </g>
-<g transform="matrix(3.3333 0 0 3.3333 541.6667 541.6667)"  >
-<polygon style="stroke: none; stroke-width: 1; stroke-dasharray: none; stroke-linecap: butt; stroke-dashoffset: 0; stroke-linejoin: miter; stroke-miterlimit: 4; fill: rgb(255,255,255); fill-rule: nonzero; opacity: 1;"  points="-75,-25 -25,-25 -25,-75 25,-75 25,-25 75,-25 75,25 25,25 25,75 -25,75 -25,25 -75,25 " />
+<g transform="matrix(2.7839 0 0 2.7839 538.6081 538.6081)"  >
+<polygon style="stroke: none; stroke-width: 1; stroke-dasharray: none; stroke-linecap: butt; stroke-dashoffset: 0; stroke-linejoin: miter; stroke-miterlimit: 4; fill: rgb(184,187,38); fill-rule: nonzero; opacity: 1;"  points="-75,-25 -25,-25 -25,-75 25,-75 25,-25 75,-25 75,25 25,25 25,75 -25,75 -25,25 -75,25 " />
 </g>
 </svg>
