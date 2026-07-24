@@ -1,19 +1,28 @@
 # Project
 
-## Release
+## Feature
 
-- #Version: 0.0.0
-- #Date: 01.01.1970 - 01.02.1970
-- #Date: 02.02.1980 - 03.02.1980
+#Version
+- 0.0.0
 
-### Feature
+#Date
+- 01.01.1970 - 01.02.1970
+- 02.02.1980 - 03.02.1980
 
-#### Task
+### Task
 
-- ToDo 1
+#Info
+- Do X
 
-### Feature
+#Warn
+- Crash
 
-#### Task
+**ToDo's**
+- ~ToDo 1~
 
-- ToDo 1
+**Bugs**
+- ~Fix 1~
+
+### Task
+
+- ~ToDo 2~

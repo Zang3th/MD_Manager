@@ -7,22 +7,42 @@ window.MDManager = window.MDManager || {};
   }
 
   app.domain = {
-    moveRelease(project, fromIndex, toIndex) {
-      moveItem(project.releases, fromIndex, toIndex);
+    moveFeature(project, fromIndex, toIndex) {
+      moveItem(project.features, fromIndex, toIndex);
     },
-    moveFeature(project, fromRelease, fromIndex, toRelease, toIndex) {
-      const feature = project.releases[fromRelease].features.splice(fromIndex, 1)[0];
-      project.releases[toRelease].features.splice(toIndex, 0, feature);
+    moveTask(project, fromFeature, fromIndex, toFeature, toIndex) {
+      const task = project.features[fromFeature].tasks.splice(fromIndex, 1)[0];
+      project.features[toFeature].tasks.splice(toIndex, 0, task);
     },
-    moveCard(project, fromRelease, fromFeature, fromIndex, toRelease, toFeature, toIndex) {
-      const card = project.releases[fromRelease].features[fromFeature].cards.splice(fromIndex, 1)[0];
-      project.releases[toRelease].features[toFeature].cards.splice(toIndex, 0, card);
+    deleteFeature(project, featureIndex) {
+      project.features.splice(featureIndex, 1);
     },
-    setTodo(card, lineIndex, checked) {
-      card.lines[lineIndex] = card.lines[lineIndex].replace(
-        /^(\s*[-*+]\s+)(?:\[[ xX]\]\s+)?/,
-        `$1[${checked ? "x" : " "}] `
-      );
+    deleteTask(project, featureIndex, taskIndex) {
+      project.features[featureIndex].tasks.splice(taskIndex, 1);
+    },
+    deleteTodo(task, lineIndex) {
+      task.lines.splice(lineIndex, 1);
+    },
+    moveTodo(project, fromFeature, fromTask, fromLine, toFeature, toTask, toAnchorLine, toIndex) {
+      const source = project.features[fromFeature].tasks[fromTask];
+      const target = project.features[toFeature].tasks[toTask];
+      const todo = source.lines.splice(fromLine, 1)[0];
+      if (source === target && fromLine < toAnchorLine) toAnchorLine--;
+      const nextBoundary = target.lines.findIndex((line, index) => index > toAnchorLine && /^\s*(?:#(?:Info|Warn)|\*\*.+\*\*)\s*$/i.test(line));
+      const groupEnd = nextBoundary >= 0 ? nextBoundary : target.lines.length;
+      const targetLines = target.lines.map((line, index) => index > toAnchorLine && index < groupEnd && /^\s*[-*+]\s+/.test(line) ? index : -1)
+        .filter(index => index >= 0);
+      let insertionLine;
+      if (toIndex < targetLines.length) insertionLine = targetLines[toIndex];
+      else if (targetLines.length) insertionLine = targetLines[targetLines.length - 1] + 1;
+      else insertionLine = toAnchorLine + 1;
+      target.lines.splice(insertionLine, 0, todo);
+    },
+    setTodo(task, lineIndex, checked) {
+      const match = task.lines[lineIndex].match(/^(\s*[-*+]\s+)(?:\[[ xX]\]\s+)?(.*)$/);
+      if (!match) return;
+      const text = match[2].replace(/^~(.*)~$/, "$1");
+      task.lines[lineIndex] = `${match[1]}${checked ? `~${text}~` : text}`;
     }
   };
 })(window.MDManager);

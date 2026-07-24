@@ -2,6 +2,8 @@ window.MDManager = window.MDManager || {};
 
 (function (app) {
   let gridContentKey = "";
+  const deleteIcon = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 4 8 8m0-8-8 8"/></svg>';
+
   function escapeHtml(value) {
     return value.replace(/[&<>"']/g, character => ({
       "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;"
@@ -16,43 +18,69 @@ window.MDManager = window.MDManager || {};
       .replace(/\[([^\]]+)]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
   }
 
-  function todos(card) {
-    return card.lines.map((line, lineIndex) => {
-      const match = line.match(/^\s*[-*+]\s+(?:\[([ xX])\]\s+)?(.*)$/);
-      return match ? { lineIndex, checked: match[1]?.toLowerCase() === "x", text: match[2] } : null;
-    }).filter(Boolean);
+  function taskContent(task) {
+    const initialGroup = { type: "group", title: "", lineIndex: -1, todos: [] };
+    const result = { blocks: [initialGroup], todos: [] };
+    let group = initialGroup;
+    let note = null;
+    task.lines.forEach((line, lineIndex) => {
+      const noteMarker = line.match(/^\s*#(Info|Warn)\s*$/i);
+      if (noteMarker) {
+        note = { type: "note", noteType: noteMarker[1].toLowerCase(), lineIndex, items: [] };
+        result.blocks.push(note);
+        group = null;
+        return;
+      }
+      const separator = line.match(/^\s*\*\*(.+)\*\*\s*$/);
+      if (separator) {
+        note = null;
+        group = { type: "group", title: separator[1], lineIndex, todos: [] };
+        result.blocks.push(group);
+        return;
+      }
+      const listItem = line.match(/^\s*[-*+]\s+(?:\[([ xX])\]\s+)?(.*)$/);
+      if (listItem) {
+        if (note) note.items.push(listItem[2]);
+        else {
+          const checked = listItem[1]?.toLowerCase() === "x" || /^~.*~$/.test(listItem[2]);
+          const todo = { type: "todo", lineIndex, checked, text: listItem[2].replace(/^~(.*)~$/, "$1") };
+          group.todos.push(todo);
+          result.todos.push(todo);
+        }
+      } else if (line.trim() && !note) result.blocks.push({ type: "paragraph", text: line.trim() });
+    });
+    return result;
   }
 
-  function cardBody(card) {
-    const parts = [];
-    let listOpen = false;
-    for (let lineIndex = 0; lineIndex < card.lines.length; lineIndex++) {
-      const line = card.lines[lineIndex];
-      const match = line.match(/^\s*[-*+]\s+(?:\[([ xX])\]\s+)?(.*)$/);
-      if (match) {
-        if (!listOpen) parts.push("<ul>");
-        listOpen = true;
-        const checked = match[1]?.toLowerCase() === "x";
-        parts.push(`<li><button class="checkbox${checked ? " checked" : ""}" data-line="${lineIndex}" data-checked="${checked}" type="button" aria-label="Toggle todo" aria-pressed="${checked}">${checked ? "☑" : "☐"}</button><span class="todo-text${checked ? " completed" : ""}">${inlineMarkdown(match[2])}</span></li>`);
-      } else {
-        if (listOpen) parts.push("</ul>");
-        listOpen = false;
-        if (line.trim()) parts.push(`<p>${inlineMarkdown(line.trim())}</p>`);
+  function todos(task) {
+    return taskContent(task).todos;
+  }
+
+  function taskBody(task) {
+    const content = taskContent(task);
+    const notes = content.blocks.filter(block => block.type === "note");
+    return `${notes.length ? `<div class="task-notes">${notes.map(note => `<section class="task-note task-${note.noteType}"><h4>${note.noteType === "warn" ? "Warn" : "Info"}</h4><ul>${note.items.map(text => `<li>${inlineMarkdown(text)}</li>`).join("")}</ul></section>`).join("")}</div>` : ""}
+      <div class="task-blocks">${content.blocks.map(block => {
+      if (block.type === "note") return "";
+      if (block.type === "paragraph") {
+        return `<p>${inlineMarkdown(block.text)}</p>`;
       }
-    }
-    if (listOpen) parts.push("</ul>");
-    return parts.join("");
+      if (!block.title && !block.todos.length && content.todos.length > 0) return "";
+      return `<section class="todo-group">${block.title ? `<div class="todo-separator">${inlineMarkdown(block.title)}</div>` : ""}
+        <div class="todo-list" data-anchor-line="${block.lineIndex}">${block.todos.map(todo => `<div class="todo-item" data-line="${todo.lineIndex}">
+          <button class="checkbox${todo.checked ? " checked" : ""}" data-checked="${todo.checked}" type="button" aria-label="Toggle todo" aria-pressed="${todo.checked}">${todo.checked ? "☑" : "☐"}</button>
+          <span class="todo-text${todo.checked ? " completed" : ""}">${inlineMarkdown(todo.text)}</span>
+          <button class="delete-btn" data-delete="todo" type="button" aria-label="Delete todo" title="Delete todo">${deleteIcon}</button>
+        </div>`).join("")}</div></section>`;
+    }).join("")}</div>`;
   }
 
   function restoreViewState(viewState) {
     if (!viewState) return;
-    document.querySelectorAll(".column").forEach((column, index) => {
-      column.classList.toggle("collapsed", viewState.features[index] ?? true);
-    });
-    document.querySelectorAll(".card").forEach((card, index) => {
-      const expanded = viewState.cards[index] ?? false;
-      card.setAttribute("aria-expanded", String(expanded));
-      card.querySelector(".card-body").hidden = !expanded;
+    document.querySelectorAll(".card").forEach((task, index) => {
+      const expanded = viewState.tasks[index] ?? false;
+      task.setAttribute("aria-expanded", String(expanded));
+      task.querySelector(".card-body").hidden = !expanded;
     });
   }
 
@@ -77,7 +105,7 @@ window.MDManager = window.MDManager || {};
         gridContentKey = "";
         return;
       }
-      const elements = [...content.querySelectorAll(".release-title, .column-title")];
+      const elements = [...content.querySelectorAll(".release-title, .card-title")];
       const contentKey = elements.map(element => element.textContent).sort().join("\n");
       if (!force && contentKey === gridContentKey && content.style.getPropertyValue("--grid-card-width")) {
         equalizeReleaseHeaders();
@@ -85,12 +113,11 @@ window.MDManager = window.MDManager || {};
       }
       const widths = elements.map(element => {
         element.style.whiteSpace = "nowrap";
-        const width = element.scrollWidth + (element.classList.contains("release-title") ? 64 : 128);
+        const width = element.scrollWidth + (element.classList.contains("release-title") ? 96 : 112);
         element.style.whiteSpace = "";
         return width;
       });
-      const widest = Math.max(208, ...widths);
-      content.style.setProperty("--grid-card-width", `${Math.min(widest, content.clientWidth)}px`);
+      content.style.setProperty("--grid-card-width", `${Math.min(Math.max(208, ...widths), content.clientWidth)}px`);
       gridContentKey = contentKey;
       equalizeReleaseHeaders();
     });
@@ -103,43 +130,32 @@ window.MDManager = window.MDManager || {};
     document.getElementById("projectTitle").textContent = project.title;
     document.title = `${project.title} – MD_Manager`;
     const content = document.getElementById("content");
-    if (!project.releases.length) {
-      content.innerHTML = '<div class="empty">No releases found. At least one level <code>##</code> heading is required.</div>';
+    if (!project.features.length) {
+      content.innerHTML = '<div class="empty">No features found. At least one level <code>##</code> heading is required.</div>';
       return;
     }
 
-    content.innerHTML = project.releases.map((release, releaseIndex) => {
-      const complete = release.features.length > 0 && release.features.every(feature => {
-        const featureTodos = feature.cards.flatMap(todos);
-        return featureTodos.length > 0 && featureTodos.every(todo => todo.checked);
-      });
-      const releaseTodos = release.features.flatMap(feature => feature.cards.flatMap(todos));
-      const inProgress = !complete && releaseTodos.some(todo => todo.checked);
-      return `<section class="release${complete ? " complete" : ""}" data-release="${releaseIndex}">
-        <header class="release-header" tabindex="0"><div class="release-heading">
-          ${complete ? '<span class="release-check">✓</span>' : ""}
-          ${inProgress ? '<span class="release-work" title="In progress" aria-label="In progress">◐</span>' : ""}
-          <h2 class="release-title">${escapeHtml(release.title)}</h2>
-          ${release.version ? `<p class="release-version">v${escapeHtml(release.version)}</p>` : ""}
-        </div>${release.dates.length ? `<div class="release-meta"><ul class="release-dates">${release.dates.map(date => `<li>${escapeHtml(date.from)}${date.to ? ` – ${escapeHtml(date.to)}` : ""}</li>`).join("")}</ul></div>` : ""}</header>
-        <div class="board">${release.features.map((feature, featureIndex) => {
-          const featureTodos = feature.cards.flatMap(todos);
-          const done = featureTodos.filter(todo => todo.checked).length;
-          const featureComplete = featureTodos.length > 0 && done === featureTodos.length;
-          const featureInProgress = done > 0 && !featureComplete;
-          return `<article class="column collapsed${featureComplete ? " complete" : ""}${featureInProgress ? " in-progress" : ""}" data-feature="${featureIndex}">
-            <header class="column-header" tabindex="0"><h3 class="column-title">${escapeHtml(feature.title)}</h3><span class="feature-progress">${featureTodos.length ? Math.round(done / featureTodos.length * 100) : 0}%</span></header>
-            <div class="card-list">${feature.cards.map((card, cardIndex) => {
-              const cardTodos = todos(card);
-              const completed = cardTodos.filter(todo => todo.checked).length;
-              const cardComplete = cardTodos.length > 0 && completed === cardTodos.length;
-              const cardInProgress = completed > 0 && !cardComplete;
-              return `<section class="card${cardComplete ? " complete" : ""}${cardInProgress ? " in-progress" : ""}" data-card="${cardIndex}" tabindex="0" aria-expanded="false">
-                <header class="card-header"><h4 class="card-title">${escapeHtml(card.title)}</h4><span class="task-progress">${completed}/${cardTodos.length}</span></header>
-                <div class="card-body" hidden>${cardBody(card)}</div>
-              </section>`;
-            }).join("")}</div>
-          </article>`;
+    content.innerHTML = project.features.map((feature, featureIndex) => {
+      const featureTodos = feature.tasks.flatMap(todos);
+      const completed = featureTodos.filter(todo => todo.checked).length;
+      const complete = featureTodos.length > 0 && completed === featureTodos.length;
+      const inProgress = completed > 0 && !complete;
+      const percentage = featureTodos.length ? Math.round(completed / featureTodos.length * 100) : 0;
+      return `<section class="release${complete ? " complete" : ""}${inProgress ? " in-progress" : ""}" data-feature="${featureIndex}">
+        <header class="release-header" tabindex="0"><div class="release-heading"><button class="delete-btn" data-delete="feature" type="button" aria-label="Delete feature" title="Delete feature">${deleteIcon}</button>
+          <span class="feature-progress">${percentage}%</span>
+          <h2 class="release-title">${escapeHtml(feature.title)}</h2>
+          ${feature.version ? `<p class="release-version">v${escapeHtml(feature.version)}</p>` : ""}
+        </div>${feature.dates.length ? `<div class="release-meta"><ul class="release-dates">${feature.dates.map(date => `<li>${escapeHtml(date.from)}${date.to ? ` – ${escapeHtml(date.to)}` : ""}</li>`).join("")}</ul></div>` : ""}</header>
+        <div class="board">${feature.tasks.map((task, taskIndex) => {
+          const taskTodos = todos(task);
+          const done = taskTodos.filter(todo => todo.checked).length;
+          const taskComplete = taskTodos.length > 0 && done === taskTodos.length;
+          const taskInProgress = done > 0 && !taskComplete;
+          return `<section class="card${taskComplete ? " complete" : ""}${taskInProgress ? " in-progress" : ""}${taskTodos.length ? "" : " empty-task"}" data-task="${taskIndex}" tabindex="0" aria-expanded="${taskTodos.length ? "false" : "true"}">
+            <header class="card-header">${taskComplete ? '<span class="task-check" title="Complete" aria-label="Complete">✓</span>' : ""}<h3 class="card-title">${escapeHtml(task.title)}</h3><span class="task-progress">${done}/${taskTodos.length}</span><button class="delete-btn" data-delete="task" type="button" aria-label="Delete task" title="Delete task">${deleteIcon}</button></header>
+            <div class="card-body"${taskTodos.length ? " hidden" : ""}>${taskBody(task)}</div>
+          </section>`;
         }).join("")}</div>
       </section>`;
     }).join("");
@@ -153,21 +169,11 @@ window.MDManager = window.MDManager || {};
     document.getElementById("historyControls").hidden = true;
     document.getElementById("watermark").hidden = false;
     document.getElementById("content").innerHTML = `<div class="empty start-screen">
-      <section class="recent-files" aria-labelledby="recentFilesTitle">
-        <h2 id="recentFilesTitle">Recent files</h2>
-        <div class="recent-files-list">${entries.length ? entries.map((entry, index) => `
-          <button class="recent-file" data-recent="${index}" type="button">
-            <span class="recent-file-name">${escapeHtml(entry.name)}</span>
-            <time class="recent-file-time" datetime="${new Date(entry.openedAt).toISOString()}">${new Date(entry.openedAt).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" })}</time>
-          </button>`).join("") : '<p class="recent-files-empty">No recent files</p>'}</div>
-      </section>
-    </div>`;
+      <section class="recent-files" aria-labelledby="recentFilesTitle"><h2 id="recentFilesTitle">Recent files</h2>
+        <div class="recent-files-list">${entries.length ? entries.map((entry, index) => `<button class="recent-file" data-recent="${index}" type="button"><span class="recent-file-name">${escapeHtml(entry.name)}</span><time class="recent-file-time" datetime="${new Date(entry.openedAt).toISOString()}">${new Date(entry.openedAt).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" })}</time></button>`).join("") : '<p class="recent-files-empty">No recent files</p>'}</div>
+      </section></div>`;
   }
 
-  window.addEventListener("resize", () => {
-    equalizeReleaseHeaders();
-    layoutGrid(true);
-  });
-
+  window.addEventListener("resize", () => { equalizeReleaseHeaders(); layoutGrid(true); });
   app.render = { project: render, start: showStart, escapeHtml, equalizeReleaseHeaders, layoutGrid };
 })(window.MDManager);
