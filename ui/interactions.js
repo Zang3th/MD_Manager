@@ -9,6 +9,13 @@ window.MDManager = window.MDManager || {};
   let undo = null;
   let redo = null;
 
+  function captureViewState() {
+    return {
+      features: [...document.querySelectorAll(".column")].map(column => column.classList.contains("collapsed")),
+      cards: [...document.querySelectorAll(".card")].map(card => card.getAttribute("aria-expanded") === "true")
+    };
+  }
+
   function resetSortables() {
     for (const sortable of sortables) sortable.destroy();
     sortables = [];
@@ -26,7 +33,7 @@ window.MDManager = window.MDManager || {};
       ghostClass: "sortable-ghost",
       onEnd(event) {
         app.domain.moveRelease(project, event.oldIndex, event.newIndex);
-        changed();
+        changed(captureViewState());
       }
     }));
 
@@ -41,7 +48,7 @@ window.MDManager = window.MDManager || {};
           const fromRelease = Number(event.from.closest(".release").dataset.release);
           const toRelease = Number(event.to.closest(".release").dataset.release);
           app.domain.moveFeature(project, fromRelease, event.oldIndex, toRelease, event.newIndex);
-          changed();
+          changed(captureViewState());
         }
       }));
     });
@@ -61,7 +68,7 @@ window.MDManager = window.MDManager || {};
             Number(fromColumn.closest(".release").dataset.release), Number(fromColumn.dataset.feature), event.oldIndex,
             Number(toColumn.closest(".release").dataset.release), Number(toColumn.dataset.feature), event.newIndex
           );
-          changed();
+          changed(captureViewState());
         }
       }));
     });
@@ -87,14 +94,15 @@ window.MDManager = window.MDManager || {};
       const column = checkbox.closest(".column");
       const release = checkbox.closest(".release");
       const card = project.releases[release.dataset.release].features[column.dataset.feature].cards[cardElement.dataset.card];
-      const checked = !card.lines[checkbox.dataset.line].match(/^\s*[-*+]\s+\[x\]/i);
+      const checked = checkbox.dataset.checked !== "true";
       app.domain.setTodo(card, Number(checkbox.dataset.line), checked);
-      changed();
+      changed(captureViewState());
       return;
     }
 
-    const card = event.target.closest(".card");
-    if (card && !event.target.closest("a")) {
+    const cardHeader = event.target.closest(".card-header");
+    if (cardHeader) {
+      const card = cardHeader.closest(".card");
       const body = card.querySelector(".card-body");
       body.hidden = !body.hidden;
       card.setAttribute("aria-expanded", String(!body.hidden));
@@ -113,12 +121,15 @@ window.MDManager = window.MDManager || {};
   document.getElementById("toggleDates").addEventListener("click", event => {
     const active = document.body.classList.toggle("show-dates");
     event.currentTarget.setAttribute("aria-pressed", String(active));
+    app.render.equalizeReleaseHeaders();
   });
 
   document.getElementById("toggleGridView").addEventListener("click", event => {
     const active = document.body.classList.toggle("toggle-grid-view");
     event.currentTarget.setAttribute("aria-pressed", String(active));
     if (active) document.querySelectorAll(".column").forEach(column => column.classList.add("collapsed"));
+    app.render.equalizeReleaseHeaders();
+    app.render.layoutGrid(true);
   });
 
   document.getElementById("saveFile").addEventListener("click", () => save());
@@ -127,6 +138,7 @@ window.MDManager = window.MDManager || {};
 
   app.interactions = {
     setProject,
+    getViewState: captureViewState,
     setOpenRecent(callback) {
       openRecent = callback;
     },

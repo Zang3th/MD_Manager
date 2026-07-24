@@ -7,8 +7,8 @@ window.MDManager = window.MDManager || {};
   let savedMarkdown = "";
   let history = null;
 
-  function render() {
-    app.render.project(project);
+  function render(viewState) {
+    app.render.project(project, viewState);
     app.interactions.setProject(project, recordChange);
     updateHistoryControls();
   }
@@ -26,9 +26,9 @@ window.MDManager = window.MDManager || {};
     });
   }
 
-  function recordChange() {
+  function recordChange(viewState) {
     app.history.record(history, currentMarkdown());
-    render();
+    render(viewState);
   }
 
   async function save() {
@@ -39,9 +39,9 @@ window.MDManager = window.MDManager || {};
     updateHistoryControls();
   }
 
-  function restore(markdown) {
+  function restore(markdown, viewState) {
     project = app.markdown.parse(markdown);
-    render();
+    render(viewState);
   }
 
   async function useOpenedFile(opened) {
@@ -75,10 +75,10 @@ window.MDManager = window.MDManager || {};
   app.interactions.setHistoryActions({
     save,
     undo() {
-      if (history && app.history.canUndo(history)) restore(app.history.undo(history));
+      if (history && app.history.canUndo(history)) restore(app.history.undo(history), app.interactions.getViewState());
     },
     redo() {
-      if (history && app.history.canRedo(history)) restore(app.history.redo(history));
+      if (history && app.history.canRedo(history)) restore(app.history.redo(history), app.interactions.getViewState());
     }
   });
 
