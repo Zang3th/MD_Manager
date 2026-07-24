@@ -12,7 +12,8 @@ window.MDManager = window.MDManager || {};
 
   function captureViewState() {
     return {
-      tasks: [...document.querySelectorAll(".card")].map(task => task.getAttribute("aria-expanded") === "true")
+      tasks: [...document.querySelectorAll(".card")].map(task => task.getAttribute("aria-expanded") === "true"),
+      featureNotes: [...document.querySelectorAll(".feature-note")].map(note => note.getAttribute("aria-expanded") === "true")
     };
   }
 
@@ -103,6 +104,14 @@ window.MDManager = window.MDManager || {};
       return;
     }
 
+    const noteToggle = event.target.closest(".note-toggle");
+    if (noteToggle) {
+      const note = noteToggle.closest(".feature-note");
+      const expanded = note.classList.toggle("collapsed") === false;
+      note.setAttribute("aria-expanded", String(expanded));
+      return;
+    }
+
     const deleteButton = event.target.closest(".delete-btn");
     if (deleteButton) {
       event.stopPropagation();
@@ -167,6 +176,7 @@ window.MDManager = window.MDManager || {};
   document.getElementById("toggleGridView").addEventListener("click", event => {
     const active = document.body.classList.toggle("toggle-grid-view");
     event.currentTarget.setAttribute("aria-pressed", String(active));
+    app.render.setGridTitles(active);
     if (active) document.querySelectorAll(".card").forEach(task => {
       task.setAttribute("aria-expanded", "false");
       task.querySelector(".card-body").hidden = true;

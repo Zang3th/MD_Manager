@@ -56,10 +56,11 @@ window.MDManager = window.MDManager || {};
     return taskContent(task).todos;
   }
 
-  function notesMarkup(notes) {
+  function notesMarkup(notes, collapsible = false) {
     return notes.map(note => {
       const noteType = note.noteType || note.type;
-      return `<section class="task-note task-${noteType}"><h4>${noteType === "warn" ? "Warn" : "Info"}</h4><ul>${note.items.map(item => {
+      const title = noteType === "warn" ? "Warn" : "Info";
+      return `<section class="task-note task-${noteType}${collapsible ? " feature-note collapsed" : ""}"${collapsible ? ' aria-expanded="false"' : ""}>${collapsible ? `<button class="note-toggle" type="button">${title}</button>` : `<h4>${title}</h4>`}<ul>${note.items.map(item => {
       const text = typeof item === "string" ? item : item.text;
       const indent = typeof item === "string" ? 0 : item.indent;
       return `<li${indent ? ` style="margin-left:${indent}ch"` : ""}>${inlineMarkdown(text)}</li>`;
@@ -93,6 +94,11 @@ window.MDManager = window.MDManager || {};
       task.setAttribute("aria-expanded", String(expanded));
       task.querySelector(".card-body").hidden = !expanded;
     });
+    document.querySelectorAll(".feature-note").forEach((note, index) => {
+      const expanded = viewState.featureNotes?.[index] ?? false;
+      note.classList.toggle("collapsed", !expanded);
+      note.setAttribute("aria-expanded", String(expanded));
+    });
   }
 
   function equalizeReleaseHeaders() {
@@ -105,6 +111,23 @@ window.MDManager = window.MDManager || {};
       titles.forEach(title => title.style.height = `${titleHeight}px`);
       const headerHeight = Math.max(0, ...headers.map(header => header.offsetHeight));
       headers.forEach(header => header.style.height = `${headerHeight}px`);
+    });
+  }
+
+  function shortenedTitle(value) {
+    if (value.length <= 12) return value;
+    let boundary = -1;
+    for (let index = 1; index <= 12; index++) {
+      if (/\s/.test(value[index])) boundary = index;
+      else if (/[a-zäöüß]/.test(value[index - 1]) && /[A-ZÄÖÜ]/.test(value[index])) boundary = index;
+      else if (index > 1 && /[A-ZÄÖÜ]/.test(value[index - 2]) && /[A-ZÄÖÜ]/.test(value[index - 1]) && /[a-zäöüß]/.test(value[index])) boundary = index - 1;
+    }
+    return `${value.slice(0, boundary > 0 ? boundary : 12).trimEnd()} ...`;
+  }
+
+  function setGridTitles(active) {
+    document.querySelectorAll(".release-title, .card-title").forEach(title => {
+      title.textContent = active ? shortenedTitle(title.dataset.fullTitle) : title.dataset.fullTitle;
     });
   }
 
@@ -124,7 +147,16 @@ window.MDManager = window.MDManager || {};
       }
       const widths = elements.map(element => {
         element.style.whiteSpace = "nowrap";
-        const width = element.scrollWidth + (element.classList.contains("release-title") ? 96 : 112);
+        let width;
+        if (element.classList.contains("release-title")) {
+          const heading = element.closest(".release-heading");
+          const progressWidth = heading.querySelector(".feature-progress")?.offsetWidth || 0;
+          const versionWidth = heading.querySelector(".release-version")?.offsetWidth || 0;
+          width = element.scrollWidth + Math.max(48, progressWidth, versionWidth) * 2 + 24;
+        } else {
+          const statusWidth = element.closest(".card-header").querySelector(".task-status")?.offsetWidth || 0;
+          width = element.scrollWidth + statusWidth + 40;
+        }
         element.style.whiteSpace = "";
         return width;
       });
@@ -173,23 +205,24 @@ window.MDManager = window.MDManager || {};
       const percentage = featureTodos.length ? Math.round(completed / featureTodos.length * 100) : 0;
       return `<section class="release${complete ? " complete" : ""}${inProgress ? " in-progress" : ""}" data-feature="${featureIndex}">
         <header class="release-header" tabindex="0"><div class="release-heading"><button class="delete-btn" data-delete="feature" type="button" aria-label="Delete feature" title="Delete feature">${deleteIcon}</button>
-          <span class="feature-progress">${percentage}%</span>
-          <h2 class="release-title">${escapeHtml(feature.title)}</h2>
+          <span class="feature-progress"><span class="status-value">${percentage}%</span></span>
+          <h2 class="release-title" data-full-title="${escapeHtml(feature.title)}">${escapeHtml(feature.title)}</h2>
           ${feature.version ? `<p class="release-version">v${escapeHtml(feature.version)}</p>` : ""}
         </div>${feature.dates.length ? `<div class="release-meta"><ul class="release-dates">${feature.dates.map(date => `<li>${escapeHtml(date.from)}${date.to ? ` – ${escapeHtml(date.to)}` : ""}</li>`).join("")}</ul></div>` : ""}</header>
-        ${feature.notes.length ? `<div class="feature-notes task-notes">${notesMarkup(feature.notes)}</div>` : ""}
+        ${feature.notes.length ? `<div class="feature-notes task-notes">${notesMarkup(feature.notes, true)}</div>` : ""}
         <div class="board">${feature.tasks.map((task, taskIndex) => {
           const taskTodos = todos(task);
           const done = taskTodos.filter(todo => todo.checked).length;
           const taskComplete = taskTodos.length > 0 && done === taskTodos.length;
           const taskInProgress = done > 0 && !taskComplete;
           return `<section class="card${taskComplete ? " complete" : ""}${taskInProgress ? " in-progress" : ""}${taskTodos.length ? "" : " empty-task"}" data-task="${taskIndex}" tabindex="0" aria-expanded="${taskTodos.length ? "false" : "true"}">
-            <header class="card-header"><h3 class="card-title">${escapeHtml(task.title)}</h3><span class="task-status">${taskComplete ? '<span class="task-check" title="Complete" aria-label="Complete">✓</span>' : ""}<span class="task-progress">${done}/${taskTodos.length}</span></span><button class="delete-btn" data-delete="task" type="button" aria-label="Delete task" title="Delete task">${deleteIcon}</button></header>
+            <header class="card-header"><h3 class="card-title" data-full-title="${escapeHtml(task.title)}">${escapeHtml(task.title)}</h3><span class="task-status">${taskComplete ? '<span class="task-check" title="Complete" aria-label="Complete">✓</span>' : ""}<span class="task-progress">${done}/${taskTodos.length}</span></span><button class="delete-btn" data-delete="task" type="button" aria-label="Delete task" title="Delete task">${deleteIcon}</button></header>
             <div class="card-body"${taskTodos.length ? " hidden" : ""}>${taskBody(task)}</div>
           </section>`;
         }).join("")}</div>
       </section>`;
     }).join("");
+    setGridTitles(document.body.classList.contains("toggle-grid-view"));
     restoreViewState(viewState);
     equalizeReleaseHeaders();
     layoutGrid();
@@ -208,5 +241,5 @@ window.MDManager = window.MDManager || {};
   }
 
   window.addEventListener("resize", () => { equalizeReleaseHeaders(); layoutGrid(true); });
-  app.render = { project: render, start: showStart, escapeHtml, equalizeReleaseHeaders, layoutGrid };
+  app.render = { project: render, start: showStart, escapeHtml, equalizeReleaseHeaders, layoutGrid, setGridTitles };
 })(window.MDManager);

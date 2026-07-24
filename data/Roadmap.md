@@ -118,6 +118,13 @@
 - [x] ~VulkanMemoryAllocator integrieren~
 - [x] ~VulkanSamples klonen~
 
+### Improvements
+
+- [x] ~Richtige Types in Utility.cpp verwenden~
+- [x] ~Das Device an den Allocator durchreichen~
+- [x] ~Surface per const& an die Swapchain~
+- [x] ~Grep nach uint32_t, int32_t, float und double~
+
 ### Core
 
 - [x] ~Log implementieren~
@@ -153,13 +160,6 @@
 
 - [x] ~Applikationsinterface definieren und erste API überlegen~
 - [x] ~Ersten Rendererentwurf implementieren~
-
-### Fixes
-
-- [x] ~Richtige Types in Utility.cpp verwenden~
-- [x] ~Das Device an den Allocator durchreichen~
-- [x] ~Surface per const& an die Swapchain~
-- [x] ~Grep nach uint32_t, int32_t, float und double~
 
 ### Kofi Game Engine Series
 
@@ -209,12 +209,6 @@
 - [x] ~Minimale build instructions für Windows und Linux hinzufügen (Voraussetzungen erläutern)~
 - [x] ~Tags zum Repo hinzufügen~
 
-### Bugs
-
-- [x] ~Validation_Layer laufen auf 1.4.328 während die SDK schon auf 1.4.350 läuft => Alte SDKs müssen deinstalliert werden und man auch immer den neuesten Vulkan Configurator launchen~
-- [x] ~Minimieren reparieren~
-- [x] ~vkQueueSubmit(): Swapchain image 0 was presented but was not re-acquired => Unterschiedliche Plattformen erstellen unterschiedliche Menge an Bildern => WSI Image-Acquisition von VulkanFrame::Sync trennen~
-
 ### Improvements
 
 - [x] ~Typo im Objloader.cpp~
@@ -228,3 +222,61 @@
 #Info
 - Kann ich das Logging verbessern oder muss alles zwangsläufig durch stderr laufen? => Läuft eh unter Windows nicht
 - Wie spiele ich clangd Vorschläge ("fixes available") in Neovim ein? => code_action (ga)
+
+### Bugs
+
+- [x] ~Validation_Layer laufen auf 1.4.328 während die SDK schon auf 1.4.350 läuft => Alte SDKs müssen deinstalliert werden und man auch immer den neuesten Vulkan Configurator launchen~
+- [x] ~Minimieren reparieren~
+- [x] ~vkQueueSubmit(): Swapchain image 0 was presented but was not re-acquired => Unterschiedliche Plattformen erstellen unterschiedliche Menge an Bildern => WSI Image-Acquisition von VulkanFrame::Sync trennen~
+
+## ImGui
+
+#Version
+- 0.2.0
+
+#Date
+- 08.06.26 - 13.06.26
+
+### Allgemeines
+
+**Software & Tooling**
+- [x] ~Codex installieren und AGENTS.md erstellen~
+
+**Project**
+- [x] ~ImGui auf v1.92.8 upgraden => README.md anpassen~
+- [x] ~VMA auf v3.4.0 upgraden => README.md anpassen~
+- [x] ~Nächste App auf prozedurale Terraingenerierung auf der GPU ändern~
+
+### Improvements
+
+- [x] ~Logging: Shader-Creation verbessern (Typ von Shader)~
+- [x] ~Logging: Shader-Destruction verbessern (Typ von Shader)~
+- [x] ~.clang-format nochmal stärker an Firma anpassen~
+- [x] ~Codex: VulkanRenderer::DrawFrame runterstampfen => Was kann man noch besser abstrahieren oder zusammenfassen?~
+- [x] ~Codex: VulkanFrame anschauen => Ist das wirklich optimal so?~
+
+#Info
+- [x] Wie kann das LSP alles in Vendor/ und in externem Vulkan/STL Code ignorieren? => .clangd anpassen ... Funktioniert mehr schlecht als recht
+- [x] Wie kann ich dieses lästige Einsetzen von Funktionskörpern optimieren? Vim-Makro oder nen neues LSP-Binding? => Neues Keybinding auf <Tab> gelegt
+
+### Bugs
+
+- [x] ~Codex Code-Review: In allen Klassen welche interne Vulkan-Handles (owning) halten den Copy-Konstruktor und Assignment-Operator löschen, da ansonsten Double-Destroys passieren können~
+- [x] ~Codex Code-Review: Nicht-einheitliche Code-Abschnitte (welche stilistisch oder architektonisch nicht zum Rest passen)~
+- [x] ~Codex Code-Review: Riskante, unsichere Code-Abschnitte und fehlendes const~
+- [x] ~Fast-Compile Option einfügen (ohne cleanes Full-Rebuild)~
+- [x] ~GLFW Error Callback anlegen~
+- [x] ~ImGui Error Callback anlegen~
+- [x] ~API_VERSION überall korrekt ersetzen~
+- [x] ~Codex Code-Review: ImGui Integration~
+- [x] ~GLFW nur noch in Window.cpp inkludieren (denk ans Define) und Window zur einzigen Schnittstelle umbauen (danach auch auf Linux testen) + Swapchain fragt Resize/Minimize State beim Window ab (Callback sollte auch dort liegen)~
+
+### VulkanDescriptorPool
+
+- [x] ~Minimale API überlegen~
+- [x] ~Implementieren~
+
+### ImGuiLayer
+
+- [x] ~Grundlegende API und ImGui Integration überlegen~
+- [x] ~ImGui Backend integrieren~
