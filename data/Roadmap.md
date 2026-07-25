@@ -280,3 +280,165 @@
 
 - [x] ~Grundlegende API und ImGui Integration überlegen~
 - [x] ~ImGui Backend integrieren~
+
+## DescSets
+
+#Version
+- 0.2.1
+
+#Date
+- 15.06.26 - 25.06.26
+
+### Improvements
+
+- [x] ~Logging: .obj-Loading verbessern~
+- [x] ~Logging: Swapchain-Creation verbessern~
+- [x] ~Logging: Memory-Allocations verbessern~
+- [x] ~Alle Header-Includes von vulkan.hpp prüfen~
+- [x] ~Neue .obj Dateien besorgen~
+
+### Bugs
+
+- [x] ~tinyrunner warnings fixen~
+- [x] ~CullMode / Clockwise Vertice Drawing fixen + vereinheitlichen~
+
+### VulkanDescriptorSetLayout
+
+- [x] ~Minimale API überlegen~
+- [x] ~Implementieren~
+
+### VulkanGlobalUniforms
+
+- [x] ~Minimale API überlegen~
+- [x] ~Implementieren~
+
+### Timer
+
+- [x] ~Minimale API entwerfen~
+- [x] ~Implementieren~
+
+### Kofi Game Engine Series
+
+- [x] ~Video 29~
+- [x] ~Video 30~
+
+## ProfilerPanel
+
+#Version
+- 0.2.2
+
+#Date
+- Ab dem 22.07.26
+
+### Improvements
+
+- [x] ~Szene mit .obj und Debugdreieck bauen~
+- [x] ~Konstanten = 1 aus VulkanGlobalUniforms in VulkanGlobal auslagern~
+- [x] ~ObjLoader ein RandomizeColor Flag für die Vertices mitgeben~
+
+### Bugs
+
+- [ ] Profiling für Move + Resize vom Window fixen
+- [ ] Lag-Spikes inspiziieren
+
+### ProfilerPanel
+
+- [x] ~Erste einfache API überlegen~
+- [x] ~Implementieren~
+- [x] ~DrawStats pflegen~
+- [x] ~UI für das Panel finalisieren~
+
+### Depth-Buffering
+
+#Info
+- Wie läuft die Integration in RenderPass und Framebuffer beim Dynamic Rendering?
+
+**ToDo's**
+- [ ] DepthImage implementieren
+- [ ] DepthImageView implementieren
+
+### Kofi Game Engine Series
+
+- [ ] Video 31
+
+## Camera
+
+#Version
+- 0.2.3
+
+#Date
+- TBD
+
+#Info
+Die Kamera wird von der Anwendung verwaltet, dort mit Input aktualisiert und per Frame an den Renderer übergeben.
+
+Zusätzlich werden die Kamera-Parameter im ProfilerPanel dargestellt.
+
+Projektion soll Z-up rechtshändig sein (entspricht Blender):
+
+- +X = rechts
+- -Y = vorwärts
+- +Z = oben
+
+### Camera
+
+- [ ] Minimale API überlegen
+- [ ] Implementieren
+
+### CameraController
+
+- [ ] Minimale API überlegen
+- [ ] Implementieren
+
+### RenderControls
+
+#Info
+Optionen via UI steuern:
+
+- Polygon Mode
+- Cull Mode
+
+**ToDo's**
+- [ ] Interaktion / Schnittstelle mit dem Renderer überlegen
+- [ ] UI implementieren
+
+## Model
+
+#Version
+- 0.2.4
+
+#Date
+- TBD
+
+### VulkanMesh
+
+- [ ] VulkanModel in VulkanMesh umbenennen
+
+### Model
+
+#Info
+Besteht aus einem Mesh-Handle (u32) und einem Transform-Struct
+
+**ToDo's**
+- [ ] Implementieren
+
+### VulkanRenderer
+
+#Info
+- Bekommt Models submitted und pflegt damit eine RenderQueue bestehend aus RenderCommands
+- Erzeugt und speichert VulkanMeshes, aus denen mittels "CPU-Meshes", non-owning Handles returned werden
+
+**ToDo's**
+- [ ] Implementieren
+
+## WorldGrid
+
+#Version
+- 0.2.5
+
+#Date
+- TBD
+
+### WorldGrid
+
+### WorldAxes

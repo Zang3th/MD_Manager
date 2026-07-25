@@ -47,7 +47,8 @@ window.MDManager = window.MDManager || {};
           group.todos.push(todo);
           result.todos.push(todo);
         }
-      } else if (line.trim() && !note) result.blocks.push({ type: "paragraph", text: line.trim() });
+      } else if (line.trim() && note) note.items.push({ text: line.trim(), paragraph: true });
+      else if (line.trim()) result.blocks.push({ type: "paragraph", text: line.trim() });
     });
     return result;
   }
@@ -60,11 +61,20 @@ window.MDManager = window.MDManager || {};
     return notes.map(note => {
       const noteType = note.noteType || note.type;
       const title = noteType === "warn" ? "Warn" : "Info";
-      return `<section class="task-note task-${noteType}${collapsible ? " feature-note collapsed" : ""}"${collapsible ? ' aria-expanded="false"' : ""}>${collapsible ? `<button class="note-toggle" type="button">${title}</button>` : `<h4>${title}</h4>`}<ul>${note.items.map(item => {
-      const text = typeof item === "string" ? item : item.text;
-      const indent = typeof item === "string" ? 0 : item.indent;
-      return `<li${indent ? ` style="margin-left:${indent}ch"` : ""}>${inlineMarkdown(text)}</li>`;
-      }).join("")}</ul></section>`;
+      let listOpen = false;
+      const content = note.items.map(item => {
+        const text = typeof item === "string" ? item : item.text;
+        const indent = typeof item === "string" ? 0 : item.indent;
+        if (item.paragraph) {
+          const markup = `${listOpen ? "</ul>" : ""}<p>${inlineMarkdown(text)}</p>`;
+          listOpen = false;
+          return markup;
+        }
+        const markup = `${listOpen ? "" : "<ul>"}<li${indent ? ` style="margin-left:${indent}ch"` : ""}>${inlineMarkdown(text)}</li>`;
+        listOpen = true;
+        return markup;
+      }).join("");
+      return `<section class="task-note task-${noteType}${collapsible ? " feature-note collapsed" : ""}"${collapsible ? ' aria-expanded="false"' : ""}>${collapsible ? `<button class="note-toggle" type="button">${title}</button>` : `<h4>${title}</h4>`}${content}${listOpen ? "</ul>" : ""}</section>`;
     }).join("");
   }
 
@@ -174,22 +184,26 @@ window.MDManager = window.MDManager || {};
     document.getElementById("projectTitle").textContent = project.title;
     const projectTasks = project.features.flatMap(feature => feature.tasks);
     const projectTodos = projectTasks.flatMap(todos);
-    const completedFeatures = project.features.filter(feature => {
-      const featureTodos = feature.tasks.flatMap(todos);
-      return featureTodos.length > 0 && featureTodos.every(todo => todo.checked);
-    }).length;
-    const completedTasks = projectTasks.filter(task => {
-      const taskTodos = todos(task);
-      return taskTodos.length > 0 && taskTodos.every(todo => todo.checked);
-    }).length;
-    const completedTodos = projectTodos.filter(todo => todo.checked).length;
-    function statMarkup(label, completed, total) {
-      const state = total > 0 && completed === total ? " complete" : completed > 0 ? " in-progress" : "";
-      return `<span class="project-stat${state}"><span>${label}</span><strong>${completed} / ${total}</strong></span>`;
+    function statusCounts(items, itemTodos) {
+      const counts = { done: 0, active: 0, open: 0 };
+      items.forEach(item => {
+        const entries = itemTodos(item);
+        const completed = entries.filter(entry => entry.checked).length;
+        if (entries.length > 0 && completed === entries.length) counts.done++;
+        else if (completed > 0) counts.active++;
+        else counts.open++;
+      });
+      return counts;
+    }
+    const featureCounts = statusCounts(project.features, feature => feature.tasks.flatMap(todos));
+    const taskCounts = statusCounts(projectTasks, todos);
+    const todoCounts = { done: projectTodos.filter(todo => todo.checked).length, active: 0, open: projectTodos.filter(todo => !todo.checked).length };
+    function statRow(label, counts) {
+      return `<tr><th scope="row">${label}</th><td class="done">${counts.done}</td><td class="active">${counts.active}</td><td>${counts.open}</td></tr>`;
     }
     const stats = document.getElementById("projectStats");
     stats.hidden = false;
-    stats.innerHTML = `${statMarkup("Features", completedFeatures, project.features.length)}${statMarkup("Tasks", completedTasks, projectTasks.length)}${statMarkup("ToDos", completedTodos, projectTodos.length)}`;
+    stats.innerHTML = `<table><thead><tr><th></th><th class="done" scope="col">Done</th><th class="active" scope="col">Active</th><th scope="col">Open</th></tr></thead><tbody>${statRow("Features", featureCounts)}${statRow("Tasks", taskCounts)}${statRow("Todos", todoCounts)}</tbody></table>`;
     document.title = `${project.title} – MD_Manager`;
     const content = document.getElementById("content");
     if (!project.features.length) {
@@ -215,9 +229,9 @@ window.MDManager = window.MDManager || {};
           const done = taskTodos.filter(todo => todo.checked).length;
           const taskComplete = taskTodos.length > 0 && done === taskTodos.length;
           const taskInProgress = done > 0 && !taskComplete;
-          return `<section class="card${taskComplete ? " complete" : ""}${taskInProgress ? " in-progress" : ""}${taskTodos.length ? "" : " empty-task"}" data-task="${taskIndex}" tabindex="0" aria-expanded="${taskTodos.length ? "false" : "true"}">
+          return `<section class="card${taskComplete ? " complete" : ""}${taskInProgress ? " in-progress" : ""}${taskTodos.length ? "" : " empty-task"}" data-task="${taskIndex}" tabindex="0" aria-expanded="false">
             <header class="card-header"><h3 class="card-title" data-full-title="${escapeHtml(task.title)}">${escapeHtml(task.title)}</h3><span class="task-status">${taskComplete ? '<span class="task-check" title="Complete" aria-label="Complete">✓</span>' : ""}<span class="task-progress">${done}/${taskTodos.length}</span></span><button class="delete-btn" data-delete="task" type="button" aria-label="Delete task" title="Delete task">${deleteIcon}</button></header>
-            <div class="card-body"${taskTodos.length ? " hidden" : ""}>${taskBody(task)}</div>
+            <div class="card-body" hidden>${taskBody(task)}</div>
           </section>`;
         }).join("")}</div>
       </section>`;

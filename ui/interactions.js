@@ -10,6 +10,21 @@ window.MDManager = window.MDManager || {};
   let undo = null;
   let redo = null;
 
+  function updateStatsVisibility() {
+    const stats = document.getElementById("projectStats");
+    if (stats.hidden) return;
+    const statsRect = stats.getBoundingClientRect();
+    const obstructed = [...document.querySelectorAll('.card[aria-expanded="true"]')].some(card => {
+      const cardRect = card.getBoundingClientRect();
+      return cardRect.left < statsRect.right && cardRect.right > statsRect.left && cardRect.top < statsRect.bottom && cardRect.bottom > statsRect.top;
+    });
+    stats.classList.toggle("obstructed", obstructed);
+  }
+
+  function scheduleStatsVisibility() {
+    requestAnimationFrame(updateStatsVisibility);
+  }
+
   function captureViewState() {
     return {
       tasks: [...document.querySelectorAll(".card")].map(task => task.getAttribute("aria-expanded") === "true"),
@@ -89,6 +104,7 @@ window.MDManager = window.MDManager || {};
     project = nextProject;
     changed = onChanged;
     connectSortable();
+    scheduleStatsVisibility();
   }
 
   document.getElementById("content").addEventListener("click", event => {
@@ -158,11 +174,17 @@ window.MDManager = window.MDManager || {};
 
     const featureHeader = event.target.closest(".release-header");
     if (featureHeader) {
-      const tasks = [...featureHeader.closest(".release").querySelectorAll(".card")];
-      const expand = tasks.some(task => task.getAttribute("aria-expanded") !== "true");
+      const feature = featureHeader.closest(".release");
+      const tasks = [...feature.querySelectorAll(".card")];
+      const notes = [...feature.querySelectorAll(".feature-note")];
+      const expand = tasks.some(task => task.getAttribute("aria-expanded") !== "true") || notes.some(note => note.getAttribute("aria-expanded") !== "true");
       tasks.forEach(task => {
         task.setAttribute("aria-expanded", String(expand));
         task.querySelector(".card-body").hidden = !expand;
+      });
+      notes.forEach(note => {
+        note.classList.toggle("collapsed", !expand);
+        note.setAttribute("aria-expanded", String(expand));
       });
     }
   });
@@ -181,6 +203,10 @@ window.MDManager = window.MDManager || {};
       task.setAttribute("aria-expanded", "false");
       task.querySelector(".card-body").hidden = true;
     });
+    if (active) document.querySelectorAll(".feature-note").forEach(note => {
+      note.classList.add("collapsed");
+      note.setAttribute("aria-expanded", "false");
+    });
     app.render.equalizeReleaseHeaders();
     app.render.layoutGrid(true);
   });
@@ -188,6 +214,9 @@ window.MDManager = window.MDManager || {};
   document.getElementById("saveFile").addEventListener("click", () => save());
   document.getElementById("undoChange").addEventListener("click", () => undo());
   document.getElementById("redoChange").addEventListener("click", () => redo());
+  document.addEventListener("click", scheduleStatsVisibility);
+  document.getElementById("content").addEventListener("scroll", updateStatsVisibility);
+  window.addEventListener("resize", scheduleStatsVisibility);
 
   app.interactions = {
     setProject,

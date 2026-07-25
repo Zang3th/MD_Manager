@@ -50,6 +50,8 @@ window.MDManager = window.MDManager || {};
           feature.dates.push({ from: range[1].trim(), to: range[2]?.trim() || "" });
         } else if (metadataValue && (featureMetadata === "info" || featureMetadata === "warn")) {
           feature.notes.at(-1).items.push({ text: metadataValue[2], indent: metadataValue[1].replace(/\t/g, "    ").length });
+        } else if (line.trim() && (featureMetadata === "info" || featureMetadata === "warn")) {
+          feature.notes.at(-1).items.push({ text: line.trim(), paragraph: true });
         } else if (line.trim()) {
           featureMetadata = null;
         }
