@@ -8,8 +8,13 @@ window.MDManager = window.MDManager || {};
     let feature = null;
     let task = null;
     let featureMetadata = null;
+    let pendingBacklog = false;
 
     for (const line of lines) {
+      if (/^\s*#Backlog\s*$/i.test(line)) {
+        pendingBacklog = true;
+        continue;
+      }
       const heading = line.match(/^(#{1,3})\s+(.+?)\s*#*\s*$/);
       if (heading) {
         const level = heading[1].length;
@@ -18,10 +23,11 @@ window.MDManager = window.MDManager || {};
           project.title = title;
           project.beforeFeatures.push(line);
         } else if (level === 2) {
-          feature = { title, headerLines: [], version: "", dates: [], notes: [], tasks: [] };
+          feature = { title, headerLines: [], version: "", dates: [], notes: [], tasks: [], isBacklog: pendingBacklog };
           project.features.push(feature);
           task = null;
           featureMetadata = null;
+          pendingBacklog = false;
         } else if (level === 3 && feature) {
           task = { title, lines: [] };
           feature.tasks.push(task);
@@ -29,6 +35,8 @@ window.MDManager = window.MDManager || {};
         }
         continue;
       }
+
+      if (pendingBacklog && line.trim()) pendingBacklog = false;
 
       if (task) task.lines.push(line);
       else if (feature) {
@@ -57,6 +65,7 @@ window.MDManager = window.MDManager || {};
         }
       } else project.beforeFeatures.push(line);
     }
+    project.features = [...project.features.filter(feature => !feature.isBacklog), ...project.features.filter(feature => feature.isBacklog)];
     return project;
   }
 
@@ -85,7 +94,9 @@ window.MDManager = window.MDManager || {};
     const lines = project.beforeFeatures.slice();
     const titleIndex = lines.findIndex(line => /^#\s+/.test(line));
     if (titleIndex >= 0) lines[titleIndex] = `# ${project.title}`;
-    for (const feature of project.features) {
+    const orderedFeatures = [...project.features.filter(feature => !feature.isBacklog), ...project.features.filter(feature => feature.isBacklog)];
+    for (const feature of orderedFeatures) {
+      if (feature.isBacklog) lines.push("#Backlog");
       lines.push(`## ${feature.title}`, ...feature.headerLines);
       for (const task of feature.tasks) lines.push(`### ${task.title}`, ...serializeTaskLines(task));
     }
@@ -95,13 +106,20 @@ window.MDManager = window.MDManager || {};
       const line = cleaned[index];
       const heading = /^#{1,3}\s+/.test(line);
       const label = /^\s*\*\*.+\*\*\s*$/.test(line);
+      const backlogMarker = /^\s*#Backlog\s*$/i.test(line);
+      if (backlogMarker) {
+        while (normalized.at(-1)?.trim() === "") normalized.pop();
+        if (normalized.length) normalized.push("");
+        normalized.push(line);
+        continue;
+      }
       if (!heading && !label) {
         normalized.push(line);
         continue;
       }
 
       while (normalized.at(-1)?.trim() === "") normalized.pop();
-      if (normalized.length) normalized.push("");
+      if (normalized.length && normalized.at(-1)?.trim().toLowerCase() !== "#backlog") normalized.push("");
       normalized.push(line);
 
       while (cleaned[index + 1]?.trim() === "") index++;

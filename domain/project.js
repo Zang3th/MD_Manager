@@ -8,7 +8,9 @@ window.MDManager = window.MDManager || {};
 
   app.domain = {
     moveFeature(project, fromIndex, toIndex) {
-      moveItem(project.features, fromIndex, toIndex);
+      if (project.features[fromIndex]?.isBacklog) return;
+      const backlogIndex = project.features.findIndex(feature => feature.isBacklog);
+      moveItem(project.features, fromIndex, backlogIndex >= 0 ? Math.min(toIndex, backlogIndex - 1) : toIndex);
     },
     moveTask(project, fromFeature, fromIndex, toFeature, toIndex) {
       const task = project.features[fromFeature].tasks.splice(fromIndex, 1)[0];

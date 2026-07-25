@@ -21,7 +21,7 @@
       <img class="app-logo" src="res/Logo.svg" alt="MD_Manager logo">
       <div class="header-left">
         <h1 class="project-title" id="projectTitle">MD_Manager</h1>
-        <span class="app-version" id="appVersion">v0.0.4</span>
+        <span class="app-version" id="appVersion">v0.0.5</span>
         <div class="history-controls" id="historyControls" hidden>
           <button class="btn save-btn" id="saveFile" type="button">Save</button>
           <button class="btn control-btn" id="undoChange" type="button" disabled>Undo</button>
@@ -31,14 +31,17 @@
       <div class="project-stats" id="projectStats" aria-label="Project status overview" hidden></div>
       <div class="header-actions">
         <nav class="control-bar" id="viewerControls" aria-label="Viewer controls" hidden>
-          <button class="btn control-btn" id="toggleMetadata" type="button" aria-pressed="false">Toggle Metadata</button>
-          <button class="btn control-btn" id="toggleGridView" type="button" aria-pressed="false">Toggle Grid View</button>
+          <button class="btn control-btn" id="toggleMetadata" type="button" aria-pressed="false">Metadata</button>
+          <button class="btn control-btn" id="toggleStats" type="button" aria-pressed="true">Stats</button>
+          <button class="btn control-btn" id="toggleGridView" type="button" aria-pressed="false">Grid View</button>
+          <button class="btn control-btn" id="toggleBacklog" type="button" aria-pressed="false" disabled>Backlog</button>
         </nav>
         <button class="btn" id="openFile" type="button">Open Markdown</button>
       </div>
     </div>
   </header>
   <main id="content" aria-live="polite"></main>
-  <div class="watermark" id="watermark">© 2026 MD_Manager v0.0.4 · Tim Krüger (Zang3th) · <a href="https://github.com/Zang3th" target="_blank" rel="noopener noreferrer">GitHub</a></div>
+  <section class="release backlog" id="backlog" aria-label="Backlog" hidden></section>
+  <div class="watermark" id="watermark">© 2026 MD_Manager v0.0.5 · Tim Krüger (Zang3th) · <a href="https://github.com/Zang3th" target="_blank" rel="noopener noreferrer">GitHub</a></div>
 </body>
 </html>

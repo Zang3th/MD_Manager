@@ -25,11 +25,53 @@ window.MDManager = window.MDManager || {};
     requestAnimationFrame(updateStatsVisibility);
   }
 
+  function updateBacklogSpace() {
+    const backlog = document.getElementById("backlog");
+    if (backlog.hidden) return;
+    backlog.style.removeProperty("max-height");
+    const backlogRect = backlog.getBoundingClientRect();
+    const featureBottom = Math.max(0, ...[...document.querySelectorAll("#content > .release")]
+      .map(feature => feature.getBoundingClientRect())
+      .filter(feature => feature.left < backlogRect.right && feature.right > backlogRect.left)
+      .map(feature => feature.bottom));
+    const bottomGap = parseFloat(getComputedStyle(backlog).bottom) || 0;
+    const cardGap = parseFloat(getComputedStyle(document.documentElement).fontSize) * .75;
+    backlog.style.maxHeight = `${Math.max(0, window.innerHeight - featureBottom - bottomGap - cardGap)}px`;
+  }
+
+  function scheduleBacklogSpace() {
+    requestAnimationFrame(updateBacklogSpace);
+  }
+
   function captureViewState() {
     return {
       tasks: [...document.querySelectorAll(".card")].map(task => task.getAttribute("aria-expanded") === "true"),
-      featureNotes: [...document.querySelectorAll(".feature-note")].map(note => note.getAttribute("aria-expanded") === "true")
+      featureNotes: [...document.querySelectorAll(".feature-note")].map(note => note.getAttribute("aria-expanded") === "true"),
+      backlogOpen: !document.getElementById("backlog").hidden
     };
+  }
+
+  function collapseAll() {
+    document.querySelectorAll(".card").forEach(task => {
+      task.setAttribute("aria-expanded", "false");
+      task.querySelector(".card-body").hidden = true;
+    });
+    document.querySelectorAll(".feature-note").forEach(note => {
+      note.classList.add("collapsed");
+      note.setAttribute("aria-expanded", "false");
+    });
+  }
+
+  function toggleBacklog() {
+    const backlog = document.getElementById("backlog");
+    const button = document.getElementById("toggleBacklog");
+    if (button.disabled) return;
+    const open = backlog.hidden;
+    if (open) collapseAll();
+    backlog.hidden = !open;
+    button.setAttribute("aria-pressed", String(open));
+    scheduleStatsVisibility();
+    scheduleBacklogSpace();
   }
 
   function resetSortables() {
@@ -105,9 +147,10 @@ window.MDManager = window.MDManager || {};
     changed = onChanged;
     connectSortable();
     scheduleStatsVisibility();
+    scheduleBacklogSpace();
   }
 
-  document.getElementById("content").addEventListener("click", event => {
+  function handleContentClick(event) {
     const removeRecentButton = event.target.closest(".recent-delete");
     if (removeRecentButton) {
       removeRecent(Number(removeRecentButton.dataset.removeRecent));
@@ -125,6 +168,7 @@ window.MDManager = window.MDManager || {};
       const note = noteToggle.closest(".feature-note");
       const expanded = note.classList.toggle("collapsed") === false;
       note.setAttribute("aria-expanded", String(expanded));
+      app.render.layoutGrid(true);
       return;
     }
 
@@ -169,6 +213,7 @@ window.MDManager = window.MDManager || {};
       const body = task.querySelector(".card-body");
       body.hidden = !body.hidden;
       task.setAttribute("aria-expanded", String(!body.hidden));
+      app.render.layoutGrid(true);
       return;
     }
 
@@ -186,6 +231,18 @@ window.MDManager = window.MDManager || {};
         note.classList.toggle("collapsed", !expand);
         note.setAttribute("aria-expanded", String(expand));
       });
+      app.render.layoutGrid(true);
+    }
+  }
+
+  document.getElementById("content").addEventListener("click", handleContentClick);
+  document.getElementById("backlog").addEventListener("click", handleContentClick);
+
+  document.getElementById("toggleBacklog").addEventListener("click", toggleBacklog);
+  document.addEventListener("keydown", event => {
+    if (event.ctrlKey && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "b" && !document.getElementById("toggleBacklog").disabled) {
+      event.preventDefault();
+      toggleBacklog();
     }
   });
 
@@ -193,20 +250,30 @@ window.MDManager = window.MDManager || {};
     const active = document.body.classList.toggle("show-metadata");
     event.currentTarget.setAttribute("aria-pressed", String(active));
     app.render.equalizeReleaseHeaders();
+    app.render.layoutGrid(true);
+  });
+
+  document.getElementById("toggleStats").addEventListener("click", event => {
+    const active = document.body.classList.toggle("hide-stats") === false;
+    event.currentTarget.setAttribute("aria-pressed", String(active));
+    scheduleStatsVisibility();
   });
 
   document.getElementById("toggleGridView").addEventListener("click", event => {
     const active = document.body.classList.toggle("toggle-grid-view");
     event.currentTarget.setAttribute("aria-pressed", String(active));
+    const metadataButton = document.getElementById("toggleMetadata");
+    const statsButton = document.getElementById("toggleStats");
+    metadataButton.disabled = active;
+    statsButton.disabled = active;
+    if (active) {
+      document.body.classList.remove("show-metadata");
+      document.body.classList.add("hide-stats");
+      metadataButton.setAttribute("aria-pressed", "false");
+      statsButton.setAttribute("aria-pressed", "false");
+    }
     app.render.setGridTitles(active);
-    if (active) document.querySelectorAll(".card").forEach(task => {
-      task.setAttribute("aria-expanded", "false");
-      task.querySelector(".card-body").hidden = true;
-    });
-    if (active) document.querySelectorAll(".feature-note").forEach(note => {
-      note.classList.add("collapsed");
-      note.setAttribute("aria-expanded", "false");
-    });
+    if (active) collapseAll();
     app.render.equalizeReleaseHeaders();
     app.render.layoutGrid(true);
   });
@@ -215,8 +282,9 @@ window.MDManager = window.MDManager || {};
   document.getElementById("undoChange").addEventListener("click", () => undo());
   document.getElementById("redoChange").addEventListener("click", () => redo());
   document.addEventListener("click", scheduleStatsVisibility);
-  document.getElementById("content").addEventListener("scroll", updateStatsVisibility);
-  window.addEventListener("resize", scheduleStatsVisibility);
+  document.addEventListener("click", scheduleBacklogSpace);
+  document.getElementById("content").addEventListener("scroll", () => { updateStatsVisibility(); updateBacklogSpace(); });
+  window.addEventListener("resize", () => { scheduleStatsVisibility(); scheduleBacklogSpace(); });
 
   app.interactions = {
     setProject,

@@ -442,3 +442,55 @@ Besteht aus einem Mesh-Handle (u32) und einem Transform-Struct
 ### WorldGrid
 
 ### WorldAxes
+
+#Backlog
+## Backlog
+
+### Improvements
+
+- [ ] RenderFrame, RenderItem und RenderRequest einführen
+
+### StorageBuffer
+
+### StorageImage
+
+### SampledImage
+
+### TileManager
+
+### TileGenerator
+
+### TileSelector
+
+### PixelRenderer
+
+### Ray-Tracing Projekt
+
+#Info
+Raytracer in Vulkan
+
+**Vorgehensweise**
+- [ ] Raytracing Buch 1 durcharbeiten
+- [ ] Raytracing Buch 2 durcharbeiten
+- [ ] Raytracing Buch 3 durcharbeiten
+- [ ] Vulkan Base Applikation erstellen
+- [ ] Raytracing <=> Vulkan Schnittstellen rausarbeiten und Projektplan erstellen
+- [ ] Building und Static Analysis via Github-Actions aktivieren
+- [ ] Code-Badges hinzufügen (neue Farben)
+- [ ] Projektstruktur innerhalb der README ergänzen
+
+**Book 1: Ray Tracing in One Weekend**
+- [ ] 1. Overview
+- [ ] 2. Output an Image
+- [ ] 3. The vec3 Class
+- [ ] 4. Rays, a simple Camera, and Background
+- [ ] 5. Adding a sphere
+- [ ] 6. Surface Normals and Multiple Objects
+- [ ] 7. Moving Camera Code Into Its Own Class
+- [ ] 8. Antialiasing
+- [ ] 9. Diffuse Materials
+- [ ] 10. Metal
+- [ ] 11. Dielectrics
+- [ ] 12. Positionable Camera
+- [ ] 13. Defocus Blur
+- [ ] 14. Where Next
