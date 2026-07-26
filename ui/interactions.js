@@ -9,6 +9,8 @@ window.MDManager = window.MDManager || {};
   let save = null;
   let undo = null;
   let redo = null;
+  let metadataBeforeGrid = false;
+  let statsBeforeGrid = true;
 
   function updateStatsVisibility() {
     const stats = document.getElementById("projectStats");
@@ -25,22 +27,42 @@ window.MDManager = window.MDManager || {};
     requestAnimationFrame(updateStatsVisibility);
   }
 
-  function updateBacklogSpace() {
-    const backlog = document.getElementById("backlog");
-    if (backlog.hidden) return;
-    backlog.style.removeProperty("max-height");
-    const backlogRect = backlog.getBoundingClientRect();
-    const featureBottom = Math.max(0, ...[...document.querySelectorAll("#content > .release")]
-      .map(feature => feature.getBoundingClientRect())
-      .filter(feature => feature.left < backlogRect.right && feature.right > backlogRect.left)
-      .map(feature => feature.bottom));
-    const bottomGap = parseFloat(getComputedStyle(backlog).bottom) || 0;
-    const cardGap = parseFloat(getComputedStyle(document.documentElement).fontSize) * .75;
-    backlog.style.maxHeight = `${Math.max(0, window.innerHeight - featureBottom - bottomGap - cardGap)}px`;
+  function closeViewMenu() {
+    document.getElementById("viewOptions").hidden = true;
+    document.getElementById("toggleViewMenu").setAttribute("aria-expanded", "false");
   }
 
-  function scheduleBacklogSpace() {
-    requestAnimationFrame(updateBacklogSpace);
+  function setGridView(active) {
+    if (document.body.classList.contains("toggle-grid-view") === active) return;
+    if (active) {
+      metadataBeforeGrid = document.body.classList.contains("show-metadata");
+      statsBeforeGrid = !document.body.classList.contains("hide-stats");
+    }
+    document.body.classList.toggle("toggle-grid-view", active);
+    document.getElementById("toggleGridView").setAttribute("aria-pressed", String(active));
+    document.getElementById("showBoardView").setAttribute("aria-pressed", String(!active));
+    const metadataButton = document.getElementById("toggleMetadata");
+    const statsButton = document.getElementById("toggleStats");
+    const viewMenuButton = document.getElementById("toggleViewMenu");
+    metadataButton.disabled = active;
+    statsButton.disabled = active;
+    viewMenuButton.disabled = active;
+    if (active) {
+      closeViewMenu();
+      document.body.classList.remove("show-metadata");
+      document.body.classList.add("hide-stats");
+      metadataButton.setAttribute("aria-pressed", "false");
+      statsButton.setAttribute("aria-pressed", "false");
+    } else {
+      document.body.classList.toggle("show-metadata", metadataBeforeGrid);
+      document.body.classList.toggle("hide-stats", !statsBeforeGrid);
+      metadataButton.setAttribute("aria-pressed", String(metadataBeforeGrid));
+      statsButton.setAttribute("aria-pressed", String(statsBeforeGrid));
+    }
+    app.render.setGridTitles(active);
+    if (active) collapseAll();
+    app.render.equalizeReleaseHeaders();
+    app.render.layoutGrid(true);
   }
 
   function captureViewState() {
@@ -67,11 +89,15 @@ window.MDManager = window.MDManager || {};
     const button = document.getElementById("toggleBacklog");
     if (button.disabled) return;
     const open = backlog.hidden;
-    if (open) collapseAll();
+    const workspace = document.querySelector(".workspace");
+    if (open && !document.body.classList.contains("toggle-grid-view")) {
+      const feature = document.querySelector("#content > .release");
+      if (feature) workspace.style.setProperty("--backlog-width", `${feature.getBoundingClientRect().width}px`);
+    }
     backlog.hidden = !open;
+    if (!open) workspace.style.removeProperty("--backlog-width");
     button.setAttribute("aria-pressed", String(open));
     scheduleStatsVisibility();
-    scheduleBacklogSpace();
   }
 
   function resetSortables() {
@@ -147,10 +173,14 @@ window.MDManager = window.MDManager || {};
     changed = onChanged;
     connectSortable();
     scheduleStatsVisibility();
-    scheduleBacklogSpace();
   }
 
   function handleContentClick(event) {
+    if (event.target.closest(".backlog-close")) {
+      toggleBacklog();
+      return;
+    }
+
     const removeRecentButton = event.target.closest(".recent-delete");
     if (removeRecentButton) {
       removeRecent(Number(removeRecentButton.dataset.removeRecent));
@@ -239,7 +269,14 @@ window.MDManager = window.MDManager || {};
   document.getElementById("backlog").addEventListener("click", handleContentClick);
 
   document.getElementById("toggleBacklog").addEventListener("click", toggleBacklog);
+  document.getElementById("toggleViewMenu").addEventListener("click", event => {
+    const options = document.getElementById("viewOptions");
+    options.hidden = !options.hidden;
+    event.currentTarget.setAttribute("aria-expanded", String(!options.hidden));
+  });
+  document.getElementById("showBoardView").addEventListener("click", () => setGridView(false));
   document.addEventListener("keydown", event => {
+    if (event.key === "Escape") closeViewMenu();
     if (event.ctrlKey && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "b" && !document.getElementById("toggleBacklog").disabled) {
       event.preventDefault();
       toggleBacklog();
@@ -259,32 +296,17 @@ window.MDManager = window.MDManager || {};
     scheduleStatsVisibility();
   });
 
-  document.getElementById("toggleGridView").addEventListener("click", event => {
-    const active = document.body.classList.toggle("toggle-grid-view");
-    event.currentTarget.setAttribute("aria-pressed", String(active));
-    const metadataButton = document.getElementById("toggleMetadata");
-    const statsButton = document.getElementById("toggleStats");
-    metadataButton.disabled = active;
-    statsButton.disabled = active;
-    if (active) {
-      document.body.classList.remove("show-metadata");
-      document.body.classList.add("hide-stats");
-      metadataButton.setAttribute("aria-pressed", "false");
-      statsButton.setAttribute("aria-pressed", "false");
-    }
-    app.render.setGridTitles(active);
-    if (active) collapseAll();
-    app.render.equalizeReleaseHeaders();
-    app.render.layoutGrid(true);
-  });
+  document.getElementById("toggleGridView").addEventListener("click", () => setGridView(true));
 
   document.getElementById("saveFile").addEventListener("click", () => save());
   document.getElementById("undoChange").addEventListener("click", () => undo());
   document.getElementById("redoChange").addEventListener("click", () => redo());
   document.addEventListener("click", scheduleStatsVisibility);
-  document.addEventListener("click", scheduleBacklogSpace);
-  document.getElementById("content").addEventListener("scroll", () => { updateStatsVisibility(); updateBacklogSpace(); });
-  window.addEventListener("resize", () => { scheduleStatsVisibility(); scheduleBacklogSpace(); });
+  document.addEventListener("click", event => {
+    if (!event.target.closest(".view-menu")) closeViewMenu();
+  });
+  document.getElementById("content").addEventListener("scroll", updateStatsVisibility);
+  window.addEventListener("resize", scheduleStatsVisibility);
 
   app.interactions = {
     setProject,

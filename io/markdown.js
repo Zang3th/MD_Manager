@@ -1,6 +1,41 @@
 window.MDManager = window.MDManager || {};
 
 (function (app) {
+  function taskContent(task) {
+    const initialGroup = { type: "group", title: "", lineIndex: -1, todos: [] };
+    const result = { blocks: [initialGroup], todos: [] };
+    let group = initialGroup;
+    let note = null;
+    task.lines.forEach((line, lineIndex) => {
+      const noteMarker = line.match(/^\s*#(Info|Warn)\s*$/i);
+      if (noteMarker) {
+        note = { type: "note", noteType: noteMarker[1].toLowerCase(), lineIndex, items: [] };
+        result.blocks.push(note);
+        group = null;
+        return;
+      }
+      const separator = line.match(/^\s*\*\*(.+)\*\*\s*$/);
+      if (separator) {
+        note = null;
+        group = { type: "group", title: separator[1], lineIndex, todos: [] };
+        result.blocks.push(group);
+        return;
+      }
+      const listItem = line.match(/^(\s*)[-*+]\s+(?:\[([ xX])\]\s+)?(.*)$/);
+      if (listItem) {
+        if (note) note.items.push({ text: listItem[3], indent: listItem[1].replace(/\t/g, "    ").length });
+        else {
+          const checked = listItem[2]?.toLowerCase() === "x" || /^~.*~$/.test(listItem[3]);
+          const todo = { type: "todo", lineIndex, checked, text: listItem[3].replace(/^~(.*)~$/, "$1") };
+          group.todos.push(todo);
+          result.todos.push(todo);
+        }
+      } else if (line.trim() && note) note.items.push({ text: line.trim(), paragraph: true });
+      else if (line.trim()) result.blocks.push({ type: "paragraph", text: line.trim() });
+    });
+    return result;
+  }
+
   function parse(markdown) {
     const newline = markdown.includes("\r\n") ? "\r\n" : "\n";
     const lines = markdown.replace(/\r\n?/g, "\n").split("\n");
@@ -128,5 +163,5 @@ window.MDManager = window.MDManager || {};
     return normalized.join(project.newline);
   }
 
-  app.markdown = { parse, serialize };
+  app.markdown = { parse, serialize, taskContent };
 })(window.MDManager);

@@ -21,27 +21,41 @@
       <img class="app-logo" src="res/Logo.svg" alt="MD_Manager logo">
       <div class="header-left">
         <h1 class="project-title" id="projectTitle">MD_Manager</h1>
-        <span class="app-version" id="appVersion">v0.0.5</span>
+        <div class="file-controls">
+          <button class="btn control-btn" id="openFile" type="button">Open</button>
+          <button class="btn save-btn" id="saveFile" type="button" hidden>Save</button>
+        </div>
         <div class="history-controls" id="historyControls" hidden>
-          <button class="btn save-btn" id="saveFile" type="button">Save</button>
-          <button class="btn control-btn" id="undoChange" type="button" disabled>Undo</button>
-          <button class="btn control-btn" id="redoChange" type="button" disabled>Redo</button>
+          <button class="btn control-btn icon-btn" id="undoChange" type="button" aria-label="Undo" title="Undo" disabled>↶</button>
+          <button class="btn control-btn icon-btn" id="redoChange" type="button" aria-label="Redo" title="Redo" disabled>↷</button>
         </div>
       </div>
       <div class="project-stats" id="projectStats" aria-label="Project status overview" hidden></div>
       <div class="header-actions">
         <nav class="control-bar" id="viewerControls" aria-label="Viewer controls" hidden>
-          <button class="btn control-btn" id="toggleMetadata" type="button" aria-pressed="false">Metadata</button>
-          <button class="btn control-btn" id="toggleStats" type="button" aria-pressed="true">Stats</button>
-          <button class="btn control-btn" id="toggleGridView" type="button" aria-pressed="false">Grid View</button>
-          <button class="btn control-btn" id="toggleBacklog" type="button" aria-pressed="false" disabled>Backlog</button>
+          <button class="btn control-btn backlog-control" id="toggleBacklog" type="button" aria-pressed="false" disabled>Backlog</button>
+          <div class="view-menu">
+            <button class="btn control-btn" id="toggleViewMenu" type="button" aria-expanded="false" aria-controls="viewOptions">View <span aria-hidden="true">▾</span></button>
+            <div class="view-options" id="viewOptions" hidden>
+              <button class="view-option" id="toggleMetadata" type="button" aria-pressed="false">Metadata</button>
+              <button class="view-option" id="toggleStats" type="button" aria-pressed="true">Statistics</button>
+            </div>
+          </div>
+          <div class="view-mode" role="group" aria-label="View mode">
+            <button class="btn control-btn" id="showBoardView" type="button" aria-pressed="true">Board</button>
+            <button class="btn control-btn" id="toggleGridView" type="button" aria-pressed="false">Grid</button>
+          </div>
         </nav>
-        <button class="btn" id="openFile" type="button">Open Markdown</button>
       </div>
+      <span class="app-version" id="appVersion">v0.0.6</span>
     </div>
   </header>
-  <main id="content" aria-live="polite"></main>
-  <section class="release backlog" id="backlog" aria-label="Backlog" hidden></section>
-  <div class="watermark" id="watermark">© 2026 MD_Manager v0.0.5 · Tim Krüger (Zang3th) · <a href="https://github.com/Zang3th" target="_blank" rel="noopener noreferrer">GitHub</a></div>
+  <div class="workspace">
+    <main id="content" aria-live="polite"></main>
+    <aside class="backlog-pane" aria-label="Backlog area">
+      <section class="release backlog" id="backlog" aria-label="Backlog" hidden></section>
+    </aside>
+  </div>
+  <div class="watermark" id="watermark">© 2026 MD_Manager v0.0.6 · Tim Krüger (Zang3th) · <a href="https://github.com/Zang3th" target="_blank" rel="noopener noreferrer">GitHub</a></div>
 </body>
 </html>

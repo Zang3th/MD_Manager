@@ -17,43 +17,8 @@ window.MDManager = window.MDManager || {};
       .replace(/\[([^\]]+)]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
   }
 
-  function taskContent(task) {
-    const initialGroup = { type: "group", title: "", lineIndex: -1, todos: [] };
-    const result = { blocks: [initialGroup], todos: [] };
-    let group = initialGroup;
-    let note = null;
-    task.lines.forEach((line, lineIndex) => {
-      const noteMarker = line.match(/^\s*#(Info|Warn)\s*$/i);
-      if (noteMarker) {
-        note = { type: "note", noteType: noteMarker[1].toLowerCase(), lineIndex, items: [] };
-        result.blocks.push(note);
-        group = null;
-        return;
-      }
-      const separator = line.match(/^\s*\*\*(.+)\*\*\s*$/);
-      if (separator) {
-        note = null;
-        group = { type: "group", title: separator[1], lineIndex, todos: [] };
-        result.blocks.push(group);
-        return;
-      }
-      const listItem = line.match(/^(\s*)[-*+]\s+(?:\[([ xX])\]\s+)?(.*)$/);
-      if (listItem) {
-        if (note) note.items.push({ text: listItem[3], indent: listItem[1].replace(/\t/g, "    ").length });
-        else {
-          const checked = listItem[2]?.toLowerCase() === "x" || /^~.*~$/.test(listItem[3]);
-          const todo = { type: "todo", lineIndex, checked, text: listItem[3].replace(/^~(.*)~$/, "$1") };
-          group.todos.push(todo);
-          result.todos.push(todo);
-        }
-      } else if (line.trim() && note) note.items.push({ text: line.trim(), paragraph: true });
-      else if (line.trim()) result.blocks.push({ type: "paragraph", text: line.trim() });
-    });
-    return result;
-  }
-
   function todos(task) {
-    return taskContent(task).todos;
+    return app.markdown.taskContent(task).todos;
   }
 
   function notesMarkup(notes, collapsible = false) {
@@ -78,7 +43,7 @@ window.MDManager = window.MDManager || {};
   }
 
   function taskBody(task) {
-    const content = taskContent(task);
+    const content = app.markdown.taskContent(task);
     const notes = content.blocks.filter(block => block.type === "note");
     return `${notes.length ? `<div class="task-notes">${notesMarkup(notes)}</div>` : ""}
       <div class="task-blocks">${content.blocks.map(block => {
@@ -146,7 +111,8 @@ window.MDManager = window.MDManager || {};
   }
 
   function backlogContents(feature) {
-    return `<header class="release-header" tabindex="0"><div class="release-heading"><h2 class="release-title" data-full-title="${escapeHtml(feature.title)}">${escapeHtml(feature.title)}</h2></div></header>
+    const taskCount = feature.tasks.length;
+    return `<header class="backlog-header"><div class="backlog-heading"><h2 class="backlog-title">${escapeHtml(feature.title)}</h2><span class="backlog-count">${taskCount} ${taskCount === 1 ? "Task" : "Tasks"}</span></div><button class="backlog-close" type="button" aria-label="Close backlog" title="Close backlog">${deleteIcon}</button></header>
       ${feature.notes.length ? `<div class="feature-notes task-notes">${notesMarkup(feature.notes, true)}</div>` : ""}
       <div class="board">${feature.tasks.map(taskMarkup).join("")}</div>`;
   }
@@ -157,7 +123,7 @@ window.MDManager = window.MDManager || {};
     });
   }
 
-  function layoutGrid(force = false) {
+  function layoutGrid() {
     requestAnimationFrame(() => {
       const content = document.getElementById("content");
       if (!document.body.classList.contains("toggle-grid-view")) {
@@ -165,7 +131,6 @@ window.MDManager = window.MDManager || {};
         content.style.removeProperty("--grid-feature-height");
         document.body.style.removeProperty("--grid-card-width");
         document.body.style.removeProperty("--grid-feature-height");
-        document.body.style.removeProperty("--grid-backlog-width");
         return;
       }
       content.style.removeProperty("--grid-feature-height");
@@ -189,7 +154,6 @@ window.MDManager = window.MDManager || {};
       const cardWidth = Math.min(Math.max(240, ...widths), content.clientWidth);
       content.style.setProperty("--grid-card-width", `${cardWidth}px`);
       document.body.style.setProperty("--grid-card-width", `${cardWidth}px`);
-      document.body.style.setProperty("--grid-backlog-width", `${cardWidth * 4 + 24}px`);
       equalizeReleaseHeaders();
       requestAnimationFrame(() => {
         const featureHeight = Math.max(0, ...[...content.querySelectorAll(":scope > .release")].map(feature => feature.offsetHeight));
@@ -202,6 +166,7 @@ window.MDManager = window.MDManager || {};
   function render(project, viewState) {
     document.getElementById("viewerControls").hidden = false;
     document.getElementById("historyControls").hidden = false;
+    document.getElementById("saveFile").hidden = false;
     document.getElementById("appVersion").hidden = true;
     document.getElementById("watermark").hidden = true;
     document.getElementById("projectTitle").textContent = project.title;
@@ -284,6 +249,7 @@ window.MDManager = window.MDManager || {};
   function showStart(entries) {
     document.getElementById("viewerControls").hidden = true;
     document.getElementById("historyControls").hidden = true;
+    document.getElementById("saveFile").hidden = true;
     document.getElementById("appVersion").hidden = false;
     document.getElementById("projectStats").hidden = true;
     document.getElementById("toggleBacklog").disabled = true;
