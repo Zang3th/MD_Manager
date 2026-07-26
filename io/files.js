@@ -78,12 +78,13 @@ window.MDManager = window.MDManager || {};
 
   function save(handle, markdown) {
     if (!handle) return Promise.resolve();
-    writeQueue = writeQueue.then(async () => {
+    const operation = writeQueue.catch(() => {}).then(async () => {
       const writable = await handle.createWritable();
       await writable.write(markdown);
       await writable.close();
     });
-    return writeQueue;
+    writeQueue = operation.catch(() => {});
+    return operation;
   }
 
   app.files = { open, read, save, recent, remember, forget };

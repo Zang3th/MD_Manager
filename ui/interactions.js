@@ -53,7 +53,7 @@ window.MDManager = window.MDManager || {};
       if (expandedBeforeGrid) restoreExpandedState(expandedBeforeGrid);
     }
     if (active) collapseAll();
-    app.render.layoutGrid();
+    app.layout.layoutGrid();
     if (!active && expandedBeforeGrid) requestAnimationFrame(() => restoreScrollState(expandedBeforeGrid));
   }
 
@@ -122,7 +122,7 @@ window.MDManager = window.MDManager || {};
     backlog.hidden = !open;
     if (!open) workspace.style.removeProperty("--backlog-width");
     button.setAttribute("aria-pressed", String(open));
-    if (open) app.render.fitTitles(backlog.querySelectorAll(".backlog-title, .card-title"));
+    if (open) app.layout.fitTitles(backlog.querySelectorAll(".backlog-title, .card-title"));
   }
 
   function resetSortables() {
@@ -309,14 +309,14 @@ window.MDManager = window.MDManager || {};
     const header = event.target.closest(".card-header, .release-heading, .backlog-header");
     if (!header || header.contains(event.relatedTarget)) return;
     const title = header.querySelector(".card-title, .release-title, .backlog-title");
-    if (title) app.render.startTitleScroll(title);
+    if (title) app.layout.startTitleScroll(title);
   }
 
   function handleTitleLeave(event) {
     const header = event.target.closest(".card-header, .release-heading, .backlog-header");
     if (!header || header.contains(event.relatedTarget)) return;
     const title = header.querySelector(".card-title, .release-title, .backlog-title");
-    if (title) app.render.stopTitleScroll(title);
+    if (title) app.layout.stopTitleScroll(title);
   }
 
   [document.getElementById("content"), document.getElementById("backlog")].forEach(container => {
@@ -343,8 +343,8 @@ window.MDManager = window.MDManager || {};
   document.getElementById("toggleMetadata").addEventListener("click", event => {
     const active = document.body.classList.toggle("show-metadata");
     event.currentTarget.setAttribute("aria-pressed", String(active));
-    app.render.equalizeReleaseHeaders();
-    app.render.layoutGrid(true);
+    app.layout.equalizeReleaseHeaders();
+    app.layout.layoutGrid(true);
   });
 
   document.getElementById("toggleStats").addEventListener("click", event => {
@@ -359,7 +359,13 @@ window.MDManager = window.MDManager || {};
 
   document.getElementById("toggleGridView").addEventListener("click", () => setGridView(true));
 
-  document.getElementById("saveFile").addEventListener("click", () => save());
+  document.getElementById("saveFile").addEventListener("click", async () => {
+    try {
+      await save();
+    } catch (error) {
+      app.render.saveError(error.message);
+    }
+  });
   document.getElementById("undoChange").addEventListener("click", () => undo());
   document.getElementById("redoChange").addEventListener("click", () => redo());
   document.addEventListener("click", event => {
@@ -373,7 +379,10 @@ window.MDManager = window.MDManager || {};
     setRemoveRecent(callback) { removeRecent = callback; },
     setHistoryActions(actions) { save = actions.save; undo = actions.undo; redo = actions.redo; },
     setHistoryState(state) {
-      document.getElementById("saveFile").classList.toggle("dirty", state.dirty);
+      const saveButton = document.getElementById("saveFile");
+      saveButton.textContent = "Save";
+      saveButton.removeAttribute("title");
+      saveButton.classList.toggle("dirty", state.dirty);
       document.getElementById("undoChange").disabled = !state.canUndo;
       document.getElementById("redoChange").disabled = !state.canRedo;
     }

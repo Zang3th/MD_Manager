@@ -51,8 +51,8 @@ window.MDManager = window.MDManager || {};
     project = app.markdown.parse(opened.markdown);
     savedMarkdown = opened.markdown;
     history = app.history.create(opened.markdown);
-    await app.files.remember(fileHandle);
     render();
+    app.files.remember(fileHandle).catch(() => {});
   }
 
   document.getElementById("openFile").addEventListener("click", async () => {
@@ -61,7 +61,7 @@ window.MDManager = window.MDManager || {};
       await useOpenedFile(opened);
     } catch (error) {
       if (error.name === "AbortError") return;
-      document.getElementById("content").innerHTML = `<div class="error">The file could not be read: ${app.render.escapeHtml(error.message)}</div>`;
+      app.render.error(`The file could not be read: ${error.message}`);
     }
   });
 
@@ -69,7 +69,7 @@ window.MDManager = window.MDManager || {};
     try {
       await useOpenedFile(await app.files.read(recentFiles[index].handle));
     } catch (error) {
-      document.querySelector(".recent-files-list").innerHTML = `<p class="recent-files-empty">The file could not be opened: ${app.render.escapeHtml(error.message)}</p>`;
+      app.render.recentError(`The file could not be opened: ${error.message}`);
     }
   });
 
@@ -94,6 +94,11 @@ window.MDManager = window.MDManager || {};
   app.files.recent().then(entries => {
     recentFiles = entries;
     app.render.start(entries);
+    updateHistoryControls();
+  }).catch(error => {
+    recentFiles = [];
+    app.render.start(recentFiles);
+    app.render.recentError(`Recent files could not be loaded: ${error.message}`);
     updateHistoryControls();
   });
 })(window.MDManager);

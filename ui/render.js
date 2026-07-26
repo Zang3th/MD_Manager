@@ -3,15 +3,6 @@ window.MDManager = window.MDManager || {};
 (function (app) {
   const deleteIcon = '<span aria-hidden="true">✕</span>';
   let taskContentCache = new WeakMap();
-  const titleFitCache = new Map();
-  const textWidthCache = new Map();
-  const titleStyleCache = new Map();
-  const headerHeightCache = new Map();
-  const gridHeightCache = new Map();
-  const measureContext = document.createElement("canvas").getContext("2d");
-  let gridIntrinsicWidth = null;
-  let layoutFrame = 0;
-  let layoutNeeds = { titles: false, headers: false, gridWidth: false, gridHeight: false };
 
   function escapeHtml(value) {
     return value.replace(/[&<>"']/g, character => ({
@@ -90,95 +81,6 @@ window.MDManager = window.MDManager || {};
     });
   }
 
-  function fontKey(style) {
-    return `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}|${style.letterSpacing}`;
-  }
-
-  function titleStyle(title) {
-    const type = title.classList.contains("release-title") ? "feature" : title.classList.contains("backlog-title") ? "backlog" : "task";
-    const key = `${layoutKey()}|${type}`;
-    if (!titleStyleCache.has(key)) {
-      const style = getComputedStyle(title);
-      titleStyleCache.set(key, {
-        fontStyle: style.fontStyle,
-        fontWeight: style.fontWeight,
-        fontSize: style.fontSize,
-        fontFamily: style.fontFamily,
-        letterSpacing: style.letterSpacing,
-        paddingLeft: style.paddingLeft,
-        paddingRight: style.paddingRight
-      });
-    }
-    return titleStyleCache.get(key);
-  }
-
-  function measuredTextWidth(value, style) {
-    const font = fontKey(style);
-    const key = `${font}|${value}`;
-    if (textWidthCache.has(key)) return textWidthCache.get(key);
-    measureContext.font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
-    const spacing = style.letterSpacing === "normal" ? 0 : parseFloat(style.letterSpacing) || 0;
-    const width = measureContext.measureText(value).width + Math.max(0, Array.from(value).length - 1) * spacing;
-    textWidthCache.set(key, width);
-    return width;
-  }
-
-  function fittedTitle(value, availableWidth, style) {
-    const characters = Array.from(value);
-    const key = `${fontKey(style)}|${Math.floor(availableWidth)}|${value}`;
-    if (titleFitCache.has(key)) return titleFitCache.get(key);
-    if (measuredTextWidth(value, style) <= availableWidth) {
-      titleFitCache.set(key, value);
-      return value;
-    }
-    let low = 0;
-    let high = characters.length;
-    while (low < high) {
-      const length = Math.ceil((low + high) / 2);
-      if (measuredTextWidth(characters.slice(0, length).join(""), style) <= availableWidth) low = length;
-      else high = length - 1;
-    }
-    const fitted = characters.slice(0, low).join("");
-    titleFitCache.set(key, fitted);
-    return fitted;
-  }
-
-  function fitTitles(targets) {
-    const titles = targets ? [...targets] : [...document.querySelectorAll(".release-title, .card-title, .backlog-title")];
-    const values = titles.map(title => {
-      if (title.closest("[hidden]")) return title.dataset.fullTitle;
-      const style = titleStyle(title);
-      const available = title.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
-      return fittedTitle(title.dataset.fullTitle, available, style);
-    });
-    titles.forEach((title, index) => title.querySelector(".title-text").textContent = values[index]);
-  }
-
-  function startTitleScroll(title) {
-    const text = title.querySelector(".title-text");
-    text.textContent = title.dataset.fullTitle;
-    title.classList.add("title-hover");
-    requestAnimationFrame(() => {
-      const style = getComputedStyle(title);
-      const availableWidth = title.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
-      const overflow = Math.ceil(text.scrollWidth - availableWidth);
-      if (overflow <= 0) return;
-      const distance = Math.ceil(text.scrollWidth + 32);
-      text.dataset.scrollText = title.dataset.fullTitle;
-      title.style.setProperty("--title-scroll-distance", `${-distance}px`);
-      title.style.setProperty("--title-scroll-duration", `${Math.max(1200, distance * 30)}ms`);
-      title.classList.add("title-scroll");
-    });
-  }
-
-  function stopTitleScroll(title) {
-    title.classList.remove("title-hover", "title-scroll");
-    title.style.removeProperty("--title-scroll-distance");
-    title.style.removeProperty("--title-scroll-duration");
-    title.querySelector(".title-text").removeAttribute("data-scroll-text");
-    fitTitles([title]);
-  }
-
   function taskMarkup(task, taskIndex) {
     const { entries: taskTodos, done, complete: taskComplete, inProgress: taskInProgress } = taskProgress(task);
     return `<section class="card${taskComplete ? " complete" : ""}${taskInProgress ? " in-progress" : ""}${taskTodos.length ? "" : " empty-task"}" data-task="${taskIndex}" tabindex="0" aria-expanded="false">
@@ -188,10 +90,7 @@ window.MDManager = window.MDManager || {};
   }
 
   function taskProgress(task) {
-    const entries = todos(task);
-    const done = entries.filter(todo => todo.checked).length;
-    const complete = entries.length > 0 && done === entries.length;
-    return { entries, done, complete, inProgress: done > 0 && !complete };
+    return app.status.progress(todos(task));
   }
 
   function taskStatusMarkup(task) {
@@ -207,144 +106,19 @@ window.MDManager = window.MDManager || {};
       <div class="board">${feature.tasks.map(taskMarkup).join("")}</div>`;
   }
 
-  function layoutKey() {
-    return `${document.body.classList.contains("toggle-grid-view") ? "grid" : "board"}:${document.body.classList.contains("show-metadata") ? "metadata" : "plain"}`;
-  }
-
-  function applyHeaderHeights() {
-    const titles = [...document.querySelectorAll("#content > .release .release-title")];
-    const headers = [...document.querySelectorAll("#content > .release > .release-header")];
-    const key = layoutKey();
-    let cached = headerHeightCache.get(key);
-    if (!cached) {
-      titles.forEach(title => title.style.height = "auto");
-      headers.forEach(header => header.style.height = "auto");
-      const titleHeight = Math.max(0, ...titles.map(title => title.offsetHeight));
-      titles.forEach(title => title.style.height = `${titleHeight}px`);
-      const headerHeight = Math.max(0, ...headers.map(header => header.offsetHeight));
-      cached = { titleHeight, headerHeight };
-      headerHeightCache.set(key, cached);
-    }
-    titles.forEach(title => title.style.height = `${cached.titleHeight}px`);
-    headers.forEach(header => header.style.height = `${cached.headerHeight}px`);
-  }
-
-  function intrinsicGridWidth(content) {
-    if (gridIntrinsicWidth !== null) return gridIntrinsicWidth;
-    const elements = [...content.querySelectorAll(".release-title, .card-title")];
-    const widths = elements.map(element => {
-      const style = titleStyle(element);
-      const textWidth = measuredTextWidth(element.dataset.fullTitle, style);
-      if (element.classList.contains("release-title")) {
-        return textWidth + (element.closest(".release-heading").querySelector(".feature-progress")?.offsetWidth || 0) + 32;
-      }
-      return textWidth + (element.closest(".card-header").querySelector(".task-status")?.offsetWidth || 0) + 40;
-    });
-    gridIntrinsicWidth = Math.max(240, ...widths);
-    return gridIntrinsicWidth;
-  }
-
-  function runLayout() {
-    layoutFrame = 0;
-    const needs = layoutNeeds;
-    layoutNeeds = { titles: false, headers: false, gridWidth: false, gridHeight: false };
-    const content = document.getElementById("content");
-    const grid = document.body.classList.contains("toggle-grid-view");
-    if (!grid) {
-      content.style.removeProperty("--grid-card-width");
-      content.style.removeProperty("--grid-feature-height");
-      document.body.style.removeProperty("--grid-card-width");
-      document.body.style.removeProperty("--grid-feature-height");
-    } else {
-      document.querySelectorAll(".title-hover").forEach(stopTitleScroll);
-      if (needs.gridWidth) {
-        const width = Math.min(intrinsicGridWidth(content), content.clientWidth);
-        content.style.setProperty("--grid-card-width", `${width}px`);
-        document.body.style.setProperty("--grid-card-width", `${width}px`);
-      }
-    }
-    if (needs.headers) applyHeaderHeights();
-    if (needs.titles) fitTitles();
-    if (grid && needs.gridHeight) {
-      const key = layoutKey();
-      let height = gridHeightCache.get(key);
-      if (!height) {
-        const cards = [...content.querySelectorAll(".card")].map(card => ({ card, expanded: card.getAttribute("aria-expanded"), body: card.querySelector(".card-body"), hidden: card.querySelector(".card-body").hidden }));
-        const notes = [...content.querySelectorAll(".feature-note")].map(note => ({ note, expanded: note.getAttribute("aria-expanded"), collapsed: note.classList.contains("collapsed") }));
-        cards.forEach(({ card, body }) => { card.setAttribute("aria-expanded", "false"); body.hidden = true; });
-        notes.forEach(({ note }) => { note.setAttribute("aria-expanded", "false"); note.classList.add("collapsed"); });
-        content.style.removeProperty("--grid-feature-height");
-        document.body.style.removeProperty("--grid-feature-height");
-        height = Math.max(0, ...[...content.querySelectorAll(":scope > .release")].map(feature => feature.offsetHeight));
-        gridHeightCache.set(key, height);
-        cards.forEach(({ card, body, expanded, hidden }) => { card.setAttribute("aria-expanded", expanded); body.hidden = hidden; });
-        notes.forEach(({ note, expanded, collapsed }) => { note.setAttribute("aria-expanded", expanded); note.classList.toggle("collapsed", collapsed); });
-      }
-      content.style.setProperty("--grid-feature-height", `${height}px`);
-      document.body.style.setProperty("--grid-feature-height", `${height}px`);
-    }
-  }
-
-  function scheduleLayout(needs) {
-    Object.keys(needs).forEach(key => layoutNeeds[key] ||= needs[key]);
-    if (!layoutFrame) layoutFrame = requestAnimationFrame(runLayout);
-  }
-
-  function equalizeReleaseHeaders() {
-    scheduleLayout({ headers: true, titles: true });
-  }
-
-  function layoutGrid(resize = false) {
-    scheduleLayout({ titles: true, headers: !resize, gridWidth: true, gridHeight: !resize });
-  }
-
-  function resetLayoutCaches() {
-    titleFitCache.clear();
-    textWidthCache.clear();
-    titleStyleCache.clear();
-    headerHeightCache.clear();
-    gridHeightCache.clear();
-    gridIntrinsicWidth = null;
-  }
-
   function featureProgress(feature) {
-    const entries = feature.tasks.flatMap(todos);
-    const done = entries.filter(todo => todo.checked).length;
-    const complete = entries.length > 0 && done === entries.length;
-    return { entries, done, complete, inProgress: done > 0 && !complete, percentage: entries.length ? Math.round(done / entries.length * 100) : 0 };
+    return app.status.progress(feature.tasks.flatMap(todos));
   }
 
   function statisticsMarkup(project) {
-    const regularFeatures = project.features.filter(feature => !feature.isBacklog);
-    const backlogFeature = project.features.find(feature => feature.isBacklog);
-    const projectTasks = regularFeatures.flatMap(feature => feature.tasks);
-    const projectTodos = projectTasks.flatMap(todos);
-    const backlogTasks = backlogFeature?.tasks || [];
-    const backlogTodos = backlogTasks.flatMap(todos);
-    function statusCounts(items, itemTodos) {
-      const counts = { done: 0, active: 0, open: 0 };
-      items.forEach(item => {
-        const entries = itemTodos(item);
-        const completed = entries.filter(entry => entry.checked).length;
-        if (entries.length > 0 && completed === entries.length) counts.done++;
-        else if (completed > 0) counts.active++;
-        else counts.open++;
-      });
-      return counts;
-    }
-    const featureCounts = statusCounts(regularFeatures, feature => feature.tasks.flatMap(todos));
-    const taskCounts = statusCounts(projectTasks, todos);
-    const todoCounts = { done: projectTodos.filter(todo => todo.checked).length, active: "/", open: projectTodos.filter(todo => !todo.checked).length };
-    featureCounts.backlog = "/";
-    taskCounts.backlog = backlogTasks.length;
-    todoCounts.backlog = backlogTodos.length;
+    const counts = app.status.statistics(project.features, todos);
     const row = (label, counts) => `<tr><th scope="row">${label}</th><td class="done">${counts.done}</td><td class="active">${counts.active}</td><td class="open">${counts.open}</td><td class="backlog-stat">${counts.backlog}</td></tr>`;
-    return `<div class="stats-header"><span class="stats-title">Statistics</span><button class="stats-close" type="button" aria-label="Close statistics" title="Close statistics">${deleteIcon}</button></div><table><thead><tr><th></th><th class="done" scope="col">Done</th><th class="active" scope="col">Active</th><th class="open" scope="col">Open</th><th class="backlog-stat" scope="col">Backlog</th></tr></thead><tbody>${row("Features", featureCounts)}${row("Tasks", taskCounts)}${row("Todos", todoCounts)}</tbody></table>`;
+    return `<div class="stats-header"><span class="stats-title">Statistics</span><button class="stats-close" type="button" aria-label="Close statistics" title="Close statistics">${deleteIcon}</button></div><table><thead><tr><th></th><th class="done" scope="col">Done</th><th class="active" scope="col">Active</th><th class="open" scope="col">Open</th><th class="backlog-stat" scope="col">Backlog</th></tr></thead><tbody>${row("Features", counts.features)}${row("Tasks", counts.tasks)}${row("Todos", counts.entries)}</tbody></table>`;
   }
 
   function render(project, viewState, fileName) {
     taskContentCache = new WeakMap();
-    resetLayoutCaches();
+    app.layout.reset();
     document.getElementById("viewerControls").hidden = false;
     document.getElementById("historyControls").hidden = false;
     document.getElementById("saveFile").hidden = false;
@@ -394,8 +168,8 @@ window.MDManager = window.MDManager || {};
       backlog.hidden = true;
     }
     restoreViewState(viewState);
-    equalizeReleaseHeaders();
-    layoutGrid();
+    app.layout.equalizeReleaseHeaders();
+    app.layout.layoutGrid();
   }
 
   function updateTodo(project, featureIndex, taskIndex, lineIndex) {
@@ -426,9 +200,7 @@ window.MDManager = window.MDManager || {};
     }
     document.getElementById("projectStats").innerHTML = statisticsMarkup(project);
 
-    titleFitCache.clear();
-    gridIntrinsicWidth = null;
-    scheduleLayout({ titles: true, gridWidth: true });
+    app.layout.statusChanged();
   }
 
   function showStart(entries) {
@@ -447,11 +219,33 @@ window.MDManager = window.MDManager || {};
       </section></div>`;
   }
 
-  window.addEventListener("resize", () => layoutGrid(true));
-  document.fonts.ready.then(() => {
-    resetLayoutCaches();
-    equalizeReleaseHeaders();
-    layoutGrid();
-  });
-  app.render = { project: render, start: showStart, updateTodo, escapeHtml, equalizeReleaseHeaders, layoutGrid, fitTitles, startTitleScroll, stopTitleScroll };
+  function showError(message) {
+    document.getElementById("content").innerHTML = `<div class="error">${escapeHtml(message)}</div>`;
+  }
+
+  function showRecentError(message) {
+    const list = document.querySelector(".recent-files-list");
+    if (list) list.innerHTML = `<p class="recent-files-empty">${escapeHtml(message)}</p>`;
+  }
+
+  function showSaveError(message) {
+    const button = document.getElementById("saveFile");
+    button.textContent = "Save failed";
+    button.title = message;
+  }
+
+  app.render = {
+    project: render,
+    start: showStart,
+    error: showError,
+    recentError: showRecentError,
+    saveError: showSaveError,
+    updateTodo,
+    escapeHtml,
+    equalizeReleaseHeaders: app.layout.equalizeReleaseHeaders,
+    layoutGrid: app.layout.layoutGrid,
+    fitTitles: app.layout.fitTitles,
+    startTitleScroll: app.layout.startTitleScroll,
+    stopTitleScroll: app.layout.stopTitleScroll
+  };
 })(window.MDManager);
