@@ -88,15 +88,49 @@ window.MDManager = window.MDManager || {};
     });
   }
 
-  function shortenedTitle(value) {
-    if (value.length <= 12) return value;
-    let boundary = -1;
-    for (let index = 1; index <= 12; index++) {
-      if (/\s/.test(value[index])) boundary = index;
-      else if (/[a-zäöüß]/.test(value[index - 1]) && /[A-ZÄÖÜ]/.test(value[index])) boundary = index;
-      else if (index > 1 && /[A-ZÄÖÜ]/.test(value[index - 2]) && /[A-ZÄÖÜ]/.test(value[index - 1]) && /[a-zäöüß]/.test(value[index])) boundary = index - 1;
+  function fitGridTitle(title) {
+    const value = title.dataset.fullTitle;
+    const characters = Array.from(value);
+    const text = title.querySelector(".title-text");
+    const style = getComputedStyle(title);
+    const availableWidth = title.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+    text.textContent = value;
+    if (text.scrollWidth <= availableWidth) return;
+    let low = 1;
+    let high = characters.length;
+    while (low < high) {
+      const length = Math.ceil((low + high) / 2);
+      text.textContent = characters.slice(0, length).join("");
+      if (text.scrollWidth <= availableWidth) low = length;
+      else high = length - 1;
     }
-    return `${value.slice(0, boundary > 0 ? boundary : 12).trimEnd()} ...`;
+    text.textContent = characters.slice(0, low).join("");
+  }
+
+  function startGridTitleScroll(title) {
+    if (!document.body.classList.contains("toggle-grid-view")) return;
+    const text = title.querySelector(".title-text");
+    text.textContent = title.dataset.fullTitle;
+    title.classList.add("grid-title-hover");
+    requestAnimationFrame(() => {
+      const style = getComputedStyle(title);
+      const availableWidth = title.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+      const overflow = Math.ceil(text.scrollWidth - availableWidth);
+      if (overflow <= 0) return;
+      const distance = Math.ceil(text.scrollWidth + 32);
+      text.dataset.scrollText = title.dataset.fullTitle;
+      title.style.setProperty("--title-scroll-distance", `${-distance}px`);
+      title.style.setProperty("--title-scroll-duration", `${Math.max(1200, distance * 30)}ms`);
+      title.classList.add("grid-title-scroll");
+    });
+  }
+
+  function stopGridTitleScroll(title) {
+    title.classList.remove("grid-title-hover", "grid-title-scroll");
+    title.style.removeProperty("--title-scroll-distance");
+    title.style.removeProperty("--title-scroll-duration");
+    title.querySelector(".title-text").removeAttribute("data-scroll-text");
+    fitGridTitle(title);
   }
 
   function taskMarkup(task, taskIndex) {
@@ -105,7 +139,7 @@ window.MDManager = window.MDManager || {};
     const taskComplete = taskTodos.length > 0 && done === taskTodos.length;
     const taskInProgress = done > 0 && !taskComplete;
     return `<section class="card${taskComplete ? " complete" : ""}${taskInProgress ? " in-progress" : ""}${taskTodos.length ? "" : " empty-task"}" data-task="${taskIndex}" tabindex="0" aria-expanded="false">
-      <header class="card-header"><h3 class="card-title" data-full-title="${escapeHtml(task.title)}">${escapeHtml(task.title)}</h3><span class="task-status">${taskComplete ? '<span class="task-check" title="Complete" aria-label="Complete">✓</span>' : ""}<span class="task-progress">${done}/${taskTodos.length}</span></span><button class="delete-btn" data-delete="task" type="button" aria-label="Delete task" title="Delete task">${deleteIcon}</button></header>
+      <header class="card-header"><h3 class="card-title" data-full-title="${escapeHtml(task.title)}"><span class="title-text">${escapeHtml(task.title)}</span></h3><span class="task-status">${taskComplete ? '<span class="task-check" title="Complete" aria-label="Complete">✓</span>' : ""}<span class="task-progress">${done}/${taskTodos.length}</span></span><button class="delete-btn" data-delete="task" type="button" aria-label="Delete task" title="Delete task">${deleteIcon}</button></header>
       <div class="card-body" hidden>${taskBody(task)}</div>
     </section>`;
   }
@@ -119,7 +153,8 @@ window.MDManager = window.MDManager || {};
 
   function setGridTitles(active) {
     document.querySelectorAll(".release-title, .card-title").forEach(title => {
-      title.textContent = active ? shortenedTitle(title.dataset.fullTitle) : title.dataset.fullTitle;
+      title.querySelector(".title-text").textContent = title.dataset.fullTitle;
+      if (active) fitGridTitle(title);
     });
   }
 
@@ -135,25 +170,28 @@ window.MDManager = window.MDManager || {};
       }
       content.style.removeProperty("--grid-feature-height");
       document.body.style.removeProperty("--grid-feature-height");
+      document.querySelectorAll(".grid-title-hover").forEach(stopGridTitleScroll);
+      setGridTitles(true);
       const elements = [...content.querySelectorAll(".release-title, .card-title")];
       const widths = elements.map(element => {
-        element.style.whiteSpace = "nowrap";
+        const range = document.createRange();
+        range.selectNodeContents(element);
+        const textWidth = Math.ceil(range.getBoundingClientRect().width);
         let width;
         if (element.classList.contains("release-title")) {
           const heading = element.closest(".release-heading");
           const progressWidth = heading.querySelector(".feature-progress")?.offsetWidth || 0;
-          const versionWidth = heading.querySelector(".release-version")?.offsetWidth || 0;
-          width = element.scrollWidth + Math.max(48, progressWidth, versionWidth) * 2 + 24;
+          width = textWidth + Math.max(48, progressWidth) + 32;
         } else {
           const statusWidth = element.closest(".card-header").querySelector(".task-status")?.offsetWidth || 0;
-          width = element.scrollWidth + statusWidth + 40;
+          width = textWidth + statusWidth + 40;
         }
-        element.style.whiteSpace = "";
         return width;
       });
       const cardWidth = Math.min(Math.max(240, ...widths), content.clientWidth);
       content.style.setProperty("--grid-card-width", `${cardWidth}px`);
       document.body.style.setProperty("--grid-card-width", `${cardWidth}px`);
+      setGridTitles(true);
       equalizeReleaseHeaders();
       requestAnimationFrame(() => {
         const featureHeight = Math.max(0, ...[...content.querySelectorAll(":scope > .release")].map(feature => feature.offsetHeight));
@@ -220,7 +258,7 @@ window.MDManager = window.MDManager || {};
       return `<section class="release${complete ? " complete" : ""}${inProgress ? " in-progress" : ""}" data-feature="${featureIndex}">
         <header class="release-header" tabindex="0"><div class="release-heading"><button class="delete-btn" data-delete="feature" type="button" aria-label="Delete feature" title="Delete feature">${deleteIcon}</button>
           <span class="feature-progress"><span class="status-value">${percentage}%</span></span>
-          <h2 class="release-title" data-full-title="${escapeHtml(feature.title)}">${escapeHtml(feature.title)}</h2>
+          <h2 class="release-title" data-full-title="${escapeHtml(feature.title)}"><span class="title-text">${escapeHtml(feature.title)}</span></h2>
           ${feature.version ? `<p class="release-version">v${escapeHtml(feature.version)}</p>` : ""}
         </div>${feature.dates.length ? `<div class="release-meta"><ul class="release-dates">${feature.dates.map(date => `<li>${escapeHtml(date.from)}${date.to ? ` – ${escapeHtml(date.to)}` : ""}</li>`).join("")}</ul></div>` : ""}</header>
         <div class="release-content">${feature.notes.length ? `<div class="feature-notes task-notes">${notesMarkup(feature.notes, true)}</div>` : ""}
@@ -264,5 +302,5 @@ window.MDManager = window.MDManager || {};
   }
 
   window.addEventListener("resize", () => { equalizeReleaseHeaders(); layoutGrid(true); });
-  app.render = { project: render, start: showStart, escapeHtml, equalizeReleaseHeaders, layoutGrid, setGridTitles };
+  app.render = { project: render, start: showStart, escapeHtml, equalizeReleaseHeaders, layoutGrid, setGridTitles, startGridTitleScroll, stopGridTitleScroll };
 })(window.MDManager);

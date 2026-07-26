@@ -12,6 +12,29 @@ window.MDManager = window.MDManager || {};
   let metadataBeforeGrid = false;
   let statsBeforeGrid = true;
   let expandedBeforeGrid = null;
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+  function animate(element, keyframes, options) {
+    if (reducedMotion.matches) return Promise.resolve();
+    return element.animate(keyframes, options).finished.catch(() => {});
+  }
+
+  function animateRemoval(element) {
+    return animate(element, [
+      { opacity: 1, transform: "scale(1)" },
+      { opacity: 0, transform: "scale(.98)" }
+    ], { duration: 120, easing: "cubic-bezier(.4,0,1,1)", fill: "forwards" });
+  }
+
+  function animateTodoToggle(featureIndex, taskIndex, lineIndex) {
+    const checkbox = document.querySelector(`.release[data-feature="${featureIndex}"] .card[data-task="${taskIndex}"] .todo-item[data-line="${lineIndex}"] .checkbox`);
+    if (!checkbox) return;
+    animate(checkbox, [
+      { transform: "scale(.82)" },
+      { transform: "scale(1.08)", offset: .65 },
+      { transform: "scale(1)" }
+    ], { duration: 180, easing: "cubic-bezier(.2,.8,.2,1)" });
+  }
 
   function closeViewMenu() {
     document.getElementById("viewOptions").hidden = true;
@@ -132,12 +155,15 @@ window.MDManager = window.MDManager || {};
     const content = document.getElementById("content");
 
     sortables.push(Sortable.create(content, {
-      animation: 150,
+      animation: reducedMotion.matches ? 0 : 150,
+      easing: "cubic-bezier(.2,0,0,1)",
       draggable: "> .release",
       handle: ".release-header",
       filter: ".delete-btn",
       preventOnFilter: false,
       ghostClass: "sortable-ghost",
+      chosenClass: "sortable-chosen",
+      dragClass: "sortable-drag",
       onEnd(event) {
         app.domain.moveFeature(project, event.oldIndex, event.newIndex);
         changed(captureViewState());
@@ -147,12 +173,15 @@ window.MDManager = window.MDManager || {};
     document.querySelectorAll(".board").forEach(board => {
       sortables.push(Sortable.create(board, {
         group: "tasks",
-        animation: 150,
+        animation: reducedMotion.matches ? 0 : 150,
+        easing: "cubic-bezier(.2,0,0,1)",
         draggable: "> .card",
         handle: ".card-header",
         filter: ".delete-btn",
         preventOnFilter: false,
         ghostClass: "sortable-ghost",
+        chosenClass: "sortable-chosen",
+        dragClass: "sortable-drag",
         onEnd(event) {
           const fromFeature = Number(event.from.closest(".release").dataset.feature);
           const toFeature = Number(event.to.closest(".release").dataset.feature);
@@ -165,13 +194,16 @@ window.MDManager = window.MDManager || {};
     document.querySelectorAll(".todo-list").forEach(list => {
       sortables.push(Sortable.create(list, {
         group: "todos",
-        animation: 150,
+        animation: reducedMotion.matches ? 0 : 150,
+        easing: "cubic-bezier(.2,0,0,1)",
         draggable: "> .todo-item",
         handle: ".todo-text",
         filter: ".delete-btn",
         preventOnFilter: false,
         emptyInsertThreshold: 30,
         ghostClass: "sortable-ghost",
+        chosenClass: "sortable-chosen",
+        dragClass: "sortable-drag",
         onEnd(event) {
           const fromTask = event.from.closest(".card");
           const toTask = event.to.closest(".card");
@@ -195,7 +227,7 @@ window.MDManager = window.MDManager || {};
     connectSortable();
   }
 
-  function handleContentClick(event) {
+  async function handleContentClick(event) {
     if (event.target.closest(".backlog-close")) {
       toggleBacklog();
       return;
@@ -203,6 +235,8 @@ window.MDManager = window.MDManager || {};
 
     const removeRecentButton = event.target.closest(".recent-delete");
     if (removeRecentButton) {
+      removeRecentButton.disabled = true;
+      await animateRemoval(removeRecentButton.closest(".recent-file"));
       removeRecent(Number(removeRecentButton.dataset.removeRecent));
       return;
     }
@@ -218,7 +252,7 @@ window.MDManager = window.MDManager || {};
       const note = noteToggle.closest(".feature-note");
       const expanded = note.classList.toggle("collapsed") === false;
       note.setAttribute("aria-expanded", String(expanded));
-      app.render.layoutGrid(true);
+      if (!document.body.classList.contains("toggle-grid-view")) app.render.layoutGrid(true);
       return;
     }
 
@@ -228,6 +262,9 @@ window.MDManager = window.MDManager || {};
       const featureElement = deleteButton.closest(".release");
       const featureIndex = Number(featureElement.dataset.feature);
       const viewState = captureViewState();
+      const removedElement = deleteButton.closest(".todo-item, .card, .release");
+      deleteButton.disabled = true;
+      await animateRemoval(removedElement);
       if (deleteButton.dataset.delete === "feature") {
         const firstTask = [...document.querySelectorAll(".card")].indexOf(featureElement.querySelector(".card"));
         if (firstTask >= 0) viewState.tasks.splice(firstTask, featureElement.querySelectorAll(".card").length);
@@ -251,9 +288,13 @@ window.MDManager = window.MDManager || {};
       const todo = checkbox.closest(".todo-item");
       const taskElement = checkbox.closest(".card");
       const featureElement = checkbox.closest(".release");
-      const task = project.features[featureElement.dataset.feature].tasks[taskElement.dataset.task];
-      app.domain.setTodo(task, Number(todo.dataset.line), checkbox.dataset.checked !== "true");
+      const featureIndex = Number(featureElement.dataset.feature);
+      const taskIndex = Number(taskElement.dataset.task);
+      const lineIndex = Number(todo.dataset.line);
+      const task = project.features[featureIndex].tasks[taskIndex];
+      app.domain.setTodo(task, lineIndex, checkbox.dataset.checked !== "true");
       changed(captureViewState());
+      animateTodoToggle(featureIndex, taskIndex, lineIndex);
       return;
     }
 
@@ -263,7 +304,7 @@ window.MDManager = window.MDManager || {};
       const body = task.querySelector(".card-body");
       body.hidden = !body.hidden;
       task.setAttribute("aria-expanded", String(!body.hidden));
-      app.render.layoutGrid(true);
+      if (!document.body.classList.contains("toggle-grid-view")) app.render.layoutGrid(true);
       return;
     }
 
@@ -281,12 +322,29 @@ window.MDManager = window.MDManager || {};
         note.classList.toggle("collapsed", !expand);
         note.setAttribute("aria-expanded", String(expand));
       });
-      app.render.layoutGrid(true);
+      if (!document.body.classList.contains("toggle-grid-view")) app.render.layoutGrid(true);
     }
   }
 
-  document.getElementById("content").addEventListener("click", handleContentClick);
-  document.getElementById("backlog").addEventListener("click", handleContentClick);
+  function handleGridTitleEnter(event) {
+    const header = event.target.closest(".card-header, .release-heading");
+    if (!header || header.contains(event.relatedTarget)) return;
+    const title = header.querySelector(".card-title, .release-title");
+    if (title) app.render.startGridTitleScroll(title);
+  }
+
+  function handleGridTitleLeave(event) {
+    const header = event.target.closest(".card-header, .release-heading");
+    if (!header || header.contains(event.relatedTarget)) return;
+    const title = header.querySelector(".card-title, .release-title");
+    if (title && document.body.classList.contains("toggle-grid-view")) app.render.stopGridTitleScroll(title);
+  }
+
+  [document.getElementById("content"), document.getElementById("backlog")].forEach(container => {
+    container.addEventListener("click", handleContentClick);
+    container.addEventListener("mouseover", handleGridTitleEnter);
+    container.addEventListener("mouseout", handleGridTitleLeave);
+  });
 
   document.getElementById("toggleBacklog").addEventListener("click", toggleBacklog);
   document.getElementById("toggleViewMenu").addEventListener("click", event => {
