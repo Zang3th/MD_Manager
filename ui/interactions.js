@@ -13,21 +13,6 @@ window.MDManager = window.MDManager || {};
   let statsBeforeGrid = true;
   let expandedBeforeGrid = null;
 
-  function updateStatsVisibility() {
-    const stats = document.getElementById("projectStats");
-    if (stats.hidden) return;
-    const statsRect = stats.getBoundingClientRect();
-    const obstructed = [...document.querySelectorAll('.card[aria-expanded="true"]')].some(card => {
-      const cardRect = card.getBoundingClientRect();
-      return cardRect.left < statsRect.right && cardRect.right > statsRect.left && cardRect.top < statsRect.bottom && cardRect.bottom > statsRect.top;
-    });
-    stats.classList.toggle("obstructed", obstructed);
-  }
-
-  function scheduleStatsVisibility() {
-    requestAnimationFrame(updateStatsVisibility);
-  }
-
   function closeViewMenu() {
     document.getElementById("viewOptions").hidden = true;
     document.getElementById("toggleViewMenu").setAttribute("aria-expanded", "false");
@@ -78,6 +63,7 @@ window.MDManager = window.MDManager || {};
       backlogOpen: !backlog.hidden,
       contentScrollLeft: content.scrollLeft,
       contentScrollTop: content.scrollTop,
+      featureScrolls: [...content.querySelectorAll(":scope > .release > .release-content")].map(featureContent => ({ left: featureContent.scrollLeft, top: featureContent.scrollTop })),
       backlogScrollLeft: backlog.scrollLeft,
       backlogScrollTop: backlog.scrollTop
     };
@@ -112,6 +98,10 @@ window.MDManager = window.MDManager || {};
     const backlog = document.getElementById("backlog");
     content.scrollLeft = viewState.contentScrollLeft;
     content.scrollTop = viewState.contentScrollTop;
+    document.querySelectorAll("#content > .release > .release-content").forEach((featureContent, index) => {
+      featureContent.scrollLeft = viewState.featureScrolls[index]?.left || 0;
+      featureContent.scrollTop = viewState.featureScrolls[index]?.top || 0;
+    });
     backlog.scrollLeft = viewState.backlogScrollLeft;
     backlog.scrollTop = viewState.backlogScrollTop;
   }
@@ -129,7 +119,6 @@ window.MDManager = window.MDManager || {};
     backlog.hidden = !open;
     if (!open) workspace.style.removeProperty("--backlog-width");
     button.setAttribute("aria-pressed", String(open));
-    scheduleStatsVisibility();
   }
 
   function resetSortables() {
@@ -204,7 +193,6 @@ window.MDManager = window.MDManager || {};
     project = nextProject;
     changed = onChanged;
     connectSortable();
-    scheduleStatsVisibility();
   }
 
   function handleContentClick(event) {
@@ -325,7 +313,11 @@ window.MDManager = window.MDManager || {};
   document.getElementById("toggleStats").addEventListener("click", event => {
     const active = document.body.classList.toggle("hide-stats") === false;
     event.currentTarget.setAttribute("aria-pressed", String(active));
-    scheduleStatsVisibility();
+  });
+  document.getElementById("projectStats").addEventListener("click", event => {
+    if (!event.target.closest(".stats-close")) return;
+    document.body.classList.add("hide-stats");
+    document.getElementById("toggleStats").setAttribute("aria-pressed", "false");
   });
 
   document.getElementById("toggleGridView").addEventListener("click", () => setGridView(true));
@@ -333,12 +325,9 @@ window.MDManager = window.MDManager || {};
   document.getElementById("saveFile").addEventListener("click", () => save());
   document.getElementById("undoChange").addEventListener("click", () => undo());
   document.getElementById("redoChange").addEventListener("click", () => redo());
-  document.addEventListener("click", scheduleStatsVisibility);
   document.addEventListener("click", event => {
     if (!event.target.closest(".view-menu")) closeViewMenu();
   });
-  document.getElementById("content").addEventListener("scroll", updateStatsVisibility);
-  window.addEventListener("resize", scheduleStatsVisibility);
 
   app.interactions = {
     setProject,

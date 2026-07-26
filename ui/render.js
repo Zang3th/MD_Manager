@@ -54,7 +54,7 @@ window.MDManager = window.MDManager || {};
       if (!block.title && !block.todos.length && content.todos.length > 0) return "";
       return `<section class="todo-group">${block.title ? `<div class="todo-separator">${inlineMarkdown(block.title)}</div>` : ""}
         <div class="todo-list" data-anchor-line="${block.lineIndex}">${block.todos.map(todo => `<div class="todo-item" data-line="${todo.lineIndex}">
-          <button class="checkbox${todo.checked ? " checked" : ""}" data-checked="${todo.checked}" type="button" aria-label="Toggle todo" aria-pressed="${todo.checked}">${todo.checked ? "☑" : "☐"}</button>
+          <button class="checkbox${todo.checked ? " checked" : ""}" data-checked="${todo.checked}" type="button" aria-label="Toggle todo" aria-pressed="${todo.checked}">${todo.checked ? '<span aria-hidden="true">✓</span>' : ""}</button>
           <span class="todo-text${todo.checked ? " completed" : ""}">${inlineMarkdown(todo.text)}</span>
           <button class="delete-btn" data-delete="todo" type="button" aria-label="Delete todo" title="Delete todo">${deleteIcon}</button>
         </div>`).join("")}</div></section>`;
@@ -198,8 +198,8 @@ window.MDManager = window.MDManager || {};
     }
     const stats = document.getElementById("projectStats");
     stats.hidden = false;
-    stats.innerHTML = `<table><thead><tr><th></th><th class="done" scope="col">Done</th><th class="active" scope="col">Active</th><th class="open" scope="col">Open</th><th class="backlog-stat" scope="col">Backlog</th></tr></thead><tbody>${statRow("Features", featureCounts)}${statRow("Tasks", taskCounts)}${statRow("Todos", todoCounts)}</tbody></table>`;
-    document.title = `${project.title} – MD_Manager`;
+    stats.innerHTML = `<div class="stats-header"><span class="stats-title">Statistics</span><button class="stats-close" type="button" aria-label="Close statistics" title="Close statistics">${deleteIcon}</button></div><table><thead><tr><th></th><th class="done" scope="col">Done</th><th class="active" scope="col">Active</th><th class="open" scope="col">Open</th><th class="backlog-stat" scope="col">Backlog</th></tr></thead><tbody>${statRow("Features", featureCounts)}${statRow("Tasks", taskCounts)}${statRow("Todos", todoCounts)}</tbody></table>`;
+    document.title = `MD_Manager - ${project.title}`;
     const content = document.getElementById("content");
     if (!project.features.length) {
       document.getElementById("toggleBacklog").disabled = true;
@@ -223,8 +223,9 @@ window.MDManager = window.MDManager || {};
           <h2 class="release-title" data-full-title="${escapeHtml(feature.title)}">${escapeHtml(feature.title)}</h2>
           ${feature.version ? `<p class="release-version">v${escapeHtml(feature.version)}</p>` : ""}
         </div>${feature.dates.length ? `<div class="release-meta"><ul class="release-dates">${feature.dates.map(date => `<li>${escapeHtml(date.from)}${date.to ? ` – ${escapeHtml(date.to)}` : ""}</li>`).join("")}</ul></div>` : ""}</header>
-        ${feature.notes.length ? `<div class="feature-notes task-notes">${notesMarkup(feature.notes, true)}</div>` : ""}
-        <div class="board">${feature.tasks.map(taskMarkup).join("")}</div>
+        <div class="release-content">${feature.notes.length ? `<div class="feature-notes task-notes">${notesMarkup(feature.notes, true)}</div>` : ""}
+          <div class="board">${feature.tasks.map(taskMarkup).join("")}</div>
+        </div>
       </section>`;
     }).join("");
     const backlog = document.getElementById("backlog");
