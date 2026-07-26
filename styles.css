@@ -147,9 +147,6 @@ button:focus-visible { outline:2px solid var(--text); outline-offset:2px; }
 .toggle-grid-view .feature-progress,.toggle-grid-view .task-progress { font-size:.75rem; }
 .toggle-grid-view .status-value,.toggle-grid-view .task-progress,.toggle-grid-view .task-check,.toggle-grid-view .task-in-progress { height:14px; line-height:14px; }
 .toggle-grid-view .task-check,.toggle-grid-view .task-in-progress { width:12px; font-size:14px; }
-.toggle-grid-view .release-meta { margin-top:.3rem; padding-top:.25rem; }
-.toggle-grid-view .release-dates { font-size:.75rem; }
-.toggle-grid-view .release-version { font-size:.75rem; }
 .toggle-grid-view .feature-notes { margin:.5rem .5rem 0; }
 .toggle-grid-view .feature-note { margin:.3rem 0; padding:.4rem .55rem; }
 .toggle-grid-view .feature-note:first-child { margin-top:0; }
