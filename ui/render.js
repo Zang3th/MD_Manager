@@ -88,7 +88,7 @@ window.MDManager = window.MDManager || {};
     });
   }
 
-  function fitGridTitle(title) {
+  function fitTitle(title) {
     const value = title.dataset.fullTitle;
     const characters = Array.from(value);
     const text = title.querySelector(".title-text");
@@ -107,11 +107,10 @@ window.MDManager = window.MDManager || {};
     text.textContent = characters.slice(0, low).join("");
   }
 
-  function startGridTitleScroll(title) {
-    if (!document.body.classList.contains("toggle-grid-view")) return;
+  function startTitleScroll(title) {
     const text = title.querySelector(".title-text");
     text.textContent = title.dataset.fullTitle;
-    title.classList.add("grid-title-hover");
+    title.classList.add("title-hover");
     requestAnimationFrame(() => {
       const style = getComputedStyle(title);
       const availableWidth = title.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
@@ -121,16 +120,16 @@ window.MDManager = window.MDManager || {};
       text.dataset.scrollText = title.dataset.fullTitle;
       title.style.setProperty("--title-scroll-distance", `${-distance}px`);
       title.style.setProperty("--title-scroll-duration", `${Math.max(1200, distance * 30)}ms`);
-      title.classList.add("grid-title-scroll");
+      title.classList.add("title-scroll");
     });
   }
 
-  function stopGridTitleScroll(title) {
-    title.classList.remove("grid-title-hover", "grid-title-scroll");
+  function stopTitleScroll(title) {
+    title.classList.remove("title-hover", "title-scroll");
     title.style.removeProperty("--title-scroll-distance");
     title.style.removeProperty("--title-scroll-duration");
     title.querySelector(".title-text").removeAttribute("data-scroll-text");
-    fitGridTitle(title);
+    fitTitle(title);
   }
 
   function taskMarkup(task, taskIndex) {
@@ -139,22 +138,22 @@ window.MDManager = window.MDManager || {};
     const taskComplete = taskTodos.length > 0 && done === taskTodos.length;
     const taskInProgress = done > 0 && !taskComplete;
     return `<section class="card${taskComplete ? " complete" : ""}${taskInProgress ? " in-progress" : ""}${taskTodos.length ? "" : " empty-task"}" data-task="${taskIndex}" tabindex="0" aria-expanded="false">
-      <header class="card-header"><h3 class="card-title" data-full-title="${escapeHtml(task.title)}"><span class="title-text">${escapeHtml(task.title)}</span></h3><span class="task-status">${taskComplete ? '<span class="task-check" title="Complete" aria-label="Complete">✓</span>' : ""}<span class="task-progress">${done}/${taskTodos.length}</span></span><button class="delete-btn" data-delete="task" type="button" aria-label="Delete task" title="Delete task">${deleteIcon}</button></header>
+      <header class="card-header"><h3 class="card-title" data-full-title="${escapeHtml(task.title)}"><span class="title-text">${escapeHtml(task.title)}</span></h3><span class="task-status">${taskComplete ? '<span class="task-check" title="Complete" aria-label="Complete">✓</span>' : taskInProgress ? '<span class="task-in-progress" title="In progress" aria-label="In progress">◐</span>' : ""}<span class="task-progress">${done}/${taskTodos.length}</span></span><button class="delete-btn" data-delete="task" type="button" aria-label="Delete task" title="Delete task">${deleteIcon}</button></header>
       <div class="card-body" hidden>${taskBody(task)}</div>
     </section>`;
   }
 
   function backlogContents(feature) {
     const taskCount = feature.tasks.length;
-    return `<header class="backlog-header"><div class="backlog-heading"><h2 class="backlog-title">${escapeHtml(feature.title)}</h2><span class="backlog-count">${taskCount} ${taskCount === 1 ? "Task" : "Tasks"}</span></div><button class="backlog-close" type="button" aria-label="Close backlog" title="Close backlog">${deleteIcon}</button></header>
+    return `<header class="backlog-header"><div class="backlog-heading"><h2 class="backlog-title" data-full-title="${escapeHtml(feature.title)}"><span class="title-text">${escapeHtml(feature.title)}</span></h2><span class="backlog-count">${taskCount} ${taskCount === 1 ? "Task" : "Tasks"}</span></div><button class="backlog-close" type="button" aria-label="Close backlog" title="Close backlog">${deleteIcon}</button></header>
       ${feature.notes.length ? `<div class="feature-notes task-notes">${notesMarkup(feature.notes, true)}</div>` : ""}
       <div class="board">${feature.tasks.map(taskMarkup).join("")}</div>`;
   }
 
-  function setGridTitles(active) {
-    document.querySelectorAll(".release-title, .card-title").forEach(title => {
+  function fitTitles() {
+    document.querySelectorAll(".release-title, .card-title, .backlog-title").forEach(title => {
       title.querySelector(".title-text").textContent = title.dataset.fullTitle;
-      if (active) fitGridTitle(title);
+      fitTitle(title);
     });
   }
 
@@ -170,8 +169,8 @@ window.MDManager = window.MDManager || {};
       }
       content.style.removeProperty("--grid-feature-height");
       document.body.style.removeProperty("--grid-feature-height");
-      document.querySelectorAll(".grid-title-hover").forEach(stopGridTitleScroll);
-      setGridTitles(true);
+      document.querySelectorAll(".title-hover").forEach(stopTitleScroll);
+      fitTitles();
       const elements = [...content.querySelectorAll(".release-title, .card-title")];
       const widths = elements.map(element => {
         const range = document.createRange();
@@ -181,7 +180,7 @@ window.MDManager = window.MDManager || {};
         if (element.classList.contains("release-title")) {
           const heading = element.closest(".release-heading");
           const progressWidth = heading.querySelector(".feature-progress")?.offsetWidth || 0;
-          width = textWidth + Math.max(48, progressWidth) + 32;
+          width = textWidth + progressWidth + 32;
         } else {
           const statusWidth = element.closest(".card-header").querySelector(".task-status")?.offsetWidth || 0;
           width = textWidth + statusWidth + 40;
@@ -191,7 +190,7 @@ window.MDManager = window.MDManager || {};
       const cardWidth = Math.min(Math.max(240, ...widths), content.clientWidth);
       content.style.setProperty("--grid-card-width", `${cardWidth}px`);
       document.body.style.setProperty("--grid-card-width", `${cardWidth}px`);
-      setGridTitles(true);
+      fitTitles();
       equalizeReleaseHeaders();
       requestAnimationFrame(() => {
         const featureHeight = Math.max(0, ...[...content.querySelectorAll(":scope > .release")].map(feature => feature.offsetHeight));
@@ -201,7 +200,7 @@ window.MDManager = window.MDManager || {};
     });
   }
 
-  function render(project, viewState) {
+  function render(project, viewState, fileName) {
     document.getElementById("viewerControls").hidden = false;
     document.getElementById("historyControls").hidden = false;
     document.getElementById("saveFile").hidden = false;
@@ -237,7 +236,7 @@ window.MDManager = window.MDManager || {};
     const stats = document.getElementById("projectStats");
     stats.hidden = false;
     stats.innerHTML = `<div class="stats-header"><span class="stats-title">Statistics</span><button class="stats-close" type="button" aria-label="Close statistics" title="Close statistics">${deleteIcon}</button></div><table><thead><tr><th></th><th class="done" scope="col">Done</th><th class="active" scope="col">Active</th><th class="open" scope="col">Open</th><th class="backlog-stat" scope="col">Backlog</th></tr></thead><tbody>${statRow("Features", featureCounts)}${statRow("Tasks", taskCounts)}${statRow("Todos", todoCounts)}</tbody></table>`;
-    document.title = `MD_Manager - ${project.title}`;
+    document.title = `MD_Manager - ${fileName}`;
     const content = document.getElementById("content");
     if (!project.features.length) {
       document.getElementById("toggleBacklog").disabled = true;
@@ -259,8 +258,7 @@ window.MDManager = window.MDManager || {};
         <header class="release-header" tabindex="0"><div class="release-heading"><button class="delete-btn" data-delete="feature" type="button" aria-label="Delete feature" title="Delete feature">${deleteIcon}</button>
           <span class="feature-progress"><span class="status-value">${percentage}%</span></span>
           <h2 class="release-title" data-full-title="${escapeHtml(feature.title)}"><span class="title-text">${escapeHtml(feature.title)}</span></h2>
-          ${feature.version ? `<p class="release-version">v${escapeHtml(feature.version)}</p>` : ""}
-        </div>${feature.dates.length ? `<div class="release-meta"><ul class="release-dates">${feature.dates.map(date => `<li>${escapeHtml(date.from)}${date.to ? ` – ${escapeHtml(date.to)}` : ""}</li>`).join("")}</ul></div>` : ""}</header>
+        </div>${feature.dates.length || feature.version ? `<div class="release-meta">${feature.dates.length ? `<ul class="release-dates">${feature.dates.map(date => `<li>${escapeHtml(date.from)}${date.to ? ` – ${escapeHtml(date.to)}` : ""}</li>`).join("")}</ul>` : ""}${feature.version ? `<p class="release-version">v${escapeHtml(feature.version)}</p>` : ""}</div>` : ""}</header>
         <div class="release-content">${feature.notes.length ? `<div class="feature-notes task-notes">${notesMarkup(feature.notes, true)}</div>` : ""}
           <div class="board">${feature.tasks.map(taskMarkup).join("")}</div>
         </div>
@@ -279,7 +277,7 @@ window.MDManager = window.MDManager || {};
       backlog.innerHTML = "";
       backlog.hidden = true;
     }
-    setGridTitles(document.body.classList.contains("toggle-grid-view"));
+    fitTitles();
     restoreViewState(viewState);
     equalizeReleaseHeaders();
     layoutGrid();
@@ -302,5 +300,5 @@ window.MDManager = window.MDManager || {};
   }
 
   window.addEventListener("resize", () => { equalizeReleaseHeaders(); layoutGrid(true); });
-  app.render = { project: render, start: showStart, escapeHtml, equalizeReleaseHeaders, layoutGrid, setGridTitles, startGridTitleScroll, stopGridTitleScroll };
+  app.render = { project: render, start: showStart, escapeHtml, equalizeReleaseHeaders, layoutGrid, fitTitles, startTitleScroll, stopTitleScroll };
 })(window.MDManager);

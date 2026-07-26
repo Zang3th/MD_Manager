@@ -8,7 +8,7 @@ window.MDManager = window.MDManager || {};
   let history = null;
 
   function render(viewState) {
-    app.render.project(project, viewState);
+    app.render.project(project, viewState, fileHandle.name);
     app.interactions.setProject(project, recordChange);
     updateHistoryControls();
   }
