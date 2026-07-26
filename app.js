@@ -26,9 +26,10 @@ window.MDManager = window.MDManager || {};
     });
   }
 
-  function recordChange(viewState) {
+  function recordChange(viewState, options = {}) {
     app.history.record(history, currentMarkdown());
-    render(viewState);
+    if (options.render === false) updateHistoryControls();
+    else render(viewState);
   }
 
   async function save() {

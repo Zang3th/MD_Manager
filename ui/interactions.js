@@ -52,10 +52,8 @@ window.MDManager = window.MDManager || {};
     } else {
       if (expandedBeforeGrid) restoreExpandedState(expandedBeforeGrid);
     }
-    app.render.fitTitles();
     if (active) collapseAll();
-    app.render.equalizeReleaseHeaders();
-    app.render.layoutGrid(true);
+    app.render.layoutGrid();
     if (!active && expandedBeforeGrid) requestAnimationFrame(() => restoreScrollState(expandedBeforeGrid));
   }
 
@@ -124,6 +122,7 @@ window.MDManager = window.MDManager || {};
     backlog.hidden = !open;
     if (!open) workspace.style.removeProperty("--backlog-width");
     button.setAttribute("aria-pressed", String(open));
+    if (open) app.render.fitTitles(backlog.querySelectorAll(".backlog-title, .card-title"));
   }
 
   function resetSortables() {
@@ -234,7 +233,6 @@ window.MDManager = window.MDManager || {};
       const note = noteToggle.closest(".feature-note");
       const expanded = note.classList.toggle("collapsed") === false;
       note.setAttribute("aria-expanded", String(expanded));
-      if (!document.body.classList.contains("toggle-grid-view")) app.render.layoutGrid(true);
       return;
     }
 
@@ -275,7 +273,8 @@ window.MDManager = window.MDManager || {};
       const lineIndex = Number(todo.dataset.line);
       const task = project.features[featureIndex].tasks[taskIndex];
       app.domain.setTodo(task, lineIndex, checkbox.dataset.checked !== "true");
-      changed(captureViewState());
+      app.render.updateTodo(project, featureIndex, taskIndex, lineIndex);
+      changed(captureViewState(), { render: false });
       animateTodoToggle(featureIndex, taskIndex, lineIndex);
       return;
     }
@@ -286,7 +285,6 @@ window.MDManager = window.MDManager || {};
       const body = task.querySelector(".card-body");
       body.hidden = !body.hidden;
       task.setAttribute("aria-expanded", String(!body.hidden));
-      if (!document.body.classList.contains("toggle-grid-view")) app.render.layoutGrid(true);
       return;
     }
 
@@ -304,7 +302,6 @@ window.MDManager = window.MDManager || {};
         note.classList.toggle("collapsed", !expand);
         note.setAttribute("aria-expanded", String(expand));
       });
-      if (!document.body.classList.contains("toggle-grid-view")) app.render.layoutGrid(true);
     }
   }
 
