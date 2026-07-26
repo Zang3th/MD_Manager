@@ -11,6 +11,7 @@ window.MDManager = window.MDManager || {};
   let redo = null;
   let metadataBeforeGrid = false;
   let statsBeforeGrid = true;
+  let expandedBeforeGrid = null;
 
   function updateStatsVisibility() {
     const stats = document.getElementById("projectStats");
@@ -37,6 +38,7 @@ window.MDManager = window.MDManager || {};
     if (active) {
       metadataBeforeGrid = document.body.classList.contains("show-metadata");
       statsBeforeGrid = !document.body.classList.contains("hide-stats");
+      expandedBeforeGrid = captureViewState();
     }
     document.body.classList.toggle("toggle-grid-view", active);
     document.getElementById("toggleGridView").setAttribute("aria-pressed", String(active));
@@ -58,18 +60,26 @@ window.MDManager = window.MDManager || {};
       document.body.classList.toggle("hide-stats", !statsBeforeGrid);
       metadataButton.setAttribute("aria-pressed", String(metadataBeforeGrid));
       statsButton.setAttribute("aria-pressed", String(statsBeforeGrid));
+      if (expandedBeforeGrid) restoreExpandedState(expandedBeforeGrid);
     }
     app.render.setGridTitles(active);
     if (active) collapseAll();
     app.render.equalizeReleaseHeaders();
     app.render.layoutGrid(true);
+    if (!active && expandedBeforeGrid) requestAnimationFrame(() => restoreScrollState(expandedBeforeGrid));
   }
 
   function captureViewState() {
+    const content = document.getElementById("content");
+    const backlog = document.getElementById("backlog");
     return {
       tasks: [...document.querySelectorAll(".card")].map(task => task.getAttribute("aria-expanded") === "true"),
       featureNotes: [...document.querySelectorAll(".feature-note")].map(note => note.getAttribute("aria-expanded") === "true"),
-      backlogOpen: !document.getElementById("backlog").hidden
+      backlogOpen: !backlog.hidden,
+      contentScrollLeft: content.scrollLeft,
+      contentScrollTop: content.scrollTop,
+      backlogScrollLeft: backlog.scrollLeft,
+      backlogScrollTop: backlog.scrollTop
     };
   }
 
@@ -82,6 +92,28 @@ window.MDManager = window.MDManager || {};
       note.classList.add("collapsed");
       note.setAttribute("aria-expanded", "false");
     });
+  }
+
+  function restoreExpandedState(viewState) {
+    document.querySelectorAll(".card").forEach((task, index) => {
+      const expanded = viewState.tasks[index] ?? false;
+      task.setAttribute("aria-expanded", String(expanded));
+      task.querySelector(".card-body").hidden = !expanded;
+    });
+    document.querySelectorAll(".feature-note").forEach((note, index) => {
+      const expanded = viewState.featureNotes[index] ?? false;
+      note.classList.toggle("collapsed", !expanded);
+      note.setAttribute("aria-expanded", String(expanded));
+    });
+  }
+
+  function restoreScrollState(viewState) {
+    const content = document.getElementById("content");
+    const backlog = document.getElementById("backlog");
+    content.scrollLeft = viewState.contentScrollLeft;
+    content.scrollTop = viewState.contentScrollTop;
+    backlog.scrollLeft = viewState.backlogScrollLeft;
+    backlog.scrollTop = viewState.backlogScrollTop;
   }
 
   function toggleBacklog() {
