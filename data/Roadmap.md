@@ -281,7 +281,7 @@
 - [x] ~Grundlegende API und ImGui Integration überlegen~
 - [x] ~ImGui Backend integrieren~
 
-## DescSets
+## Descriptor Sets
 
 #Version
 - 0.2.1

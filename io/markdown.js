@@ -14,8 +14,12 @@ window.MDManager = window.MDManager || {};
     task.lines.forEach((line, lineIndex) => {
       const noteMarker = line.match(/^\s*#(Info|Warn)\s*$/i);
       if (noteMarker) {
-        note = { type: "note", noteType: noteMarker[1].toLowerCase(), lineIndex, items: [] };
-        result.blocks.push(note);
+        const noteType = noteMarker[1].toLowerCase();
+        note = /** @type {MDNoteBlock | undefined} */ (result.blocks.find(block => block.type === "note" && block.noteType === noteType)) || null;
+        if (!note) {
+          note = { type: "note", noteType, lineIndex, items: [] };
+          result.blocks.push(note);
+        }
         group = null;
         return;
       }
@@ -40,6 +44,37 @@ window.MDManager = window.MDManager || {};
       else if (line.trim()) result.blocks.push({ type: "paragraph", text: line.trim() });
     });
     return result;
+  }
+
+  /** @param {string[]} lines @returns {{markdown: string, info: string, warn: string}} */
+  function taskEditorFields(lines) {
+    /** @type {{markdown: string[], info: string[], warn: string[]}} */
+    const sections = { markdown: [], info: [], warn: [] };
+    /** @type {"markdown" | "info" | "warn"} */
+    let section = "markdown";
+    for (const line of lines) {
+      if (/^\s*#Info\s*$/i.test(line)) { section = "info"; continue; }
+      if (/^\s*#Warn\s*$/i.test(line)) { section = "warn"; continue; }
+      if (/^\s*\*\*.+\*\*\s*$/.test(line)) section = "markdown";
+      sections[section].push(line);
+    }
+    const clean = (/** @type {string[]} */ values) => values.join("\n").replace(/^(?:[ \t]*\n)+|(?:\n[ \t]*)+$/g, "");
+    return { markdown: clean(sections.markdown), info: clean(sections.info), warn: clean(sections.warn) };
+  }
+
+  /** @param {{markdown: string, info: string, warn: string}} fields @returns {string[]} */
+  function composeTaskLines(fields) {
+    const clean = (/** @type {string} */ value) => value.replace(/\r\n?/g, "\n").replace(/^(?:[ \t]*\n)+|(?:\n[ \t]*)+$/g, "");
+    const blocks = [];
+    const embedded = taskEditorFields(clean(fields.markdown).split("\n"));
+    const markdown = embedded.markdown;
+    const info = clean([embedded.info, fields.info].filter(Boolean).join("\n"));
+    const warn = clean([embedded.warn, fields.warn].filter(Boolean).join("\n"));
+    if (markdown) blocks.push(markdown);
+    if (info) blocks.push(`#Info\n${info}`);
+    if (warn) blocks.push(`#Warn\n${warn}`);
+    const composed = blocks.join("\n\n");
+    return composed ? composed.split("\n") : [];
   }
 
   /** @param {string} markdown @returns {MDProject} */
@@ -91,7 +126,7 @@ window.MDManager = window.MDManager || {};
         if (metadataMarker) {
           featureMetadata = /** @type {"version" | "date" | "info" | "warn"} */ (metadataMarker[1].toLowerCase());
           if (featureMetadata === "info" || featureMetadata === "warn") {
-            feature.notes.push({ type: featureMetadata, items: [] });
+            if (!feature.notes.some(note => note.type === featureMetadata)) feature.notes.push({ type: featureMetadata, items: [] });
           }
           continue;
         }
@@ -104,9 +139,9 @@ window.MDManager = window.MDManager || {};
           if (!range) continue;
           feature.dates.push({ from: range[1].trim(), to: range[2]?.trim() || "" });
         } else if (metadataValue && (featureMetadata === "info" || featureMetadata === "warn")) {
-          feature.notes.at(-1)?.items.push({ text: metadataValue[2], indent: metadataValue[1].replace(/\t/g, "    ").length });
+          feature.notes.find(note => note.type === featureMetadata)?.items.push({ text: metadataValue[2], indent: metadataValue[1].replace(/\t/g, "    ").length });
         } else if (line.trim() && (featureMetadata === "info" || featureMetadata === "warn")) {
-          feature.notes.at(-1)?.items.push({ text: line.trim(), paragraph: true });
+          feature.notes.find(note => note.type === featureMetadata)?.items.push({ text: line.trim(), paragraph: true });
         } else if (line.trim()) {
           featureMetadata = null;
         }
@@ -114,6 +149,45 @@ window.MDManager = window.MDManager || {};
     }
     project.features = [...project.features.filter(feature => !feature.isBacklog), ...project.features.filter(feature => feature.isBacklog)];
     return project;
+  }
+
+  /** @param {string} markdown @returns {MDFeature} */
+  function parseFeatureMetadata(markdown) {
+    const content = markdown.replace(/\r\n?/g, "\n").replace(/^(?:[ \t]*\n)+|(?:\n[ \t]*)+$/g, "");
+    const parsed = parse(`# Metadata\n\n## Feature\n${content ? `${content}\n` : ""}\n### Boundary`);
+    const feature = parsed.features[0];
+    feature.headerLines = content ? content.split("\n") : [];
+    return feature;
+  }
+
+  /** @param {string[]} lines @returns {{metadata: string, info: string, warn: string}} */
+  function featureEditorFields(lines) {
+    /** @type {{metadata: string[], info: string[], warn: string[]}} */
+    const sections = { metadata: [], info: [], warn: [] };
+    /** @type {"metadata" | "info" | "warn"} */
+    let section = "metadata";
+    for (const line of lines) {
+      if (/^\s*#Info\s*$/i.test(line)) { section = "info"; continue; }
+      if (/^\s*#Warn\s*$/i.test(line)) { section = "warn"; continue; }
+      if (/^\s*#(?:Version|Date)\s*$/i.test(line)) section = "metadata";
+      sections[section].push(line);
+    }
+    const clean = (/** @type {string[]} */ values) => values.join("\n").replace(/^(?:[ \t]*\n)+|(?:\n[ \t]*)+$/g, "");
+    return { metadata: clean(sections.metadata), info: clean(sections.info), warn: clean(sections.warn) };
+  }
+
+  /** @param {{metadata: string, info: string, warn: string}} fields @returns {MDFeature} */
+  function composeFeatureMetadata(fields) {
+    const blocks = [];
+    const clean = (/** @type {string} */ value) => value.replace(/\r\n?/g, "\n").replace(/^(?:[ \t]*\n)+|(?:\n[ \t]*)+$/g, "");
+    const embedded = featureEditorFields(clean(fields.metadata).split("\n"));
+    const metadata = embedded.metadata;
+    const info = clean([embedded.info, fields.info].filter(Boolean).join("\n"));
+    const warn = clean([embedded.warn, fields.warn].filter(Boolean).join("\n"));
+    if (metadata) blocks.push(metadata);
+    if (info) blocks.push(`#Info\n${info}`);
+    if (warn) blocks.push(`#Warn\n${warn}`);
+    return parseFeatureMetadata(blocks.join("\n\n"));
   }
 
   /** @param {MDTask} task @returns {string[]} */
@@ -177,5 +251,5 @@ window.MDManager = window.MDManager || {};
     return normalized.join(project.newline);
   }
 
-  app.markdown = { parse, serialize, taskContent };
+  app.markdown = { parse, parseFeatureMetadata, featureEditorFields, composeFeatureMetadata, taskEditorFields, composeTaskLines, serialize, taskContent };
 })(window.MDManager);

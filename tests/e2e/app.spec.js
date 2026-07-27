@@ -107,25 +107,32 @@ test("metadata recalculates grid row height when cards wrap onto another row", a
   await expect(page.locator("#content > .release")).toHaveCount(6);
 });
 
-test("feature title editing has explicit Save and Cancel actions", async ({ page }) => {
+test("feature editor saves title, metadata, info, and warn as one undo step", async ({ page }) => {
   await openFixture(page);
   const feature = page.locator("#content > .release").first();
   const heading = feature.locator(".release-heading");
   await heading.hover();
-  await expect(heading.locator(".edit-btn")).toBeVisible();
-  await expect(heading.locator(".feature-progress")).toHaveCSS("opacity", "0");
-
-  await heading.locator(".edit-btn").click();
-  await expect(heading.locator(".feature-title-input")).toHaveValue("Active Feature");
-  await heading.locator(".feature-title-input").fill("Discarded title");
-  await heading.getByRole("button", { name: "Cancel" }).click();
-  await expect(heading.locator(".release-title")).toHaveText("Active Feature");
-
-  await heading.locator(".edit-btn").click();
-  await heading.locator(".feature-title-input").fill("Renamed Feature");
-  await heading.getByRole("button", { name: "Save" }).click();
+  await heading.locator('[data-edit="feature"]').click();
+  const dialog = page.locator("#featureEditor");
+  await expect(dialog).toBeVisible();
+  await expect(page.locator("#featureEditorMetadata")).toHaveValue(/#Version/);
+  await page.locator("#featureEditorTitle").fill("Renamed Feature");
+  await page.locator("#featureEditorMetadata").fill("#Version\n- 2.0.0\n#Date\n- 2027-01-01 - 2027-06-30");
+  await page.locator("#featureEditorInfo").fill("- Updated metadata");
+  await page.locator("#featureEditorWarn").fill("- Check this");
+  await expect(page.locator("#saveFeatureEditor")).toHaveClass(/dirty/);
+  await page.locator("#saveFeatureEditor").click();
+  await expect(dialog).toBeHidden();
+  await page.locator("#toggleViewMenu").click();
+  await page.locator("#toggleMetadata").click();
   await expect(feature.locator(".release-title")).toHaveText("Renamed Feature");
-  await expect(page.locator("#saveFile")).toHaveClass(/dirty/);
+  await expect(feature.locator(".release-version")).toHaveText("v2.0.0");
+  await expect(feature.locator(".release-dates")).toContainText("2027-06-30");
+  await expect(feature.locator(".feature-notes")).toContainText("Updated metadata");
+  await expect(feature.locator(".feature-notes")).toContainText("Check this");
+  await page.locator("#undoChange").click();
+  await expect(page.locator("#content > .release").first().locator(".release-title")).toHaveText("Active Feature");
+  await expect(page.locator("#content > .release").first().locator(".release-version")).toHaveText("v1.2.3");
 });
 
 test("task editor opens in the foreground and saves title and Markdown as one undo step", async ({ page }) => {
@@ -143,8 +150,11 @@ test("task editor opens in the foreground and saves title and Markdown as one un
   const viewportWidth = page.viewportSize().width;
   expect(width / viewportWidth).toBeGreaterThan(.45);
   expect(width / viewportWidth).toBeLessThan(.55);
+  await expect(page.locator("#taskEditorMarkdown")).not.toHaveValue(/\n$/);
   await page.locator("#taskEditorTitle").fill("Edited Task");
-  await page.locator("#taskEditorMarkdown").fill("#Info\nEdited content\n\n**Next**\n- [ ] added todo");
+  await page.locator("#taskEditorMarkdown").fill("**Next**\n- [ ] added todo");
+  await page.locator("#taskEditorInfo").fill("Edited content");
+  await page.locator("#taskEditorWarn").fill("Review this task");
   await expect(page.locator("#taskEditorDirty")).toBeVisible();
   await dialog.getByRole("button", { name: "Save" }).click();
 
@@ -152,6 +162,7 @@ test("task editor opens in the foreground and saves title and Markdown as one un
   await expect(card.locator(".card-title")).toHaveText("Edited Task");
   await card.locator(".card-header").click();
   await expect(card.locator(".card-body")).toContainText("Edited content");
+  await expect(card.locator(".card-body")).toContainText("Review this task");
   await expect(card.locator(".card-body")).toContainText("added todo");
   await page.locator("#undoChange").click();
   await expect(page.locator("#content .card").first().locator(".card-title")).toHaveText("Started Task");
@@ -162,8 +173,9 @@ test("Escape cancels feature and task edits without leaving focus or selection b
   const featureHeading = page.locator(".release-heading").first();
   await featureHeading.hover();
   await featureHeading.locator('[data-edit="feature"]').click();
-  await featureHeading.locator(".feature-title-input").fill("Discarded feature");
+  await page.locator("#featureEditorTitle").fill("Discarded feature");
   await page.keyboard.press("Escape");
+  await expect(page.locator("#featureEditor")).not.toBeVisible();
   await expect(featureHeading.locator(".release-title")).toHaveText("Active Feature");
 
   const taskHeader = page.locator(".card-header").first();

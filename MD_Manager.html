@@ -73,15 +73,42 @@
           <input id="taskEditorTitle" name="title" type="text" required autocomplete="off">
         </label>
         <label class="editor-field editor-field-grow">
-          <span class="editor-label-row"><span class="editor-label">Markdown</span><span class="editor-hint">Todos, tags and labels</span></span>
+          <span class="editor-label-row"><span class="editor-label">Markdown</span><span class="editor-hint">Todos and labels</span></span>
           <textarea id="taskEditorMarkdown" name="markdown" spellcheck="true"></textarea>
         </label>
+        <div class="feature-note-fields task-note-editor-fields">
+          <label class="metadata-editor-field"><span class="editor-label">Info</span><textarea id="taskEditorInfo" name="info" spellcheck="true"></textarea></label>
+          <label class="metadata-editor-field"><span class="editor-label">Warn</span><textarea id="taskEditorWarn" name="warn" spellcheck="true"></textarea></label>
+        </div>
       </div>
       <footer class="task-editor-footer">
         <span class="task-editor-dirty" id="taskEditorDirty" hidden>Unsaved changes</span>
         <div class="task-editor-actions">
           <button class="btn editor-cancel" id="cancelTaskEditor" type="button">Cancel</button>
           <button class="btn editor-save" id="saveTaskEditor" type="submit">Save</button>
+        </div>
+      </footer>
+    </form>
+  </dialog>
+  <dialog class="feature-editor-dialog" id="featureEditor" aria-labelledby="featureEditorFeature">
+    <form class="feature-editor" id="featureEditorForm" method="dialog">
+      <header class="metadata-editor-header">
+        <nav class="task-editor-breadcrumb" aria-label="Feature location"><span id="featureEditorProject"></span><span aria-hidden="true">/</span><strong id="featureEditorFeature"></strong></nav>
+        <button class="task-editor-close" id="closeFeatureEditor" type="button" aria-label="Cancel editing" title="Cancel">✕</button>
+      </header>
+      <div class="feature-editor-content">
+        <label class="editor-field"><span class="editor-label">Title</span><input id="featureEditorTitle" name="title" type="text" required autocomplete="off"></label>
+        <label class="metadata-editor-field"><span class="editor-label-row"><span class="editor-label">Metadata</span><span class="editor-hint">#Version and #Date</span></span><textarea id="featureEditorMetadata" name="metadata" spellcheck="true"></textarea></label>
+        <div class="feature-note-fields">
+          <label class="metadata-editor-field"><span class="editor-label">Info</span><textarea id="featureEditorInfo" name="info" spellcheck="true"></textarea></label>
+          <label class="metadata-editor-field"><span class="editor-label">Warn</span><textarea id="featureEditorWarn" name="warn" spellcheck="true"></textarea></label>
+        </div>
+      </div>
+      <footer class="task-editor-footer">
+        <span class="task-editor-dirty" id="featureEditorDirty" hidden>Unsaved changes</span>
+        <div class="task-editor-actions">
+          <button class="btn editor-cancel" id="cancelFeatureEditor" type="button">Cancel</button>
+          <button class="btn editor-save" id="saveFeatureEditor" type="submit">Save</button>
         </div>
       </footer>
     </form>

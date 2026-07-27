@@ -18,7 +18,7 @@ test("features move without crossing the backlog", () => {
 
 test("feature titles and complete task drafts update only their target", () => {
   const value = project();
-  domain.renameFeature(value, 0, "Renamed Feature");
+  domain.updateFeature(value, 0, "Renamed Feature", { headerLines: ["#Info", "- changed"], version: "2.0.0", dates: [], notes: [], tasks: [], title: "", isBacklog: false });
   domain.updateTask(value, 0, 0, { title: "Renamed Task", lines: ["#Info", "edited", "- [ ] new"] });
   assert.equal(value.features[0].title, "Renamed Feature");
   assert.deepEqual(value.features[0].tasks[0], { title: "Renamed Task", lines: ["#Info", "edited", "- [ ] new"] });

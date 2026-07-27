@@ -103,23 +103,20 @@ main { display:flex; flex:1; align-items:flex-start; gap:.75rem; min-width:0; mi
 .release:has(.release-heading>.delete-btn:hover) .feature-progress,.release:has(.release-heading>.delete-btn:hover) .task-check,.release:has(.release-heading>.delete-btn:hover) .task-progress,.release:has(.release-heading>.delete-btn:hover) .checkbox.checked,.card:has(> .card-header > .delete-btn:hover) .task-check,.card:has(> .card-header > .delete-btn:hover) .task-progress,.card:has(> .card-header > .delete-btn:hover) .checkbox.checked { color:var(--error); }
 .release:has(.release-heading>.delete-btn:hover) .checkbox,.card:has(> .card-header > .delete-btn:hover) .checkbox { border-color:var(--error); }
 .todo-item:has(> .delete-btn:hover)>.checkbox { border-color:var(--error); color:var(--error); opacity:.55; transition:none; } .todo-item:has(> .delete-btn:hover)>.todo-text { color:var(--error); opacity:.55; transition:none; }
-.feature-title-editing>.edit-btn,.feature-title-editing>.delete-btn { display:none; }
-.feature-title-editing>.feature-progress { opacity:0; }
-.feature-title-editing { grid-template-columns:minmax(0,1fr); }
-.feature-title-editing .release-title { width:100%; padding-right:8.25rem; overflow:visible; }
-.feature-title-input { width:calc(100% + 5px); height:24px; margin-left:-5px; padding:0 .45rem 0 3px; border:2px solid var(--border); border-radius:5px; outline:0; background:var(--bg-primary); color:var(--text); font:inherit; font-weight:600; caret-color:var(--text); user-select:text; }
-.feature-title-input:focus { border-color:var(--text); }
-.inline-title-actions { position:absolute; top:50%; right:0; z-index:3; display:flex; gap:.35rem; transform:translateY(-50%); }
-.inline-title-actions .btn { height:24px; padding:0 .5rem; font-size:.72rem; line-height:22px; }
-.inline-title-actions .inline-cancel,.inline-title-actions .inline-save { border-color:var(--border); background:var(--bg-tertiary); color:var(--muted); }
-.inline-title-actions .btn:hover:not(:disabled),.inline-title-actions .btn:focus-visible { border-color:var(--text); background:var(--bg-tertiary); color:var(--text); box-shadow:none; }
-.inline-title-actions .inline-save.dirty { border-color:var(--orange); background:var(--orange); color:var(--bg-primary); }
-.inline-title-actions .inline-save:hover:not(:disabled),.inline-title-actions .inline-save:focus-visible { border-color:var(--text); background:var(--bg-tertiary); color:var(--text); }
-.inline-title-actions .inline-save.dirty:hover:not(:disabled),.inline-title-actions .inline-save.dirty:focus-visible { border-color:var(--orange-bright); background:var(--bg-tertiary); color:var(--orange-bright); }
-
 .task-editor-dialog { position:fixed; inset:0; width:clamp(36rem,50vw,56rem); max-width:calc(100vw - 2rem); height:min(78vh,52rem); max-height:calc(100vh - 2rem); margin:auto; overflow:hidden; border:1px solid var(--border); border-radius:14px; outline:0; background:var(--bg-secondary); color:var(--text); box-shadow:0 8px 24px rgba(0,0,0,.45); }
 .task-editor-dialog[open] { display:block; animation:task-editor-in 210ms var(--ease-out); }
 .task-editor-dialog::backdrop { background:rgba(0,0,0,.58); backdrop-filter:blur(3px); animation:task-backdrop-in 180ms ease-out; }
+.feature-editor-dialog { position:fixed; inset:0; width:clamp(38rem,52vw,60rem); max-width:calc(100vw - 2rem); height:min(76vh,48rem); max-height:calc(100vh - 2rem); margin:auto; overflow:hidden; border:1px solid var(--border); border-radius:12px; outline:0; background:var(--bg-secondary); color:var(--text); box-shadow:0 8px 24px rgba(0,0,0,.45); }
+.feature-editor-dialog[open] { display:block; animation:task-editor-in 180ms var(--ease-out); }
+.feature-editor-dialog::backdrop { background:rgba(0,0,0,.5); backdrop-filter:blur(2px); animation:task-backdrop-in 160ms ease-out; }
+.feature-editor { height:100%; display:flex; flex-direction:column; }
+.metadata-editor-header { flex:none; display:flex; align-items:center; justify-content:space-between; padding:.85rem 1rem; border-bottom:1px solid var(--border); background:linear-gradient(180deg,var(--bg-tertiary),var(--bg-secondary)); }
+.feature-editor-content { min-height:0; flex:1; display:grid; grid-template-rows:auto minmax(8rem,1fr) minmax(8rem,1fr); gap:1rem; padding:1rem; }
+.metadata-editor-field { min-height:0; flex:1; display:flex; flex-direction:column; gap:.45rem; }
+.feature-note-fields { min-height:0; display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
+.task-note-editor-fields { flex:0 0 min(28%,10rem); }
+.metadata-editor-field textarea { width:100%; min-height:0; flex:1; resize:none; padding:.8rem; border:2px solid var(--border); border-radius:8px; outline:0; background:var(--bg-primary); color:var(--text); caret-color:var(--text); font:400 .82rem/1.55 ui-monospace,"Cascadia Mono","Segoe UI Mono",Consolas,monospace; tab-size:2; user-select:text; transition:border-color var(--motion-fast) var(--ease-out); }
+.metadata-editor-field textarea:focus { border-color:var(--text); }
 .task-editor { height:100%; display:flex; flex-direction:column; }
 .task-editor-header { flex:none; display:flex; align-items:center; justify-content:space-between; padding:1.1rem 1.2rem; border-bottom:1px solid var(--border); background:linear-gradient(180deg,var(--bg-tertiary),var(--bg-secondary)); }
 .task-editor-breadcrumb { display:flex; align-items:center; gap:.45rem; max-width:min(40rem,70vw); overflow:hidden; color:var(--muted); font-size:.9rem; white-space:nowrap; }
@@ -182,6 +179,8 @@ button:focus-visible { outline:2px solid var(--text); outline-offset:2px; }
 }
 @media (max-width:800px) {
   .task-editor-dialog { width:calc(100vw - 1rem); max-width:none; height:calc(100vh - 1rem); max-height:none; border-radius:10px; }
+  .feature-editor-dialog { width:calc(100vw - 1rem); max-width:none; height:calc(100vh - 1rem); border-radius:10px; }
+  .feature-note-fields { grid-template-columns:1fr; }
   .task-editor-header,.task-editor-content,.task-editor-footer { padding-left:.85rem; padding-right:.85rem; }
   .editor-label-row { align-items:flex-start; flex-direction:column; gap:.15rem; }
 }

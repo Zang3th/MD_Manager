@@ -166,7 +166,7 @@ window.MDManager = window.MDManager || {};
       easing: "cubic-bezier(.2,0,0,1)",
       draggable: "> .release",
       handle: ".release-header",
-      filter: ".action-btn,.feature-title-input,.inline-title-actions",
+      filter: ".action-btn",
       preventOnFilter: false,
       ghostClass: "sortable-ghost",
       chosenClass: "sortable-chosen",
@@ -248,84 +248,6 @@ window.MDManager = window.MDManager || {};
     return /** @type {HTMLElement} */ (element.closest(selector));
   }
 
-  /** @param {HTMLElement} editButton */
-  function editFeatureTitle(editButton) {
-    if (!project) return;
-    const featureElement = requiredClosest(editButton, ".release");
-    const heading = requiredClosest(editButton, ".release-heading");
-    const title = /** @type {HTMLElement} */ (heading.querySelector(".release-title"));
-    const featureIndex = Number(featureElement.dataset.feature);
-    const original = project.features[featureIndex].title;
-    const input = document.createElement("input");
-    const actions = document.createElement("div");
-    const cancelButton = document.createElement("button");
-    const saveButton = document.createElement("button");
-    /** @type {((event: PointerEvent) => void) | null} */
-    let outsideHandler = null;
-
-    input.className = "feature-title-input";
-    input.value = original;
-    input.setAttribute("aria-label", "Feature title");
-    actions.className = "inline-title-actions";
-    cancelButton.className = "btn inline-cancel";
-    cancelButton.type = "button";
-    cancelButton.textContent = "Cancel";
-    saveButton.className = "btn inline-save";
-    saveButton.type = "button";
-    saveButton.textContent = "Save";
-    actions.append(cancelButton, saveButton);
-    heading.classList.add("feature-title-editing");
-    title.classList.add("is-editing");
-    title.replaceChildren(input);
-    heading.append(actions);
-
-    function cancel() {
-      if (outsideHandler) document.removeEventListener("pointerdown", outsideHandler);
-      const text = document.createElement("span");
-      text.className = "title-text";
-      text.textContent = original;
-      title.replaceChildren(text);
-      title.classList.remove("is-editing");
-      heading.classList.remove("feature-title-editing");
-      actions.remove();
-      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
-      window.getSelection()?.removeAllRanges();
-      app.layout.fitTitles([title]);
-    }
-
-    function save() {
-      const nextTitle = input.value.trim();
-      if (!nextTitle) {
-        input.setCustomValidity("A feature title is required.");
-        input.reportValidity();
-        return;
-      }
-      if (outsideHandler) document.removeEventListener("pointerdown", outsideHandler);
-      app.domain.renameFeature(project, featureIndex, nextTitle);
-      changed?.(captureViewState());
-    }
-
-    cancelButton.addEventListener("click", event => { event.stopPropagation(); cancel(); });
-    saveButton.addEventListener("click", event => { event.stopPropagation(); save(); });
-    input.addEventListener("input", () => {
-      input.setCustomValidity("");
-      saveButton.classList.toggle("dirty", input.value.trim() !== original);
-    });
-    input.addEventListener("keydown", event => {
-      if (event.key === "Enter") save();
-      if (event.key === "Escape") cancel();
-      event.stopPropagation();
-    });
-    requestAnimationFrame(() => {
-      input.focus();
-      input.select();
-      outsideHandler = event => {
-        if (!heading.contains(/** @type {Node} */ (event.target))) cancel();
-      };
-      document.addEventListener("pointerdown", outsideHandler);
-    });
-  }
-
   /** @param {MouseEvent} event */
   async function handleContentClick(event) {
     if (!project && !eventElement(event).closest(".recent-file")) return;
@@ -350,11 +272,18 @@ window.MDManager = window.MDManager || {};
 
     if (!project) return;
 
-    const editButton = eventElement(event).closest(".edit-btn");
+    const editButton = eventElement(event).closest("[data-edit]");
     if (editButton) {
       event.stopPropagation();
       if (editButton.dataset.edit === "feature") {
-        editFeatureTitle(/** @type {HTMLElement} */ (editButton));
+        const featureElement = requiredClosest(editButton, ".release");
+        const featureIndex = Number(featureElement.dataset.feature);
+        const viewState = captureViewState();
+        const feature = project.features[featureIndex];
+        app.editor.openFeature(project, feature, (/** @type {{title: string, metadata: string, info: string, warn: string}} */ draft) => {
+          app.domain.updateFeature(project, featureIndex, draft.title, app.markdown.composeFeatureMetadata(draft));
+          changed?.(viewState);
+        });
       } else {
         const taskElement = requiredClosest(editButton, ".card");
         const featureElement = requiredClosest(editButton, ".release");
@@ -431,7 +360,6 @@ window.MDManager = window.MDManager || {};
 
     const featureHeader = eventElement(event).closest(".release-header");
     if (featureHeader) {
-      if (featureHeader.querySelector(".feature-title-editing")) return;
       const feature = requiredClosest(featureHeader, ".release");
       const tasks = [...feature.querySelectorAll(".card")];
       const notes = [...feature.querySelectorAll(".feature-note")];
