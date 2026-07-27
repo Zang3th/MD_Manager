@@ -7,10 +7,8 @@ window.MDManager = window.MDManager || {};
   const headerHeightCache = new Map();
   const gridHeightCache = new Map();
   const measureContext = /** @type {CanvasRenderingContext2D} */ (document.createElement("canvas").getContext("2d"));
-  /** @type {number | null} */
-  let gridIntrinsicWidth = null;
   let layoutFrame = 0;
-  let layoutNeeds = { titles: false, headers: false, gridWidth: false, gridHeight: false };
+  let layoutNeeds = { titles: false, headers: false, gridHeight: false };
 
   function layoutKey() {
     return `${document.body.classList.contains("toggle-grid-view") ? "grid" : "board"}:${document.body.classList.contains("show-metadata") ? "metadata" : "plain"}`;
@@ -131,40 +129,17 @@ window.MDManager = window.MDManager || {};
     headers.forEach(header => header.style.height = cached.headerHeight === null ? "auto" : `${cached.headerHeight}px`);
   }
 
-  /** @param {HTMLElement} content */
-  function intrinsicGridWidth(content) {
-    if (gridIntrinsicWidth !== null) return gridIntrinsicWidth;
-    const elements = /** @type {HTMLElement[]} */ ([...content.querySelectorAll(".release-title, .card-title")]);
-    const widths = elements.map(element => {
-      const style = titleStyle(element);
-      const textWidth = measuredTextWidth(element.dataset.fullTitle || "", style);
-      if (element.classList.contains("release-title")) {
-        return textWidth + (element.closest(".release-heading")?.querySelector(".feature-progress")?.offsetWidth || 0) + 32;
-      }
-      return textWidth + (element.closest(".card-header")?.querySelector(".task-status")?.offsetWidth || 0) + 40;
-    });
-    gridIntrinsicWidth = Math.max(240, ...widths);
-    return gridIntrinsicWidth;
-  }
-
   function runLayout() {
     layoutFrame = 0;
     const needs = layoutNeeds;
-    layoutNeeds = { titles: false, headers: false, gridWidth: false, gridHeight: false };
+    layoutNeeds = { titles: false, headers: false, gridHeight: false };
     const content = document.getElementById("content");
     const grid = document.body.classList.contains("toggle-grid-view");
     if (!grid) {
-      content.style.removeProperty("--grid-card-width");
       content.style.removeProperty("--grid-feature-height");
-      document.body.style.removeProperty("--grid-card-width");
       document.body.style.removeProperty("--grid-feature-height");
     } else {
       document.querySelectorAll(".title-hover").forEach(title => stopTitleScroll(/** @type {HTMLElement} */ (title)));
-      if (needs.gridWidth) {
-        const width = Math.min(intrinsicGridWidth(content), content.clientWidth);
-        content.style.setProperty("--grid-card-width", `${width}px`);
-        document.body.style.setProperty("--grid-card-width", `${width}px`);
-      }
     }
     if (needs.headers) applyHeaderHeights();
     if (needs.titles) fitTitles();
@@ -188,7 +163,7 @@ window.MDManager = window.MDManager || {};
     }
   }
 
-  /** @param {Partial<Record<"titles" | "headers" | "gridWidth" | "gridHeight", boolean>>} needs */
+  /** @param {Partial<Record<"titles" | "headers" | "gridHeight", boolean>>} needs */
   function schedule(needs) {
     for (const [key, value] of Object.entries(needs)) {
       layoutNeeds[/** @type {keyof typeof layoutNeeds} */ (key)] ||= value;
@@ -200,8 +175,8 @@ window.MDManager = window.MDManager || {};
     schedule({ headers: true, titles: true });
   }
 
-  function layoutGrid(resize = false) {
-    schedule({ titles: true, headers: !resize, gridWidth: true, gridHeight: !resize });
+  function layoutGrid() {
+    schedule({ titles: true, headers: true, gridHeight: true });
   }
 
   function reset() {
@@ -210,13 +185,11 @@ window.MDManager = window.MDManager || {};
     titleStyleCache.clear();
     headerHeightCache.clear();
     gridHeightCache.clear();
-    gridIntrinsicWidth = null;
   }
 
   function statusChanged() {
     titleFitCache.clear();
-    gridIntrinsicWidth = null;
-    schedule({ titles: true, gridWidth: true });
+    schedule({ titles: true });
   }
 
   window.addEventListener("resize", () => {

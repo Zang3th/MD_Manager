@@ -223,6 +223,18 @@ test("backlog opens as a separate pane and closes from its framed button", async
   await openFixture(page);
   await page.locator("#toggleBacklog").click();
   await expect(page.locator("#backlog")).toBeVisible();
+  await expect(page.locator(".backlog-title")).toHaveText("Later");
+  await expect(page.locator(".backlog-pane")).toHaveCSS("width", "320px");
+  await expect.poll(async () => {
+    const backlogBounds = await page.locator("#backlog").boundingBox();
+    const paneBounds = await page.locator(".backlog-pane").boundingBox();
+    return backlogBounds.x >= paneBounds.x && backlogBounds.x + backlogBounds.width <= paneBounds.x + paneBounds.width;
+  }).toBe(true);
+  await expect.poll(async () => {
+    const headerBounds = await page.locator(".backlog-header").boundingBox();
+    const paneBounds = await page.locator(".backlog-pane").boundingBox();
+    return Math.abs(headerBounds.x + headerBounds.width - (paneBounds.x + paneBounds.width));
+  }).toBeLessThanOrEqual(1);
   await expect(page.locator("#backlog .card-title")).toHaveText("Deferred Task");
   const backlogTasks = page.locator("#backlog .card");
   await page.locator("#backlog .backlog-add-task").click();
@@ -236,13 +248,22 @@ test("backlog opens as a separate pane and closes from its framed button", async
 
 test("statistics can close and reopen in board and grid", async ({ page }) => {
   await openFixture(page);
-  await expect(page.locator("#projectStats")).toBeVisible();
+  const stats = page.locator("#projectStats");
+  const content = page.locator("#content");
+  await expect(stats).toBeVisible();
+  await expect(stats).toHaveCSS("width", "320px");
+  await expect(stats.locator("td").first()).toHaveCSS("font-size", "12px");
+  await expect.poll(() => stats.evaluate(node => node.getBoundingClientRect().bottom)).toBe(page.viewportSize().height - 10);
+  await expect.poll(() => content.evaluate(node => node.getBoundingClientRect().left)).toBe(0);
   await page.locator(".stats-close").click();
-  await expect(page.locator("#projectStats")).toBeHidden();
+  await expect(stats).toBeHidden();
+  await expect.poll(() => content.evaluate(node => node.getBoundingClientRect().left)).toBe(0);
   await page.locator("#toggleViewMenu").click();
   await page.locator("#toggleStats").click();
   await page.locator("#toggleGridView").click();
-  await expect(page.locator("#projectStats")).toBeVisible();
+  await expect(stats).toBeVisible();
+  await expect(stats).toHaveCSS("width", "260px");
+  await expect(stats.locator("td").first()).toHaveCSS("font-size", "11px");
 });
 
 test("help popover documents shortcuts and Markdown and closes predictably", async ({ page }) => {
@@ -366,8 +387,12 @@ test("long titles remain clipped to their headers and scroll only on hover", asy
   await openFixture(page);
   const title = page.locator(".release-title").first();
   await title.evaluate(node => { node.dataset.fullTitle = "An extremely long feature title that cannot fit into the available header width"; window.MDManager.render.fitTitles(); });
-  await title.hover();
+  const heading = title.locator("..");
+  await heading.hover();
   await expect(title).toHaveClass(/title-scroll/);
+  const titleBox = await title.boundingBox();
+  const editBox = await heading.locator(".edit-btn").boundingBox();
+  expect(titleBox.x + titleBox.width).toBeLessThanOrEqual(editBox.x);
   await page.mouse.move(0, 0);
   await expect(title).not.toHaveClass(/title-scroll/);
 });
@@ -391,6 +416,38 @@ test("board feature widths remain bounded on common and 4K viewports", async ({ 
   const normalWidth = await page.locator("#content > .release").first().evaluate(node => node.getBoundingClientRect().width);
   await page.setViewportSize({ width: 3840, height: 2160 });
   const wideWidth = await page.locator("#content > .release").first().evaluate(node => node.getBoundingClientRect().width);
-  expect(normalWidth).toBeGreaterThanOrEqual(240);
-  expect(wideWidth).toBeLessThanOrEqual(342);
+  expect(normalWidth).toBe(320);
+  expect(wideWidth).toBe(320);
+});
+
+test("fixed grid uses 260px columns and backlog overlays without shifting it", async ({ page }) => {
+  const features = Array.from({ length: 9 }, (_, index) => `## Feature ${index + 1}\n### Task ${index + 1}\n- [ ] pending`).join("\n\n");
+  await page.setViewportSize({ width: 1080, height: 1920 });
+  await openFixture(page, `# Portrait Grid\n\n${features}\n\n#Backlog\n## Backlog\n### Deferred\n- [ ] later`);
+  await page.locator("#toggleGridView").click();
+
+  const releases = page.locator("#content > .release");
+  const positions = await releases.evaluateAll(nodes => nodes.map(node => ({ x: node.getBoundingClientRect().x, y: node.getBoundingClientRect().y })));
+  expect(new Set(positions.slice(0, 4).map(position => position.x)).size).toBe(4);
+  expect(positions[4].y).toBeGreaterThan(positions[0].y);
+  await expect(releases.first()).toHaveCSS("width", "260px");
+  await expect(releases.first().locator(".release-title")).toHaveCSS("font-size", "14px");
+  await expect(releases.first().locator(".card-title").first()).toHaveCSS("font-size", "12px");
+
+  const before = await releases.first().boundingBox();
+  await page.locator("#toggleBacklog").click();
+  await expect(page.locator(".backlog-title")).toHaveText("Backlog");
+  const after = await releases.first().boundingBox();
+  expect(after).toEqual(before);
+  const backlog = await page.locator(".backlog-pane").boundingBox();
+  const content = await page.locator("#content").boundingBox();
+  expect(backlog.width).toBe(260);
+  await expect.poll(() => page.locator("#projectStats").evaluate(node => node.getBoundingClientRect().bottom)).toBe(page.viewportSize().height);
+  expect(backlog.x + backlog.width).toBeCloseTo(content.x + content.width, 0);
+
+  await page.setViewportSize({ width: 1707, height: 960 });
+  await expect.poll(async () => {
+    const widePositions = await releases.evaluateAll(nodes => nodes.map(node => node.getBoundingClientRect()));
+    return widePositions.filter(position => Math.abs(position.y - widePositions[0].y) < 1).length;
+  }).toBe(6);
 });

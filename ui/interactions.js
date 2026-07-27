@@ -145,13 +145,7 @@ window.MDManager = window.MDManager || {};
     const button = document.getElementById("toggleBacklog");
     if (button.disabled) return;
     const open = backlog.hidden;
-    const workspace = document.querySelector(".workspace");
-    if (open && !document.body.classList.contains("toggle-grid-view")) {
-      const feature = document.querySelector("#content > .release");
-      if (feature) workspace.style.setProperty("--backlog-width", `${feature.getBoundingClientRect().width}px`);
-    }
     backlog.hidden = !open;
-    if (!open) workspace.style.removeProperty("--backlog-width");
     button.setAttribute("aria-pressed", String(open));
     if (open) app.layout.fitTitles(backlog.querySelectorAll(".backlog-title, .card-title"));
   }

@@ -25,7 +25,7 @@
       <button class="app-logo-button" id="addFeature" type="button" aria-label="New feature" title="New feature" disabled><img class="app-logo" src="res/Logo.svg" alt=""></button>
       <div class="header-left">
         <h1 class="project-title" id="projectTitle">MD_Manager</h1>
-        <span class="app-version" id="appVersion">v0.0.15</span>
+        <span class="app-version" id="appVersion">v0.1.0</span>
         <div class="file-controls">
           <button class="btn control-btn" id="openFile" type="button">Open</button>
           <button class="btn save-btn" id="saveFile" type="button" hidden>Save</button>
@@ -35,7 +35,6 @@
           <button class="btn control-btn icon-btn" id="redoChange" type="button" aria-label="Redo" title="Redo" disabled><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m15 14 5-5-5-5m5 5H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>
         </div>
       </div>
-      <div class="project-stats" id="projectStats" aria-label="Project status overview" hidden></div>
       <div class="header-actions">
         <nav class="control-bar" id="viewerControls" aria-label="Viewer controls" hidden>
           <div class="help-menu">
@@ -104,6 +103,7 @@
     </div>
   </header>
   <div class="workspace">
+    <aside class="project-stats" id="projectStats" aria-label="Project status overview" hidden></aside>
     <main id="content" aria-live="polite"></main>
     <aside class="backlog-pane" aria-label="Backlog area">
       <section class="release backlog" id="backlog" aria-label="Backlog" hidden></section>
@@ -161,6 +161,6 @@
       </footer>
     </form>
   </dialog>
-  <div class="watermark" id="watermark">© 2026 MD_Manager v0.0.15 · Tim Krüger (Zang3th) · <a href="https://github.com/Zang3th" target="_blank" rel="noopener noreferrer">GitHub</a></div>
+  <div class="watermark" id="watermark">© 2026 MD_Manager v0.1.0 · Tim Krüger (Zang3th) · <a href="https://github.com/Zang3th" target="_blank" rel="noopener noreferrer">GitHub</a></div>
 </body>
 </html>

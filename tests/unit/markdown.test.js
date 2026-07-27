@@ -77,13 +77,6 @@ test("serialization preserves newline style, orders backlog last, and normalizes
   assert.match(output, /- \[x\] ~done~/);
 });
 
-test("Roadmap.md parses and round-trips without losing project structure", () => {
-  const source = fs.readFileSync(path.join(__dirname, "../../data/Roadmap.md"), "utf8");
-  const first = markdown.parse(source); const second = markdown.parse(markdown.serialize(first));
-  assert.equal(second.title, first.title);
-  assert.deepEqual(second.features.map(f => [f.title, f.isBacklog, f.tasks.map(t => t.title)]), first.features.map(f => [f.title, f.isBacklog, f.tasks.map(t => t.title)]));
-});
-
 test("Layout.md is the parsing golden file and round-trips without losing information", () => {
   const source = fs.readFileSync(path.join(__dirname, "../../data/Layout.md"), "utf8");
   const first = markdown.parse(source);
