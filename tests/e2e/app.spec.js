@@ -107,6 +107,75 @@ test("metadata recalculates grid row height when cards wrap onto another row", a
   await expect(page.locator("#content > .release")).toHaveCount(6);
 });
 
+test("feature title editing has explicit Save and Cancel actions", async ({ page }) => {
+  await openFixture(page);
+  const feature = page.locator("#content > .release").first();
+  const heading = feature.locator(".release-heading");
+  await heading.hover();
+  await expect(heading.locator(".edit-btn")).toBeVisible();
+  await expect(heading.locator(".feature-progress")).toHaveCSS("opacity", "0");
+
+  await heading.locator(".edit-btn").click();
+  await expect(heading.locator(".feature-title-input")).toHaveValue("Active Feature");
+  await heading.locator(".feature-title-input").fill("Discarded title");
+  await heading.getByRole("button", { name: "Cancel" }).click();
+  await expect(heading.locator(".release-title")).toHaveText("Active Feature");
+
+  await heading.locator(".edit-btn").click();
+  await heading.locator(".feature-title-input").fill("Renamed Feature");
+  await heading.getByRole("button", { name: "Save" }).click();
+  await expect(feature.locator(".release-title")).toHaveText("Renamed Feature");
+  await expect(page.locator("#saveFile")).toHaveClass(/dirty/);
+});
+
+test("task editor opens in the foreground and saves title and Markdown as one undo step", async ({ page }) => {
+  await openFixture(page);
+  const card = page.locator("#content .card").first();
+  const header = card.locator(".card-header");
+  await header.hover();
+  await expect(header.locator(".edit-btn")).toBeVisible();
+  await expect(header.locator(".task-status")).toHaveCSS("opacity", "0");
+  await header.locator(".edit-btn").click();
+
+  const dialog = page.locator("#taskEditor");
+  await expect(dialog).toBeVisible();
+  const width = await dialog.evaluate(node => node.getBoundingClientRect().width);
+  const viewportWidth = page.viewportSize().width;
+  expect(width / viewportWidth).toBeGreaterThan(.45);
+  expect(width / viewportWidth).toBeLessThan(.55);
+  await page.locator("#taskEditorTitle").fill("Edited Task");
+  await page.locator("#taskEditorMarkdown").fill("#Info\nEdited content\n\n**Next**\n- [ ] added todo");
+  await expect(page.locator("#taskEditorDirty")).toBeVisible();
+  await dialog.getByRole("button", { name: "Save" }).click();
+
+  await expect(dialog).toBeHidden();
+  await expect(card.locator(".card-title")).toHaveText("Edited Task");
+  await card.locator(".card-header").click();
+  await expect(card.locator(".card-body")).toContainText("Edited content");
+  await expect(card.locator(".card-body")).toContainText("added todo");
+  await page.locator("#undoChange").click();
+  await expect(page.locator("#content .card").first().locator(".card-title")).toHaveText("Started Task");
+});
+
+test("Escape cancels feature and task edits without leaving focus or selection behind", async ({ page }) => {
+  await openFixture(page);
+  const featureHeading = page.locator(".release-heading").first();
+  await featureHeading.hover();
+  await featureHeading.locator('[data-edit="feature"]').click();
+  await featureHeading.locator(".feature-title-input").fill("Discarded feature");
+  await page.keyboard.press("Escape");
+  await expect(featureHeading.locator(".release-title")).toHaveText("Active Feature");
+
+  const taskHeader = page.locator(".card-header").first();
+  await taskHeader.hover();
+  await taskHeader.locator('[data-edit="task"]').click();
+  await page.locator("#taskEditorTitle").fill("Discarded task");
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#taskEditor")).not.toBeVisible();
+  await expect(taskHeader.locator(".card-title")).toHaveText("Started Task");
+  await expect.poll(() => page.evaluate(() => ({ active: document.activeElement?.tagName, selection: window.getSelection()?.toString() }))).toEqual({ active: "BODY", selection: "" });
+});
+
 test("backlog opens as a separate pane and closes from its framed button", async ({ page }) => {
   await openFixture(page);
   await page.locator("#toggleBacklog").click();
@@ -161,6 +230,36 @@ test("checking a todo updates progress, dirty state, save output, undo, and redo
   await page.locator("#redoChange").click();
   await page.locator("#saveFile").click();
   await expect.poll(() => page.evaluate(() => window.__savedMarkdown)).toContain("- [x] ~open~");
+});
+
+test("Control+S saves the current project through the global save action", async ({ page }) => {
+  await openFixture(page);
+  await page.locator(".card-header").first().click();
+  await page.locator(".card").first().locator(".checkbox").nth(1).click();
+  await page.keyboard.press("Control+s");
+  await expect.poll(() => page.evaluate(() => window.__savedMarkdown)).toContain("- [x] ~open~");
+  await expect(page.locator("#saveFile")).not.toHaveClass(/dirty/);
+});
+
+test("global keyboard shortcuts open files and undo and redo project changes", async ({ page }) => {
+  await openFixture(page);
+  await page.evaluate(() => {
+    const open = window.MDManager.files.open;
+    window.__openCount = 0;
+    window.MDManager.files.open = async () => {
+      window.__openCount += 1;
+      return open();
+    };
+  });
+  await page.locator(".card-header").first().click();
+  const todo = page.locator(".card").first().locator(".checkbox").nth(1);
+  await todo.click();
+  await page.keyboard.press("Control+z");
+  await expect(page.locator(".card").first().locator(".task-in-progress")).toBeVisible();
+  await page.keyboard.press("Control+y");
+  await expect(page.locator(".card").first().locator(".task-check")).toBeVisible();
+  await page.keyboard.press("Control+o");
+  await expect.poll(() => page.evaluate(() => window.__openCount)).toBe(1);
 });
 
 test("deleting a task updates the model and undo restores it", async ({ page }) => {

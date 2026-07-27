@@ -16,6 +16,15 @@ test("features move without crossing the backlog", () => {
   assert.deepEqual(value.features.map(x => x.title), ["B", "A", "Backlog"]);
 });
 
+test("feature titles and complete task drafts update only their target", () => {
+  const value = project();
+  domain.renameFeature(value, 0, "Renamed Feature");
+  domain.updateTask(value, 0, 0, { title: "Renamed Task", lines: ["#Info", "edited", "- [ ] new"] });
+  assert.equal(value.features[0].title, "Renamed Feature");
+  assert.deepEqual(value.features[0].tasks[0], { title: "Renamed Task", lines: ["#Info", "edited", "- [ ] new"] });
+  assert.equal(value.features[1].title, "B");
+});
+
 test("tasks move within and between features", () => {
   const value = project();
   domain.moveTask(value, 0, 0, 1, 1);

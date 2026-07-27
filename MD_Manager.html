@@ -15,6 +15,7 @@
   <script defer src="ui/theme.js"></script>
   <script defer src="ui/layout.js"></script>
   <script defer src="ui/render.js"></script>
+  <script defer src="ui/editor.js"></script>
   <script defer src="ui/interactions.js"></script>
   <script defer src="app.js"></script>
 </head>
@@ -50,7 +51,7 @@
           </div>
         </nav>
       </div>
-      <span class="app-version" id="appVersion">v0.0.13</span>
+      <span class="app-version" id="appVersion">v0.0.14</span>
       <button class="btn control-btn icon-btn theme-toggle" id="toggleTheme" type="button" aria-label="Switch to Light Mode" title="Switch to Light Mode"><span aria-hidden="true">☀</span></button>
     </div>
   </header>
@@ -60,6 +61,31 @@
       <section class="release backlog" id="backlog" aria-label="Backlog" hidden></section>
     </aside>
   </div>
-  <div class="watermark" id="watermark">© 2026 MD_Manager v0.0.13 · Tim Krüger (Zang3th) · <a href="https://github.com/Zang3th" target="_blank" rel="noopener noreferrer">GitHub</a></div>
+  <dialog class="task-editor-dialog" id="taskEditor" aria-labelledby="taskEditorLocation">
+    <form class="task-editor" id="taskEditorForm" method="dialog">
+      <header class="task-editor-header">
+        <nav class="task-editor-breadcrumb" aria-label="Task location"><span id="taskEditorProject"></span><span aria-hidden="true">/</span><span id="taskEditorFeature"></span><span aria-hidden="true">/</span><strong id="taskEditorLocation"></strong></nav>
+        <button class="task-editor-close" id="closeTaskEditor" type="button" aria-label="Cancel editing" title="Cancel">✕</button>
+      </header>
+      <div class="task-editor-content">
+        <label class="editor-field">
+          <span class="editor-label">Title</span>
+          <input id="taskEditorTitle" name="title" type="text" required autocomplete="off">
+        </label>
+        <label class="editor-field editor-field-grow">
+          <span class="editor-label-row"><span class="editor-label">Markdown</span><span class="editor-hint">Todos, tags and labels</span></span>
+          <textarea id="taskEditorMarkdown" name="markdown" spellcheck="true"></textarea>
+        </label>
+      </div>
+      <footer class="task-editor-footer">
+        <span class="task-editor-dirty" id="taskEditorDirty" hidden>Unsaved changes</span>
+        <div class="task-editor-actions">
+          <button class="btn editor-cancel" id="cancelTaskEditor" type="button">Cancel</button>
+          <button class="btn editor-save" id="saveTaskEditor" type="submit">Save</button>
+        </div>
+      </footer>
+    </form>
+  </dialog>
+  <div class="watermark" id="watermark">© 2026 MD_Manager v0.0.14 · Tim Krüger (Zang3th) · <a href="https://github.com/Zang3th" target="_blank" rel="noopener noreferrer">GitHub</a></div>
 </body>
 </html>

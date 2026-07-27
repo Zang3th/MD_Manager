@@ -21,6 +21,15 @@ window.MDManager = window.MDManager || {};
   let expandedBeforeGrid = null;
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
+  async function saveFile() {
+    try {
+      await save?.();
+    } catch (error) {
+      if (!(error instanceof Error)) throw error;
+      app.render.saveError(error.message);
+    }
+  }
+
   /** @param {HTMLElement} element @param {Keyframe[]} keyframes @param {KeyframeAnimationOptions} options */
   function animate(element, keyframes, options) {
     if (reducedMotion.matches) return Promise.resolve();
@@ -157,7 +166,7 @@ window.MDManager = window.MDManager || {};
       easing: "cubic-bezier(.2,0,0,1)",
       draggable: "> .release",
       handle: ".release-header",
-      filter: ".delete-btn",
+      filter: ".action-btn,.feature-title-input,.inline-title-actions",
       preventOnFilter: false,
       ghostClass: "sortable-ghost",
       chosenClass: "sortable-chosen",
@@ -176,7 +185,7 @@ window.MDManager = window.MDManager || {};
         easing: "cubic-bezier(.2,0,0,1)",
         draggable: "> .card",
         handle: ".card-header",
-        filter: ".delete-btn",
+        filter: ".action-btn",
         preventOnFilter: false,
         ghostClass: "sortable-ghost",
         chosenClass: "sortable-chosen",
@@ -198,7 +207,7 @@ window.MDManager = window.MDManager || {};
         easing: "cubic-bezier(.2,0,0,1)",
         draggable: "> .todo-item",
         handle: ".todo-text",
-        filter: ".delete-btn",
+        filter: ".action-btn",
         preventOnFilter: false,
         emptyInsertThreshold: 30,
         ghostClass: "sortable-ghost",
@@ -239,6 +248,84 @@ window.MDManager = window.MDManager || {};
     return /** @type {HTMLElement} */ (element.closest(selector));
   }
 
+  /** @param {HTMLElement} editButton */
+  function editFeatureTitle(editButton) {
+    if (!project) return;
+    const featureElement = requiredClosest(editButton, ".release");
+    const heading = requiredClosest(editButton, ".release-heading");
+    const title = /** @type {HTMLElement} */ (heading.querySelector(".release-title"));
+    const featureIndex = Number(featureElement.dataset.feature);
+    const original = project.features[featureIndex].title;
+    const input = document.createElement("input");
+    const actions = document.createElement("div");
+    const cancelButton = document.createElement("button");
+    const saveButton = document.createElement("button");
+    /** @type {((event: PointerEvent) => void) | null} */
+    let outsideHandler = null;
+
+    input.className = "feature-title-input";
+    input.value = original;
+    input.setAttribute("aria-label", "Feature title");
+    actions.className = "inline-title-actions";
+    cancelButton.className = "btn inline-cancel";
+    cancelButton.type = "button";
+    cancelButton.textContent = "Cancel";
+    saveButton.className = "btn inline-save";
+    saveButton.type = "button";
+    saveButton.textContent = "Save";
+    actions.append(cancelButton, saveButton);
+    heading.classList.add("feature-title-editing");
+    title.classList.add("is-editing");
+    title.replaceChildren(input);
+    heading.append(actions);
+
+    function cancel() {
+      if (outsideHandler) document.removeEventListener("pointerdown", outsideHandler);
+      const text = document.createElement("span");
+      text.className = "title-text";
+      text.textContent = original;
+      title.replaceChildren(text);
+      title.classList.remove("is-editing");
+      heading.classList.remove("feature-title-editing");
+      actions.remove();
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+      window.getSelection()?.removeAllRanges();
+      app.layout.fitTitles([title]);
+    }
+
+    function save() {
+      const nextTitle = input.value.trim();
+      if (!nextTitle) {
+        input.setCustomValidity("A feature title is required.");
+        input.reportValidity();
+        return;
+      }
+      if (outsideHandler) document.removeEventListener("pointerdown", outsideHandler);
+      app.domain.renameFeature(project, featureIndex, nextTitle);
+      changed?.(captureViewState());
+    }
+
+    cancelButton.addEventListener("click", event => { event.stopPropagation(); cancel(); });
+    saveButton.addEventListener("click", event => { event.stopPropagation(); save(); });
+    input.addEventListener("input", () => {
+      input.setCustomValidity("");
+      saveButton.classList.toggle("dirty", input.value.trim() !== original);
+    });
+    input.addEventListener("keydown", event => {
+      if (event.key === "Enter") save();
+      if (event.key === "Escape") cancel();
+      event.stopPropagation();
+    });
+    requestAnimationFrame(() => {
+      input.focus();
+      input.select();
+      outsideHandler = event => {
+        if (!heading.contains(/** @type {Node} */ (event.target))) cancel();
+      };
+      document.addEventListener("pointerdown", outsideHandler);
+    });
+  }
+
   /** @param {MouseEvent} event */
   async function handleContentClick(event) {
     if (!project && !eventElement(event).closest(".recent-file")) return;
@@ -262,6 +349,25 @@ window.MDManager = window.MDManager || {};
     }
 
     if (!project) return;
+
+    const editButton = eventElement(event).closest(".edit-btn");
+    if (editButton) {
+      event.stopPropagation();
+      if (editButton.dataset.edit === "feature") {
+        editFeatureTitle(/** @type {HTMLElement} */ (editButton));
+      } else {
+        const taskElement = requiredClosest(editButton, ".card");
+        const featureElement = requiredClosest(editButton, ".release");
+        const featureIndex = Number(featureElement.dataset.feature);
+        const taskIndex = Number(taskElement.dataset.task);
+        const viewState = captureViewState();
+        app.editor.open(project.features[featureIndex].tasks[taskIndex], { project: project.title, feature: project.features[featureIndex].title }, (/** @type {{title: string, lines: string[]}} */ draft) => {
+          app.domain.updateTask(project, featureIndex, taskIndex, draft);
+          changed?.(viewState);
+        });
+      }
+      return;
+    }
 
     const noteToggle = eventElement(event).closest(".note-toggle");
     if (noteToggle) {
@@ -325,6 +431,7 @@ window.MDManager = window.MDManager || {};
 
     const featureHeader = eventElement(event).closest(".release-header");
     if (featureHeader) {
+      if (featureHeader.querySelector(".feature-title-editing")) return;
       const feature = requiredClosest(featureHeader, ".release");
       const tasks = [...feature.querySelectorAll(".card")];
       const notes = [...feature.querySelectorAll(".feature-note")];
@@ -345,6 +452,7 @@ window.MDManager = window.MDManager || {};
     const header = eventElement(event).closest(".card-header, .release-heading, .backlog-header");
     if (!header || header.contains(/** @type {Node | null} */ (event.relatedTarget))) return;
     const title = header.querySelector(".card-title, .release-title, .backlog-title");
+    if (title?.classList.contains("is-editing")) return;
     if (title) app.layout.startTitleScroll(title);
   }
 
@@ -353,6 +461,7 @@ window.MDManager = window.MDManager || {};
     const header = eventElement(event).closest(".card-header, .release-heading, .backlog-header");
     if (!header || header.contains(/** @type {Node | null} */ (event.relatedTarget))) return;
     const title = header.querySelector(".card-title, .release-title, .backlog-title");
+    if (title?.classList.contains("is-editing")) return;
     if (title) app.layout.stopTitleScroll(title);
   }
 
@@ -370,7 +479,27 @@ window.MDManager = window.MDManager || {};
   });
   document.getElementById("showBoardView").addEventListener("click", () => setGridView(false));
   document.addEventListener("keydown", event => {
+    const shortcut = (event.ctrlKey || event.metaKey) && !event.altKey;
+    const target = eventElement(event);
+    const editsText = target.matches("input,textarea,[contenteditable='true']");
+    const key = event.key.toLowerCase();
     if (event.key === "Escape") closeViewMenu();
+    if (shortcut && !event.shiftKey && key === "s") {
+      event.preventDefault();
+      void saveFile();
+    }
+    if (shortcut && !event.shiftKey && key === "o") {
+      event.preventDefault();
+      document.getElementById("openFile").click();
+    }
+    if (shortcut && !editsText && !event.shiftKey && key === "z") {
+      event.preventDefault();
+      undo?.();
+    }
+    if (shortcut && !editsText && ((event.shiftKey && key === "z") || (!event.metaKey && !event.shiftKey && key === "y"))) {
+      event.preventDefault();
+      redo?.();
+    }
     if (event.ctrlKey && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "b" && !document.getElementById("toggleBacklog").disabled) {
       event.preventDefault();
       toggleBacklog();
@@ -396,14 +525,7 @@ window.MDManager = window.MDManager || {};
 
   document.getElementById("toggleGridView").addEventListener("click", () => setGridView(true));
 
-  document.getElementById("saveFile").addEventListener("click", async () => {
-    try {
-      await save?.();
-    } catch (error) {
-      if (!(error instanceof Error)) throw error;
-      app.render.saveError(error.message);
-    }
-  });
+  document.getElementById("saveFile").addEventListener("click", saveFile);
   document.getElementById("undoChange").addEventListener("click", () => undo?.());
   document.getElementById("redoChange").addEventListener("click", () => redo?.());
   document.addEventListener("click", event => {

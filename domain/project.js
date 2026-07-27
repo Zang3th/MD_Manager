@@ -8,6 +8,16 @@ window.MDManager = window.MDManager || {};
   }
 
   app.domain = {
+    /** @param {MDProject} project @param {number} featureIndex @param {string} title */
+    renameFeature(project, featureIndex, title) {
+      project.features[featureIndex].title = title;
+    },
+    /** @param {MDProject} project @param {number} featureIndex @param {number} taskIndex @param {{title: string, lines: string[]}} draft */
+    updateTask(project, featureIndex, taskIndex, draft) {
+      const task = project.features[featureIndex].tasks[taskIndex];
+      task.title = draft.title;
+      task.lines = draft.lines.slice();
+    },
     /** @param {MDProject} project @param {number} fromIndex @param {number} toIndex */
     moveFeature(project, fromIndex, toIndex) {
       if (project.features[fromIndex]?.isBacklog) return;
