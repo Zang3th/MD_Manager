@@ -90,8 +90,13 @@ window.MDManager = window.MDManager || {};
     /** @type {"version" | "date" | "info" | "warn" | null} */
     let featureMetadata = null;
     let pendingBacklog = false;
+    let pendingIgnore = false;
 
     for (const line of lines) {
+      if (/^\s*#Ignore\s*$/i.test(line)) {
+        pendingIgnore = true;
+        continue;
+      }
       if (/^\s*#Backlog\s*$/i.test(line)) {
         pendingBacklog = true;
         continue;
@@ -103,16 +108,19 @@ window.MDManager = window.MDManager || {};
         if (level === 1) {
           project.title = title;
           project.beforeFeatures.push(line);
+          pendingIgnore = false;
         } else if (level === 2) {
-          feature = { title, headerLines: [], version: "", dates: [], notes: [], tasks: [], isBacklog: pendingBacklog };
+          feature = { title, headerLines: [], version: "", dates: [], notes: [], tasks: [], isBacklog: pendingBacklog, ignored: pendingIgnore };
           project.features.push(feature);
           task = null;
           featureMetadata = null;
           pendingBacklog = false;
+          pendingIgnore = false;
         } else if (level === 3 && feature) {
-          task = { title, lines: [] };
+          task = { title, lines: [], ignored: pendingIgnore };
           feature.tasks.push(task);
           featureMetadata = null;
+          pendingIgnore = false;
         }
         continue;
       }
@@ -220,8 +228,12 @@ window.MDManager = window.MDManager || {};
     const orderedFeatures = [...project.features.filter(feature => !feature.isBacklog), ...project.features.filter(feature => feature.isBacklog)];
     for (const feature of orderedFeatures) {
       if (feature.isBacklog) lines.push("#Backlog");
+      if (feature.ignored) lines.push("#Ignore");
       lines.push(`## ${feature.title}`, ...feature.headerLines);
-      for (const task of feature.tasks) lines.push(`### ${task.title}`, ...serializeTaskLines(task));
+      for (const task of feature.tasks) {
+        if (task.ignored) lines.push("#Ignore");
+        lines.push(`### ${task.title}`, ...serializeTaskLines(task));
+      }
     }
     const cleaned = lines;
     const normalized = [];

@@ -39,7 +39,7 @@ type MDGroupBlock = { type: "group"; title: string; lineIndex: number; todos: MD
 type MDNoteBlock = { type: "note"; noteType: string; lineIndex: number; items: MDNoteItem[] };
 type MDParagraphBlock = { type: "paragraph"; text: string };
 type MDTaskContent = { blocks: Array<MDGroupBlock | MDNoteBlock | MDParagraphBlock>; todos: MDTodo[] };
-type MDTask = { title: string; lines: string[] };
+type MDTask = { title: string; lines: string[]; ignored?: boolean };
 type MDFeature = {
   title: string;
   headerLines: string[];
@@ -48,6 +48,7 @@ type MDFeature = {
   notes: MDNote[];
   tasks: MDTask[];
   isBacklog: boolean;
+  ignored?: boolean;
 };
 type MDProject = { title: string; newline: string; beforeFeatures: string[]; features: MDFeature[] };
 type MDHistory = { entries: string[]; index: number };

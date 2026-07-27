@@ -3,6 +3,7 @@ window.MDManager = window.MDManager || {};
 (function (app) {
   const deleteIcon = '<span aria-hidden="true">✕</span>';
   const editIcon = '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg>';
+  const addIcon = '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>';
   let taskContentCache = new WeakMap();
 
   /** @param {string} value */
@@ -114,15 +115,17 @@ window.MDManager = window.MDManager || {};
 
   /** @param {MDFeature} feature */
   function backlogContents(feature) {
-    const taskCount = feature.tasks.length;
+    const visibleTasks = feature.tasks.filter(task => !task.ignored);
+    const taskCount = visibleTasks.length;
     return `<header class="backlog-header"><div class="backlog-heading"><h2 class="backlog-title" data-full-title="${escapeHtml(feature.title)}"><span class="title-text">${escapeHtml(feature.title)}</span></h2><span class="backlog-count">${taskCount} ${taskCount === 1 ? "Task" : "Tasks"}</span></div><button class="backlog-close" type="button" aria-label="Close backlog" title="Close backlog">${deleteIcon}</button></header>
       ${feature.notes.length ? `<div class="feature-notes task-notes">${notesMarkup(feature.notes, true)}</div>` : ""}
-      <div class="board">${feature.tasks.map(taskMarkup).join("")}</div>`;
+      <div class="board">${visibleTasks.map(task => taskMarkup(task, feature.tasks.indexOf(task))).join("")}</div>
+      <div class="add-task-footer"><button class="add-task-btn backlog-add-task action-btn" data-add-task type="button" aria-label="New task in ${escapeHtml(feature.title)}" title="New task">${addIcon}</button></div>`;
   }
 
   /** @param {MDFeature} feature */
   function featureProgress(feature) {
-    return app.status.progress(feature.tasks.flatMap(todos));
+    return app.status.progress(feature.tasks.filter(task => !task.ignored).flatMap(todos));
   }
 
   /** @param {MDProject} project */
@@ -137,14 +140,16 @@ window.MDManager = window.MDManager || {};
   function render(project, viewState, fileName) {
     taskContentCache = new WeakMap();
     app.layout.reset();
+    document.body.classList.remove("start-view");
     document.getElementById("viewerControls").hidden = false;
     document.getElementById("historyControls").hidden = false;
     document.getElementById("saveFile").hidden = false;
+    document.getElementById("addFeature").disabled = false;
     document.getElementById("appVersion").hidden = true;
     document.getElementById("watermark").hidden = true;
     document.getElementById("projectTitle").textContent = project.title;
-    const regularFeatures = project.features.filter(feature => !feature.isBacklog);
-    const backlogFeature = project.features.find(feature => feature.isBacklog);
+    const regularFeatures = project.features.filter(feature => !feature.isBacklog && !feature.ignored);
+    const backlogFeature = project.features.find(feature => feature.isBacklog && !feature.ignored);
     const stats = document.getElementById("projectStats");
     stats.hidden = false;
     stats.innerHTML = statisticsMarkup(project);
@@ -168,7 +173,8 @@ window.MDManager = window.MDManager || {};
           <h2 class="release-title" data-full-title="${escapeHtml(feature.title)}"><span class="title-text">${escapeHtml(feature.title)}</span></h2>
         </div>${feature.dates.length || feature.version ? `<div class="release-meta">${feature.dates.length ? `<ul class="release-dates">${feature.dates.map(date => `<li>${escapeHtml(date.from)}${date.to ? ` – ${escapeHtml(date.to)}` : ""}</li>`).join("")}</ul>` : ""}${feature.version ? `<p class="release-version">v${escapeHtml(feature.version)}</p>` : ""}</div>` : ""}</header>
         <div class="release-content">${feature.notes.length ? `<div class="feature-notes task-notes">${notesMarkup(feature.notes, true)}</div>` : ""}
-          <div class="board">${feature.tasks.map(taskMarkup).join("")}</div>
+          <div class="board">${feature.tasks.filter(task => !task.ignored).map(task => taskMarkup(task, feature.tasks.indexOf(task))).join("")}</div>
+          <div class="add-task-footer"><button class="add-task-btn action-btn" data-add-task type="button" aria-label="New task in ${escapeHtml(feature.title)}" title="New task">${addIcon}</button></div>
         </div>
       </section>`;
     }).join("");
@@ -225,9 +231,11 @@ window.MDManager = window.MDManager || {};
 
   /** @param {MDRecentFile[]} entries */
   function showStart(entries) {
-    document.getElementById("viewerControls").hidden = true;
+    document.body.classList.add("start-view");
+    document.getElementById("viewerControls").hidden = false;
     document.getElementById("historyControls").hidden = true;
     document.getElementById("saveFile").hidden = true;
+    document.getElementById("addFeature").disabled = true;
     document.getElementById("appVersion").hidden = false;
     document.getElementById("projectStats").hidden = true;
     document.getElementById("toggleBacklog").disabled = true;

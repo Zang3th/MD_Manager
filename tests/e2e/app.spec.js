@@ -46,6 +46,13 @@ test("start screen exposes the application identity and open action", async ({ p
   await expect(page.locator("#appVersion")).toHaveText(/^v\d+\.\d+\.\d+$/);
   await expect(page.getByRole("button", { name: "Open", exact: true })).toBeVisible();
   await expect(page.locator("#watermark")).toBeVisible();
+  const help = page.getByRole("button", { name: "Help", exact: true });
+  const theme = page.locator("#toggleTheme");
+  await expect(help).toBeVisible();
+  const positions = await Promise.all([help, theme].map(locator => locator.evaluate(node => node.getBoundingClientRect().x)));
+  expect(positions[0]).toBeLessThan(positions[1]);
+  await help.click();
+  await expect(page.locator("#helpPopover")).toBeVisible();
 });
 
 test("theme toggle switches Gruvbox themes on the start screen and in the app", async ({ page }) => {
@@ -135,6 +142,30 @@ test("feature editor saves title, metadata, info, and warn as one undo step", as
   await expect(page.locator("#content > .release").first().locator(".release-version")).toHaveText("v1.2.3");
 });
 
+test("logo and feature new buttons create features and tasks through existing editors", async ({ page }) => {
+  await openFixture(page);
+  const addFeature = page.getByRole("button", { name: "New feature" });
+  await expect(addFeature).toBeEnabled();
+  await addFeature.click();
+  await expect(page.locator("#featureEditorTitle")).toHaveValue("New Feature");
+  await page.locator("#cancelFeatureEditor").click();
+  await expect(page.locator("#content > .release")).toHaveCount(2);
+  await addFeature.click();
+  await page.locator("#saveFeatureEditor").click();
+  await expect(page.locator("#content > .release")).toHaveCount(3);
+  await expect(page.locator("#content > .release").last().locator(".release-title")).toHaveText("New Feature");
+
+  const firstFeature = page.locator("#content > .release").first();
+  const tasksBefore = await firstFeature.locator(".card").count();
+  const addTask = firstFeature.getByRole("button", { name: /New task in Active Feature/ });
+  await expect(addTask).toHaveAttribute("title", "New task");
+  await addTask.click();
+  await expect(page.locator("#taskEditorTitle")).toHaveValue("New Task");
+  await page.locator("#saveTaskEditor").click();
+  await expect(firstFeature.locator(".card")).toHaveCount(tasksBefore + 1);
+  await expect(firstFeature.locator(".card-title").last()).toHaveText("New Task");
+});
+
 test("task editor opens in the foreground and saves title and Markdown as one undo step", async ({ page }) => {
   await openFixture(page);
   const card = page.locator("#content .card").first();
@@ -193,6 +224,12 @@ test("backlog opens as a separate pane and closes from its framed button", async
   await page.locator("#toggleBacklog").click();
   await expect(page.locator("#backlog")).toBeVisible();
   await expect(page.locator("#backlog .card-title")).toHaveText("Deferred Task");
+  const backlogTasks = page.locator("#backlog .card");
+  await page.locator("#backlog .backlog-add-task").click();
+  await expect(page.locator("#taskEditorTitle")).toHaveValue("New Task");
+  await page.locator("#saveTaskEditor").click();
+  await expect(backlogTasks).toHaveCount(2);
+  await expect(backlogTasks.last().locator(".card-title")).toHaveText("New Task");
   await page.locator(".backlog-close").click();
   await expect(page.locator("#backlog")).toBeHidden();
 });
@@ -206,6 +243,37 @@ test("statistics can close and reopen in board and grid", async ({ page }) => {
   await page.locator("#toggleStats").click();
   await page.locator("#toggleGridView").click();
   await expect(page.locator("#projectStats")).toBeVisible();
+});
+
+test("help popover documents shortcuts and Markdown and closes predictably", async ({ page }) => {
+  await openFixture(page);
+  const helpButton = page.getByRole("button", { name: "Help", exact: true });
+  const backlogButton = page.locator("#toggleBacklog");
+  const positions = await Promise.all([helpButton, backlogButton].map(locator => locator.evaluate(node => node.getBoundingClientRect().x)));
+  expect(positions[0]).toBeLessThan(positions[1]);
+  await helpButton.click();
+  const help = page.locator("#helpPopover");
+  await expect(help).toBeVisible();
+  await expect(helpButton).toHaveAttribute("aria-expanded", "true");
+  await expect(help).toContainText("Quick reference");
+  await expect(help).toContainText("Shortcuts");
+  await expect(help).toContainText("Ctrl");
+  await expect(help).toContainText("#Backlog");
+  await expect(help).toContainText("#Ignore");
+  await expect(help).toContainText("**Label**");
+  await page.keyboard.press("Escape");
+  await expect(help).toBeHidden();
+  await expect(helpButton).toHaveAttribute("aria-expanded", "false");
+});
+
+test("Ignore hides the following feature or task from the application", async ({ page }) => {
+  await openFixture(page, "# Ignore Test\n\n#Ignore\n## Hidden Feature\n### Child\n- [ ] hidden feature task\n\n## Visible Feature\n#Ignore\n### Hidden Task\n- [ ] hidden task\n\n### Visible Task\n- [ ] shown");
+  await expect(page.locator("#content > .release")).toHaveCount(1);
+  await expect(page.locator("#content .release-title")).toHaveText("Visible Feature");
+  await expect(page.locator("#content .card")).toHaveCount(1);
+  await expect(page.locator("#content .card-title")).toHaveText("Visible Task");
+  await expect(page.locator("#projectStats tbody tr").nth(0).locator("td").first()).toHaveText("0");
+  await expect(page.locator("#projectStats tbody tr").nth(2).locator("td.open")).toHaveText("1");
 });
 
 test("grid collapses tasks, uses equal feature heights, and restores board expansion", async ({ page }) => {

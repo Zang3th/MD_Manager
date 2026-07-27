@@ -28,15 +28,15 @@ window.MDManager = window.MDManager || {};
 
   /** @param {MDFeature[]} features @param {(task: MDTask) => MDTodo[]} entriesForTask */
   function statistics(features, entriesForTask) {
-    const regularFeatures = features.filter(feature => !feature.isBacklog);
-    const backlog = features.find(feature => feature.isBacklog);
-    const tasks = regularFeatures.flatMap(feature => feature.tasks);
-    const backlogTasks = backlog?.tasks || [];
+    const regularFeatures = features.filter(feature => !feature.isBacklog && !feature.ignored);
+    const backlog = features.find(feature => feature.isBacklog && !feature.ignored);
+    const tasks = regularFeatures.flatMap(feature => feature.tasks.filter(task => !task.ignored));
+    const backlogTasks = backlog?.tasks.filter(task => !task.ignored) || [];
     const entries = tasks.flatMap(entriesForTask);
     const backlogEntries = backlogTasks.flatMap(entriesForTask);
     const entryProgress = progress(entries);
     return {
-      features: { ...counts(regularFeatures, feature => feature.tasks.flatMap(entriesForTask)), backlog: "/" },
+      features: { ...counts(regularFeatures, feature => feature.tasks.filter(task => !task.ignored).flatMap(entriesForTask)), backlog: "/" },
       tasks: { ...counts(tasks, entriesForTask), backlog: backlogTasks.length },
       entries: { done: entryProgress.done, active: "/", open: entries.length - entryProgress.done, backlog: backlogEntries.length }
     };

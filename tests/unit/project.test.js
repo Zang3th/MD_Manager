@@ -16,6 +16,14 @@ test("features move without crossing the backlog", () => {
   assert.deepEqual(value.features.map(x => x.title), ["B", "A", "Backlog"]);
 });
 
+test("features are added before the backlog and tasks at the end of their feature", () => {
+  const value = project();
+  domain.addFeature(value, { title: "C", headerLines: [], version: "", dates: [], notes: [], tasks: [], isBacklog: false });
+  domain.addTask(value, 0, { title: "A2", lines: ["- [ ] added"] });
+  assert.deepEqual(value.features.map(feature => feature.title), ["A", "B", "C", "Backlog"]);
+  assert.deepEqual(value.features[0].tasks.map(task => task.title), ["A1", "A2"]);
+});
+
 test("feature titles and complete task drafts update only their target", () => {
   const value = project();
   domain.updateFeature(value, 0, "Renamed Feature", { headerLines: ["#Info", "- changed"], version: "2.0.0", dates: [], notes: [], tasks: [], title: "", isBacklog: false });

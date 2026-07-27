@@ -55,6 +55,19 @@ test("feature metadata Markdown keeps source lines and derives supported fields"
   assert.equal(feature.notes[0].items[0].text, "review");
 });
 
+test("Ignore preserves but hides the following feature or task", () => {
+  const source = "# P\n\n#Ignore\n## Hidden Feature\n### Child\n- [ ] hidden\n\n## Visible Feature\n#Ignore\n### Hidden Task\n- [ ] hidden\n\n### Visible Task\n- [ ] shown";
+  const project = markdown.parse(source);
+  assert.equal(project.features[0].ignored, true);
+  assert.equal(project.features[1].ignored, false);
+  assert.equal(project.features[1].tasks[0].ignored, true);
+  assert.equal(project.features[1].tasks[1].ignored, false);
+  const reparsed = markdown.parse(markdown.serialize(project));
+  assert.equal(reparsed.features[0].ignored, true);
+  assert.equal(reparsed.features[1].tasks[0].ignored, true);
+  assert.equal((markdown.serialize(project).match(/#Ignore/g) || []).length, 2);
+});
+
 test("serialization preserves newline style, orders backlog last, and normalizes todos", () => {
   const value = markdown.parse("# P\r\n\r\n#Backlog\r\n## Later\r\n### T\r\n- old\r\n\r\n## Now\r\n### Work\r\n- [x] done");
   const output = markdown.serialize(value);

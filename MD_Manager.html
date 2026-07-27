@@ -22,9 +22,10 @@
 <body>
   <header class="header">
     <div class="header-content">
-      <img class="app-logo" src="res/Logo.svg" alt="MD_Manager logo">
+      <button class="app-logo-button" id="addFeature" type="button" aria-label="New feature" title="New feature" disabled><img class="app-logo" src="res/Logo.svg" alt=""></button>
       <div class="header-left">
         <h1 class="project-title" id="projectTitle">MD_Manager</h1>
+        <span class="app-version" id="appVersion">v0.0.15</span>
         <div class="file-controls">
           <button class="btn control-btn" id="openFile" type="button">Open</button>
           <button class="btn save-btn" id="saveFile" type="button" hidden>Save</button>
@@ -37,6 +38,54 @@
       <div class="project-stats" id="projectStats" aria-label="Project status overview" hidden></div>
       <div class="header-actions">
         <nav class="control-bar" id="viewerControls" aria-label="Viewer controls" hidden>
+          <div class="help-menu">
+            <button class="btn control-btn help-button" id="toggleHelp" type="button" aria-label="Help" title="Help" aria-expanded="false" aria-controls="helpPopover">?</button>
+            <aside class="help-popover" id="helpPopover" aria-label="Application help" hidden>
+              <header class="help-header"><h2>Quick reference</h2><button class="help-close" id="closeHelp" type="button" aria-label="Close help" title="Close help">✕</button></header>
+              <div class="help-content">
+                <section class="help-section" aria-labelledby="shortcutHelpTitle">
+                  <h3 id="shortcutHelpTitle">Shortcuts</h3>
+                  <dl class="shortcut-list">
+                    <div><dt>Open file</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>O</kbd><small>or ⌘ O</small></dd></div>
+                    <div><dt>Save file</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>S</kbd><small>or ⌘ S</small></dd></div>
+                    <div><dt>Undo</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>Z</kbd><small>or ⌘ Z</small></dd></div>
+                    <div><dt>Redo</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>Shift</kbd><span>+</span><kbd>Z</kbd><small>or Ctrl Y</small></dd></div>
+                    <div><dt>Toggle backlog</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>B</kbd></dd></div>
+                    <div><dt>Close or cancel</dt><dd><kbd>Esc</kbd></dd></div>
+                  </dl>
+                </section>
+                <section class="help-section" aria-labelledby="markdownHelpTitle">
+                  <h3 id="markdownHelpTitle">Markdown</h3>
+                  <h4>Structure</h4>
+                  <dl class="markdown-reference">
+                    <div><dt><code># Project</code></dt><dd>Project title</dd></div>
+                    <div><dt><code>## Feature</code></dt><dd>Feature column</dd></div>
+                    <div><dt><code>### Task</code></dt><dd>Task card</dd></div>
+                  </dl>
+                  <h4>Feature tags</h4>
+                  <dl class="markdown-reference">
+                    <div><dt><code class="help-tag">#Backlog</code></dt><dd>Marks the start of the backlog task section</dd></div>
+                  </dl>
+                  <h5 class="help-subcategory">Metadata</h5>
+                  <dl class="markdown-reference markdown-reference-nested">
+                    <div><dt><code class="help-tag">#Version</code></dt><dd>One list item containing the version</dd></div>
+                    <div><dt><code class="help-tag">#Date</code></dt><dd>List items formatted as <code>from - to</code></dd></div>
+                  </dl>
+                  <h4>Shared tags</h4>
+                  <dl class="markdown-reference">
+                    <div><dt><code class="help-tag">#Info</code></dt><dd>One info block per feature or task</dd></div>
+                    <div><dt><code class="help-tag">#Warn</code></dt><dd>One warn block per feature or task</dd></div>
+                    <div><dt><code class="help-tag">#Ignore</code></dt><dd>Hides the following feature or task</dd></div>
+                  </dl>
+                  <h4>Task content</h4>
+                  <dl class="markdown-reference">
+                    <div><dt><code>**Label**</code></dt><dd>Starts a labeled todo group inside a task</dd></div>
+                    <div><dt><code>- [ ] Todo</code></dt><dd>Open todo; use <code>[x]</code> for completed</dd></div>
+                  </dl>
+                </section>
+              </div>
+            </aside>
+          </div>
           <button class="btn control-btn backlog-control" id="toggleBacklog" type="button" aria-pressed="false" disabled>Backlog</button>
           <div class="view-menu">
             <button class="btn control-btn" id="toggleViewMenu" type="button" aria-expanded="false" aria-controls="viewOptions">View <span aria-hidden="true">▾</span></button>
@@ -51,7 +100,6 @@
           </div>
         </nav>
       </div>
-      <span class="app-version" id="appVersion">v0.0.14</span>
       <button class="btn control-btn icon-btn theme-toggle" id="toggleTheme" type="button" aria-label="Switch to Light Mode" title="Switch to Light Mode"><span aria-hidden="true">☀</span></button>
     </div>
   </header>
@@ -92,7 +140,7 @@
   </dialog>
   <dialog class="feature-editor-dialog" id="featureEditor" aria-labelledby="featureEditorFeature">
     <form class="feature-editor" id="featureEditorForm" method="dialog">
-      <header class="metadata-editor-header">
+      <header class="feature-editor-header">
         <nav class="task-editor-breadcrumb" aria-label="Feature location"><span id="featureEditorProject"></span><span aria-hidden="true">/</span><strong id="featureEditorFeature"></strong></nav>
         <button class="task-editor-close" id="closeFeatureEditor" type="button" aria-label="Cancel editing" title="Cancel">✕</button>
       </header>
@@ -113,6 +161,6 @@
       </footer>
     </form>
   </dialog>
-  <div class="watermark" id="watermark">© 2026 MD_Manager v0.0.14 · Tim Krüger (Zang3th) · <a href="https://github.com/Zang3th" target="_blank" rel="noopener noreferrer">GitHub</a></div>
+  <div class="watermark" id="watermark">© 2026 MD_Manager v0.0.15 · Tim Krüger (Zang3th) · <a href="https://github.com/Zang3th" target="_blank" rel="noopener noreferrer">GitHub</a></div>
 </body>
 </html>

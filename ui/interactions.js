@@ -60,6 +60,11 @@ window.MDManager = window.MDManager || {};
     document.getElementById("toggleViewMenu").setAttribute("aria-expanded", "false");
   }
 
+  function closeHelp() {
+    document.getElementById("helpPopover").hidden = true;
+    document.getElementById("toggleHelp").setAttribute("aria-expanded", "false");
+  }
+
   /** @param {boolean} active */
   function setGridView(active) {
     if (document.body.classList.contains("toggle-grid-view") === active) return;
@@ -272,6 +277,20 @@ window.MDManager = window.MDManager || {};
 
     if (!project) return;
 
+    const addTaskButton = eventElement(event).closest("[data-add-task]");
+    if (addTaskButton) {
+      event.stopPropagation();
+      const featureElement = requiredClosest(addTaskButton, ".release");
+      const featureIndex = Number(featureElement.dataset.feature);
+      const feature = project.features[featureIndex];
+      const viewState = captureViewState();
+      app.editor.open({ title: "New Task", lines: [] }, { project: project.title, feature: feature.title }, (/** @type {{title: string, lines: string[]}} */ draft) => {
+        app.domain.addTask(project, featureIndex, { title: draft.title, lines: draft.lines.slice() });
+        changed?.(viewState);
+      });
+      return;
+    }
+
     const editButton = eventElement(event).closest("[data-edit]");
     if (editButton) {
       event.stopPropagation();
@@ -400,18 +419,39 @@ window.MDManager = window.MDManager || {};
   });
 
   document.getElementById("toggleBacklog").addEventListener("click", toggleBacklog);
+  document.getElementById("addFeature").addEventListener("click", () => {
+    if (!project) return;
+    const viewState = captureViewState();
+    const draftFeature = { title: "New Feature", headerLines: [], version: "", dates: [], notes: [], tasks: [], isBacklog: false };
+    app.editor.openFeature(project, draftFeature, (/** @type {{title: string, metadata: string, info: string, warn: string}} */ draft) => {
+      const metadata = app.markdown.composeFeatureMetadata(draft);
+      app.domain.addFeature(project, { ...metadata, title: draft.title, tasks: [], isBacklog: false });
+      changed?.(viewState);
+    });
+  });
   document.getElementById("toggleViewMenu").addEventListener("click", event => {
+    closeHelp();
     const options = document.getElementById("viewOptions");
     options.hidden = !options.hidden;
     (/** @type {HTMLElement} */ (event.currentTarget)).setAttribute("aria-expanded", String(!options.hidden));
   });
+  document.getElementById("toggleHelp").addEventListener("click", event => {
+    closeViewMenu();
+    const help = document.getElementById("helpPopover");
+    help.hidden = !help.hidden;
+    (/** @type {HTMLElement} */ (event.currentTarget)).setAttribute("aria-expanded", String(!help.hidden));
+  });
+  document.getElementById("closeHelp").addEventListener("click", closeHelp);
   document.getElementById("showBoardView").addEventListener("click", () => setGridView(false));
   document.addEventListener("keydown", event => {
     const shortcut = (event.ctrlKey || event.metaKey) && !event.altKey;
     const target = eventElement(event);
     const editsText = target.matches("input,textarea,[contenteditable='true']");
     const key = event.key.toLowerCase();
-    if (event.key === "Escape") closeViewMenu();
+    if (event.key === "Escape") {
+      closeViewMenu();
+      closeHelp();
+    }
     if (shortcut && !event.shiftKey && key === "s") {
       event.preventDefault();
       void saveFile();
@@ -458,6 +498,7 @@ window.MDManager = window.MDManager || {};
   document.getElementById("redoChange").addEventListener("click", () => redo?.());
   document.addEventListener("click", event => {
     if (!eventElement(event).closest(".view-menu")) closeViewMenu();
+    if (!eventElement(event).closest(".help-menu")) closeHelp();
   });
 
   app.interactions = {

@@ -8,6 +8,15 @@ window.MDManager = window.MDManager || {};
   }
 
   app.domain = {
+    /** @param {MDProject} project @param {MDFeature} feature */
+    addFeature(project, feature) {
+      const backlogIndex = project.features.findIndex(item => item.isBacklog);
+      project.features.splice(backlogIndex < 0 ? project.features.length : backlogIndex, 0, feature);
+    },
+    /** @param {MDProject} project @param {number} featureIndex @param {MDTask} task */
+    addTask(project, featureIndex, task) {
+      project.features[featureIndex].tasks.push(task);
+    },
     /** @param {MDProject} project @param {number} featureIndex @param {string} title @param {MDFeature} metadata */
     updateFeature(project, featureIndex, title, metadata) {
       const feature = project.features[featureIndex];
