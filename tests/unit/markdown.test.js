@@ -40,3 +40,13 @@ test("Roadmap.md parses and round-trips without losing project structure", () =>
   assert.equal(second.title, first.title);
   assert.deepEqual(second.features.map(f => [f.title, f.isBacklog, f.tasks.map(t => t.title)]), first.features.map(f => [f.title, f.isBacklog, f.tasks.map(t => t.title)]));
 });
+
+test("Layout.md is the parsing golden file and round-trips without losing information", () => {
+  const source = fs.readFileSync(path.join(__dirname, "../../data/Layout.md"), "utf8");
+  const first = markdown.parse(source);
+  const serialized = markdown.serialize(first);
+  const second = markdown.parse(serialized);
+
+  assert.deepEqual(second, first);
+  assert.equal(markdown.serialize(second), serialized);
+});

@@ -1,13 +1,20 @@
 window.MDManager = window.MDManager || {};
 
+/** @param {any} app */
 (function (app) {
+  /** @type {MDProject | null} */
   let project = null;
+  /** @type {MDFileHandle | null} */
   let fileHandle = null;
+  /** @type {MDRecentFile[]} */
   let recentFiles = [];
   let savedMarkdown = "";
+  /** @type {MDHistory | null} */
   let history = null;
 
+  /** @param {MDViewState} [viewState] */
   function render(viewState) {
+    if (!project || !fileHandle) return;
     app.render.project(project, viewState, fileHandle.name);
     app.interactions.setProject(project, recordChange);
     updateHistoryControls();
@@ -26,6 +33,7 @@ window.MDManager = window.MDManager || {};
     });
   }
 
+  /** @param {MDViewState} viewState @param {any} [options] */
   function recordChange(viewState, options = {}) {
     app.history.record(history, currentMarkdown());
     if (options.render === false) updateHistoryControls();
@@ -40,11 +48,13 @@ window.MDManager = window.MDManager || {};
     updateHistoryControls();
   }
 
+  /** @param {string} markdown @param {MDViewState} viewState */
   function restore(markdown, viewState) {
     project = app.markdown.parse(markdown);
     render(viewState);
   }
 
+  /** @param {MDOpenedFile} opened */
   async function useOpenedFile(opened) {
     if (!opened) return;
     fileHandle = opened.handle;
@@ -60,20 +70,22 @@ window.MDManager = window.MDManager || {};
       const opened = await app.files.open();
       await useOpenedFile(opened);
     } catch (error) {
+      if (!(error instanceof Error)) throw error;
       if (error.name === "AbortError") return;
       app.render.error(`The file could not be read: ${error.message}`);
     }
   });
 
-  app.interactions.setOpenRecent(async index => {
+  app.interactions.setOpenRecent(async (/** @type {number} */ index) => {
     try {
       await useOpenedFile(await app.files.read(recentFiles[index].handle));
     } catch (error) {
+      if (!(error instanceof Error)) throw error;
       app.render.recentError(`The file could not be opened: ${error.message}`);
     }
   });
 
-  app.interactions.setRemoveRecent(async index => {
+  app.interactions.setRemoveRecent(async (/** @type {number} */ index) => {
     const entry = recentFiles[index];
     if (!entry) return;
     await app.files.forget(entry.id);
@@ -91,11 +103,11 @@ window.MDManager = window.MDManager || {};
     }
   });
 
-  app.files.recent().then(entries => {
+  app.files.recent().then((/** @type {MDRecentFile[]} */ entries) => {
     recentFiles = entries;
     app.render.start(entries);
     updateHistoryControls();
-  }).catch(error => {
+  }).catch((/** @type {Error} */ error) => {
     recentFiles = [];
     app.render.start(recentFiles);
     app.render.recentError(`Recent files could not be loaded: ${error.message}`);

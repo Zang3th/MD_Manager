@@ -49,6 +49,14 @@
 - Use short, interruptible, compositor-friendly animations to clarify state changes, and respect `prefers-reduced-motion`.
 - Keep hover, active, focus, keyboard, disabled, accessible-name, and ARIA states correct and consistent.
 
+## Development Harness
+
+- The harness consists of strict TypeScript checking for JavaScript with JSDoc, ESLint with zero warnings, the architecture checker, `node:test`, and Playwright Test.
+- `npm run verify` runs all checks in that order, fails fast, and is the only Definition of Done for local development, agents, and CI.
+- Keep the harness deterministic, isolated, non-interactive, offline during verification, and independent of machine-specific paths or user state.
+- Treat `data/Layout.md` as the parsing golden file and preserve all existing tests, assertions, and architecture rules.
+- Extend checks and regression coverage with behavior changes; never weaken the harness to make a change pass.
+
 ## Tests
 
 - Use `node:test` for DOM-independent unit tests of `domain/` and `io/markdown.js`.

@@ -1,6 +1,7 @@
 window.MDManager = window.MDManager || {};
 
 (function (app) {
+  /** @param {Array<{checked: boolean}>} entries */
   function progress(entries) {
     const done = entries.filter(entry => entry.checked).length;
     const complete = entries.length > 0 && done === entries.length;
@@ -13,6 +14,7 @@ window.MDManager = window.MDManager || {};
     };
   }
 
+  /** @template T @param {T[]} items @param {(item: T) => Array<{checked: boolean}>} entriesFor */
   function counts(items, entriesFor) {
     const result = { done: 0, active: 0, open: 0 };
     items.forEach(item => {
@@ -24,6 +26,7 @@ window.MDManager = window.MDManager || {};
     return result;
   }
 
+  /** @param {MDFeature[]} features @param {(task: MDTask) => MDTodo[]} entriesForTask */
   function statistics(features, entriesForTask) {
     const regularFeatures = features.filter(feature => !feature.isBacklog);
     const backlog = features.find(feature => feature.isBacklog);

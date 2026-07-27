@@ -3,6 +3,7 @@ window.MDManager = window.MDManager || {};
 (function (app) {
   let writeQueue = Promise.resolve();
 
+  /** @returns {Promise<IDBDatabase>} */
   function openRecentDatabase() {
     return new Promise((resolve, reject) => {
       const request = indexedDB.open("MD_Manager", 1);
@@ -12,6 +13,7 @@ window.MDManager = window.MDManager || {};
     });
   }
 
+  /** @returns {Promise<MDRecentFile[]>} */
   async function recent() {
     const database = await openRecentDatabase();
     const entries = await new Promise((resolve, reject) => {
@@ -20,9 +22,10 @@ window.MDManager = window.MDManager || {};
       request.onerror = () => reject(request.error);
     });
     database.close();
-    return entries.sort((left, right) => right.openedAt - left.openedAt).slice(0, 5);
+    return /** @type {MDRecentFile[]} */ (entries).sort((left, right) => right.openedAt - left.openedAt).slice(0, 5);
   }
 
+  /** @param {MDFileHandle} handle */
   async function remember(handle) {
     const entries = await recent();
     let existing = null;
@@ -52,6 +55,7 @@ window.MDManager = window.MDManager || {};
     database.close();
   }
 
+  /** @param {string} id */
   async function forget(id) {
     const database = await openRecentDatabase();
     await new Promise((resolve, reject) => {
@@ -63,6 +67,7 @@ window.MDManager = window.MDManager || {};
     database.close();
   }
 
+  /** @param {MDFileHandle} handle @returns {Promise<MDOpenedFile | null>} */
   async function read(handle) {
     if (await handle.requestPermission({ mode: "readwrite" }) !== "granted") return null;
     return { handle, markdown: await (await handle.getFile()).text() };
@@ -76,6 +81,7 @@ window.MDManager = window.MDManager || {};
     return read(handles[0]);
   }
 
+  /** @param {MDFileHandle | null} handle @param {string} markdown */
   function save(handle, markdown) {
     if (!handle) return Promise.resolve();
     const operation = writeQueue.catch(() => {}).then(async () => {

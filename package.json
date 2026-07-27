@@ -1,11 +1,19 @@
 {
   "private": true,
   "scripts": {
-    "test": "node --test tests/unit/*.test.js && playwright test",
+    "check:types": "tsc -p jsconfig.json",
+    "check:lint": "eslint . --max-warnings=0",
+    "check:architecture": "node tools/check-architecture.js",
+    "test": "npm run test:unit && npm run test:e2e",
     "test:unit": "node --test tests/unit/*.test.js",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "verify": "npm run check:types && npm run check:lint && npm run check:architecture && npm run test:unit && npm run test:e2e"
   },
   "devDependencies": {
-    "@playwright/test": "^1.55.0"
+    "@eslint/js": "^9.32.0",
+    "@playwright/test": "^1.55.0",
+    "eslint": "^9.32.0",
+    "globals": "^16.3.0",
+    "typescript": "^5.9.2"
   }
 }

@@ -12,26 +12,26 @@
 ### Task 1
 
 #Info
-- Do X
+Do X ...
 
 #Warn
 - Crash
 
 **ToDo's**
-- ~ToDo 1~
+- [x] ~ToDo 1~
 
 **Bugs**
-- ~Fix 1~
+- [x] ~Fix 1~
 
 ### Task 2
 
-- ~ToDo 2~
+- [x] ~ToDo 2~
 
 #Backlog
 ## Do later
 
 ### Task 3
 
-- ToDo 3
+- [ ] ToDo 3
 
 ### Empty Task

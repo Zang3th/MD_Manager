@@ -4,12 +4,16 @@ window.MDManager = window.MDManager || {};
   const deleteIcon = '<span aria-hidden="true">✕</span>';
   let taskContentCache = new WeakMap();
 
+  /** @param {string} value */
   function escapeHtml(value) {
-    return value.replace(/[&<>"']/g, character => ({
+    /** @type {Record<string, string>} */
+    const entities = {
       "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;"
-    })[character]);
+    };
+    return value.replace(/[&<>"']/g, character => entities[character]);
   }
 
+  /** @param {string} value */
   function inlineMarkdown(value) {
     return escapeHtml(value)
       .replace(/`([^`]+)`/g, "<code>$1</code>")
@@ -18,15 +22,18 @@ window.MDManager = window.MDManager || {};
       .replace(/\[([^\]]+)]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
   }
 
+  /** @param {MDTask} task @returns {MDTaskContent} */
   function taskContent(task) {
     if (!taskContentCache.has(task)) taskContentCache.set(task, app.markdown.taskContent(task));
     return taskContentCache.get(task);
   }
 
+  /** @param {MDTask} task */
   function todos(task) {
     return taskContent(task).todos;
   }
 
+  /** @param {MDNote[]} notes @param {boolean} [collapsible] */
   function notesMarkup(notes, collapsible = false) {
     return notes.map(note => {
       const noteType = note.noteType || note.type;
@@ -48,6 +55,7 @@ window.MDManager = window.MDManager || {};
     }).join("");
   }
 
+  /** @param {MDTask} task */
   function taskBody(task) {
     const content = taskContent(task);
     const notes = content.blocks.filter(block => block.type === "note");
@@ -67,6 +75,7 @@ window.MDManager = window.MDManager || {};
     }).join("")}</div>`;
   }
 
+  /** @param {MDViewState} [viewState] */
   function restoreViewState(viewState) {
     if (!viewState) return;
     document.querySelectorAll(".card").forEach((task, index) => {
@@ -81,24 +90,28 @@ window.MDManager = window.MDManager || {};
     });
   }
 
+  /** @param {MDTask} task @param {number} taskIndex */
   function taskMarkup(task, taskIndex) {
-    const { entries: taskTodos, done, complete: taskComplete, inProgress: taskInProgress } = taskProgress(task);
+    const { entries: taskTodos, complete: taskComplete, inProgress: taskInProgress } = taskProgress(task);
     return `<section class="card${taskComplete ? " complete" : ""}${taskInProgress ? " in-progress" : ""}${taskTodos.length ? "" : " empty-task"}" data-task="${taskIndex}" tabindex="0" aria-expanded="false">
       <header class="card-header"><h3 class="card-title" data-full-title="${escapeHtml(task.title)}"><span class="title-text">${escapeHtml(task.title)}</span></h3><span class="task-status">${taskStatusMarkup(task)}</span><button class="delete-btn" data-delete="task" type="button" aria-label="Delete task" title="Delete task">${deleteIcon}</button></header>
       <div class="card-body" hidden>${taskBody(task)}</div>
     </section>`;
   }
 
+  /** @param {MDTask} task */
   function taskProgress(task) {
     return app.status.progress(todos(task));
   }
 
+  /** @param {MDTask} task */
   function taskStatusMarkup(task) {
     const { entries, done, complete, inProgress } = taskProgress(task);
     const icon = complete ? '<span class="task-check" title="Complete" aria-label="Complete">✓</span>' : inProgress ? '<span class="task-in-progress" title="In progress" aria-label="In progress">◐</span>' : "";
     return `${icon}<span class="task-progress">${done}/${entries.length}</span>`;
   }
 
+  /** @param {MDFeature} feature */
   function backlogContents(feature) {
     const taskCount = feature.tasks.length;
     return `<header class="backlog-header"><div class="backlog-heading"><h2 class="backlog-title" data-full-title="${escapeHtml(feature.title)}"><span class="title-text">${escapeHtml(feature.title)}</span></h2><span class="backlog-count">${taskCount} ${taskCount === 1 ? "Task" : "Tasks"}</span></div><button class="backlog-close" type="button" aria-label="Close backlog" title="Close backlog">${deleteIcon}</button></header>
@@ -106,16 +119,20 @@ window.MDManager = window.MDManager || {};
       <div class="board">${feature.tasks.map(taskMarkup).join("")}</div>`;
   }
 
+  /** @param {MDFeature} feature */
   function featureProgress(feature) {
     return app.status.progress(feature.tasks.flatMap(todos));
   }
 
+  /** @param {MDProject} project */
   function statisticsMarkup(project) {
     const counts = app.status.statistics(project.features, todos);
+    /** @param {string} label @param {{done: number, active: number, open: number, backlog: number}} counts */
     const row = (label, counts) => `<tr><th scope="row">${label}</th><td class="done">${counts.done}</td><td class="active">${counts.active}</td><td class="open">${counts.open}</td><td class="backlog-stat">${counts.backlog}</td></tr>`;
     return `<div class="stats-header"><span class="stats-title">Statistics</span><button class="stats-close" type="button" aria-label="Close statistics" title="Close statistics">${deleteIcon}</button></div><table><thead><tr><th></th><th class="done" scope="col">Done</th><th class="active" scope="col">Active</th><th class="open" scope="col">Open</th><th class="backlog-stat" scope="col">Backlog</th></tr></thead><tbody>${row("Features", counts.features)}${row("Tasks", counts.tasks)}${row("Todos", counts.entries)}</tbody></table>`;
   }
 
+  /** @param {MDProject} project @param {MDViewState | undefined} viewState @param {string} fileName */
   function render(project, viewState, fileName) {
     taskContentCache = new WeakMap();
     app.layout.reset();
@@ -172,6 +189,7 @@ window.MDManager = window.MDManager || {};
     app.layout.layoutGrid();
   }
 
+  /** @param {MDProject} project @param {number} featureIndex @param {number} taskIndex @param {number} lineIndex */
   function updateTodo(project, featureIndex, taskIndex, lineIndex) {
     const feature = project.features[featureIndex];
     const task = feature.tasks[taskIndex];
@@ -179,6 +197,7 @@ window.MDManager = window.MDManager || {};
     const release = document.querySelector(`.release[data-feature="${featureIndex}"]`);
     const card = release.querySelector(`.card[data-task="${taskIndex}"]`);
     const todo = todos(task).find(entry => entry.lineIndex === lineIndex);
+    if (!todo) return;
     const item = card.querySelector(`.todo-item[data-line="${lineIndex}"]`);
     const checkbox = item.querySelector(".checkbox");
     checkbox.dataset.checked = String(todo.checked);
@@ -203,6 +222,7 @@ window.MDManager = window.MDManager || {};
     app.layout.statusChanged();
   }
 
+  /** @param {MDRecentFile[]} entries */
   function showStart(entries) {
     document.getElementById("viewerControls").hidden = true;
     document.getElementById("historyControls").hidden = true;
@@ -219,15 +239,18 @@ window.MDManager = window.MDManager || {};
       </section></div>`;
   }
 
+  /** @param {string} message */
   function showError(message) {
     document.getElementById("content").innerHTML = `<div class="error">${escapeHtml(message)}</div>`;
   }
 
+  /** @param {string} message */
   function showRecentError(message) {
     const list = document.querySelector(".recent-files-list");
     if (list) list.innerHTML = `<p class="recent-files-empty">${escapeHtml(message)}</p>`;
   }
 
+  /** @param {string} message */
   function showSaveError(message) {
     const button = document.getElementById("saveFile");
     button.textContent = "Save failed";

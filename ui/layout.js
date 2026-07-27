@@ -6,7 +6,8 @@ window.MDManager = window.MDManager || {};
   const titleStyleCache = new Map();
   const headerHeightCache = new Map();
   const gridHeightCache = new Map();
-  const measureContext = document.createElement("canvas").getContext("2d");
+  const measureContext = /** @type {CanvasRenderingContext2D} */ (document.createElement("canvas").getContext("2d"));
+  /** @type {number | null} */
   let gridIntrinsicWidth = null;
   let layoutFrame = 0;
   let layoutNeeds = { titles: false, headers: false, gridWidth: false, gridHeight: false };
@@ -15,10 +16,12 @@ window.MDManager = window.MDManager || {};
     return `${document.body.classList.contains("toggle-grid-view") ? "grid" : "board"}:${document.body.classList.contains("show-metadata") ? "metadata" : "plain"}`;
   }
 
+  /** @param {CSSStyleDeclaration} style */
   function fontKey(style) {
     return `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}|${style.letterSpacing}`;
   }
 
+  /** @param {HTMLElement} title */
   function titleStyle(title) {
     const type = title.classList.contains("release-title") ? "feature" : title.classList.contains("backlog-title") ? "backlog" : "task";
     const key = `${layoutKey()}|${type}`;
@@ -37,6 +40,7 @@ window.MDManager = window.MDManager || {};
     return titleStyleCache.get(key);
   }
 
+  /** @param {string} value @param {CSSStyleDeclaration} style */
   function measuredTextWidth(value, style) {
     const font = fontKey(style);
     const key = `${font}|${value}`;
@@ -48,6 +52,7 @@ window.MDManager = window.MDManager || {};
     return width;
   }
 
+  /** @param {string} value @param {number} availableWidth @param {CSSStyleDeclaration} style */
   function fittedTitle(value, availableWidth, style) {
     const characters = Array.from(value);
     const key = `${fontKey(style)}|${Math.floor(availableWidth)}|${value}`;
@@ -68,20 +73,22 @@ window.MDManager = window.MDManager || {};
     return fitted;
   }
 
+  /** @param {Iterable<HTMLElement>} [targets] */
   function fitTitles(targets) {
-    const titles = targets ? [...targets] : [...document.querySelectorAll(".release-title, .card-title, .backlog-title")];
+    const titles = targets ? [...targets] : /** @type {HTMLElement[]} */ ([...document.querySelectorAll(".release-title, .card-title, .backlog-title")]);
     const values = titles.map(title => {
       if (title.closest("[hidden]")) return title.dataset.fullTitle;
       const style = titleStyle(title);
       const available = title.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
-      return fittedTitle(title.dataset.fullTitle, available, style);
+      return fittedTitle(title.dataset.fullTitle || "", available, style);
     });
     titles.forEach((title, index) => title.querySelector(".title-text").textContent = values[index]);
   }
 
+  /** @param {HTMLElement} title */
   function startTitleScroll(title) {
     const text = title.querySelector(".title-text");
-    text.textContent = title.dataset.fullTitle;
+    text.textContent = title.dataset.fullTitle || "";
     title.classList.add("title-hover");
     requestAnimationFrame(() => {
       const style = getComputedStyle(title);
@@ -96,6 +103,7 @@ window.MDManager = window.MDManager || {};
     });
   }
 
+  /** @param {HTMLElement} title */
   function stopTitleScroll(title) {
     title.classList.remove("title-hover", "title-scroll");
     title.style.removeProperty("--title-scroll-distance");
@@ -122,16 +130,17 @@ window.MDManager = window.MDManager || {};
     headers.forEach(header => header.style.height = `${cached.headerHeight}px`);
   }
 
+  /** @param {HTMLElement} content */
   function intrinsicGridWidth(content) {
     if (gridIntrinsicWidth !== null) return gridIntrinsicWidth;
-    const elements = [...content.querySelectorAll(".release-title, .card-title")];
+    const elements = /** @type {HTMLElement[]} */ ([...content.querySelectorAll(".release-title, .card-title")]);
     const widths = elements.map(element => {
       const style = titleStyle(element);
-      const textWidth = measuredTextWidth(element.dataset.fullTitle, style);
+      const textWidth = measuredTextWidth(element.dataset.fullTitle || "", style);
       if (element.classList.contains("release-title")) {
-        return textWidth + (element.closest(".release-heading").querySelector(".feature-progress")?.offsetWidth || 0) + 32;
+        return textWidth + (element.closest(".release-heading")?.querySelector(".feature-progress")?.offsetWidth || 0) + 32;
       }
-      return textWidth + (element.closest(".card-header").querySelector(".task-status")?.offsetWidth || 0) + 40;
+      return textWidth + (element.closest(".card-header")?.querySelector(".task-status")?.offsetWidth || 0) + 40;
     });
     gridIntrinsicWidth = Math.max(240, ...widths);
     return gridIntrinsicWidth;
@@ -149,7 +158,7 @@ window.MDManager = window.MDManager || {};
       document.body.style.removeProperty("--grid-card-width");
       document.body.style.removeProperty("--grid-feature-height");
     } else {
-      document.querySelectorAll(".title-hover").forEach(stopTitleScroll);
+      document.querySelectorAll(".title-hover").forEach(title => stopTitleScroll(/** @type {HTMLElement} */ (title)));
       if (needs.gridWidth) {
         const width = Math.min(intrinsicGridWidth(content), content.clientWidth);
         content.style.setProperty("--grid-card-width", `${width}px`);
@@ -170,16 +179,19 @@ window.MDManager = window.MDManager || {};
         document.body.style.removeProperty("--grid-feature-height");
         height = Math.max(0, ...[...content.querySelectorAll(":scope > .release")].map(feature => feature.offsetHeight));
         gridHeightCache.set(key, height);
-        cards.forEach(({ card, body, expanded, hidden }) => { card.setAttribute("aria-expanded", expanded); body.hidden = hidden; });
-        notes.forEach(({ note, expanded, collapsed }) => { note.setAttribute("aria-expanded", expanded); note.classList.toggle("collapsed", collapsed); });
+        cards.forEach(({ card, body, expanded, hidden }) => { card.setAttribute("aria-expanded", expanded || "false"); body.hidden = hidden; });
+        notes.forEach(({ note, expanded, collapsed }) => { note.setAttribute("aria-expanded", expanded || "false"); note.classList.toggle("collapsed", collapsed); });
       }
       content.style.setProperty("--grid-feature-height", `${height}px`);
       document.body.style.setProperty("--grid-feature-height", `${height}px`);
     }
   }
 
+  /** @param {Partial<Record<"titles" | "headers" | "gridWidth" | "gridHeight", boolean>>} needs */
   function schedule(needs) {
-    Object.keys(needs).forEach(key => layoutNeeds[key] ||= needs[key]);
+    for (const [key, value] of Object.entries(needs)) {
+      layoutNeeds[/** @type {keyof typeof layoutNeeds} */ (key)] ||= value;
+    }
     if (!layoutFrame) layoutFrame = requestAnimationFrame(runLayout);
   }
 

@@ -1,10 +1,15 @@
 window.MDManager = window.MDManager || {};
 
 (function (app) {
+  /** @param {MDTask} task @returns {MDTaskContent} */
   function taskContent(task) {
+    /** @type {MDGroupBlock} */
     const initialGroup = { type: "group", title: "", lineIndex: -1, todos: [] };
+    /** @type {MDTaskContent} */
     const result = { blocks: [initialGroup], todos: [] };
+    /** @type {MDGroupBlock | null} */
     let group = initialGroup;
+    /** @type {MDNoteBlock | null} */
     let note = null;
     task.lines.forEach((line, lineIndex) => {
       const noteMarker = line.match(/^\s*#(Info|Warn)\s*$/i);
@@ -26,8 +31,9 @@ window.MDManager = window.MDManager || {};
         if (note) note.items.push({ text: listItem[3], indent: listItem[1].replace(/\t/g, "    ").length });
         else {
           const checked = listItem[2]?.toLowerCase() === "x" || /^~.*~$/.test(listItem[3]);
+          /** @type {MDTodo} */
           const todo = { type: "todo", lineIndex, checked, text: listItem[3].replace(/^~(.*)~$/, "$1") };
-          group.todos.push(todo);
+          group?.todos.push(todo);
           result.todos.push(todo);
         }
       } else if (line.trim() && note) note.items.push({ text: line.trim(), paragraph: true });
@@ -36,12 +42,17 @@ window.MDManager = window.MDManager || {};
     return result;
   }
 
+  /** @param {string} markdown @returns {MDProject} */
   function parse(markdown) {
     const newline = markdown.includes("\r\n") ? "\r\n" : "\n";
     const lines = markdown.replace(/\r\n?/g, "\n").split("\n");
+    /** @type {MDProject} */
     const project = { title: "Untitled Project", newline, beforeFeatures: [], features: [] };
+    /** @type {MDFeature | null} */
     let feature = null;
+    /** @type {MDTask | null} */
     let task = null;
+    /** @type {"version" | "date" | "info" | "warn" | null} */
     let featureMetadata = null;
     let pendingBacklog = false;
 
@@ -78,7 +89,7 @@ window.MDManager = window.MDManager || {};
         feature.headerLines.push(line);
         const metadataMarker = line.match(/^\s*#(Version|Date|Info|Warn)\s*$/i);
         if (metadataMarker) {
-          featureMetadata = metadataMarker[1].toLowerCase();
+          featureMetadata = /** @type {"version" | "date" | "info" | "warn"} */ (metadataMarker[1].toLowerCase());
           if (featureMetadata === "info" || featureMetadata === "warn") {
             feature.notes.push({ type: featureMetadata, items: [] });
           }
@@ -90,11 +101,12 @@ window.MDManager = window.MDManager || {};
           featureMetadata = null;
         } else if (metadataValue && featureMetadata === "date") {
           const range = metadataValue[2].match(/^(.+?)(?:\s+-\s+(.+))?$/);
+          if (!range) continue;
           feature.dates.push({ from: range[1].trim(), to: range[2]?.trim() || "" });
         } else if (metadataValue && (featureMetadata === "info" || featureMetadata === "warn")) {
-          feature.notes.at(-1).items.push({ text: metadataValue[2], indent: metadataValue[1].replace(/\t/g, "    ").length });
+          feature.notes.at(-1)?.items.push({ text: metadataValue[2], indent: metadataValue[1].replace(/\t/g, "    ").length });
         } else if (line.trim() && (featureMetadata === "info" || featureMetadata === "warn")) {
-          feature.notes.at(-1).items.push({ text: line.trim(), paragraph: true });
+          feature.notes.at(-1)?.items.push({ text: line.trim(), paragraph: true });
         } else if (line.trim()) {
           featureMetadata = null;
         }
@@ -104,6 +116,7 @@ window.MDManager = window.MDManager || {};
     return project;
   }
 
+  /** @param {MDTask} task @returns {string[]} */
   function serializeTaskLines(task) {
     let note = false;
     return task.lines.map(line => {
@@ -125,6 +138,7 @@ window.MDManager = window.MDManager || {};
     });
   }
 
+  /** @param {MDProject} project @returns {string} */
   function serialize(project) {
     const lines = project.beforeFeatures.slice();
     const titleIndex = lines.findIndex(line => /^#\s+/.test(line));

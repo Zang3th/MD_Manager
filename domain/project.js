@@ -1,30 +1,37 @@
 window.MDManager = window.MDManager || {};
 
 (function (app) {
+  /** @template T @param {T[]} items @param {number} fromIndex @param {number} toIndex */
   function moveItem(items, fromIndex, toIndex) {
     if (fromIndex === toIndex) return;
     items.splice(toIndex, 0, items.splice(fromIndex, 1)[0]);
   }
 
   app.domain = {
+    /** @param {MDProject} project @param {number} fromIndex @param {number} toIndex */
     moveFeature(project, fromIndex, toIndex) {
       if (project.features[fromIndex]?.isBacklog) return;
       const backlogIndex = project.features.findIndex(feature => feature.isBacklog);
       moveItem(project.features, fromIndex, backlogIndex >= 0 ? Math.min(toIndex, backlogIndex - 1) : toIndex);
     },
+    /** @param {MDProject} project @param {number} fromFeature @param {number} fromIndex @param {number} toFeature @param {number} toIndex */
     moveTask(project, fromFeature, fromIndex, toFeature, toIndex) {
       const task = project.features[fromFeature].tasks.splice(fromIndex, 1)[0];
       project.features[toFeature].tasks.splice(toIndex, 0, task);
     },
+    /** @param {MDProject} project @param {number} featureIndex */
     deleteFeature(project, featureIndex) {
       project.features.splice(featureIndex, 1);
     },
+    /** @param {MDProject} project @param {number} featureIndex @param {number} taskIndex */
     deleteTask(project, featureIndex, taskIndex) {
       project.features[featureIndex].tasks.splice(taskIndex, 1);
     },
+    /** @param {MDTask} task @param {number} lineIndex */
     deleteTodo(task, lineIndex) {
       task.lines.splice(lineIndex, 1);
     },
+    /** @param {MDProject} project @param {number} fromFeature @param {number} fromTask @param {number} fromLine @param {number} toFeature @param {number} toTask @param {number} toAnchorLine @param {number} toIndex */
     moveTodo(project, fromFeature, fromTask, fromLine, toFeature, toTask, toAnchorLine, toIndex) {
       const source = project.features[fromFeature].tasks[fromTask];
       const target = project.features[toFeature].tasks[toTask];
@@ -40,6 +47,7 @@ window.MDManager = window.MDManager || {};
       else insertionLine = toAnchorLine + 1;
       target.lines.splice(insertionLine, 0, todo);
     },
+    /** @param {MDTask} task @param {number} lineIndex @param {boolean} checked */
     setTodo(task, lineIndex, checked) {
       const match = task.lines[lineIndex].match(/^(\s*[-*+]\s+)(?:\[[ xX]\]\s+)?(.*)$/);
       if (!match) return;

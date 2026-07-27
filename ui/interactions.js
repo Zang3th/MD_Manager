@@ -1,22 +1,33 @@
 window.MDManager = window.MDManager || {};
 
 (function (app) {
+  /** @type {MDProject | null} */
   let project = null;
+  /** @type {((viewState: MDViewState, options?: any) => void) | null} */
   let changed = null;
+  /** @type {Array<{destroy(): void}>} */
   let sortables = [];
+  /** @type {((index: number) => void) | null} */
   let openRecent = null;
+  /** @type {((index: number) => void) | null} */
   let removeRecent = null;
+  /** @type {(() => Promise<void>) | null} */
   let save = null;
+  /** @type {(() => void) | null} */
   let undo = null;
+  /** @type {(() => void) | null} */
   let redo = null;
+  /** @type {MDViewState | null} */
   let expandedBeforeGrid = null;
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
+  /** @param {HTMLElement} element @param {Keyframe[]} keyframes @param {KeyframeAnimationOptions} options */
   function animate(element, keyframes, options) {
     if (reducedMotion.matches) return Promise.resolve();
     return element.animate(keyframes, options).finished.catch(() => {});
   }
 
+  /** @param {HTMLElement} element */
   function animateRemoval(element) {
     return animate(element, [
       { opacity: 1, transform: "scale(1)" },
@@ -24,10 +35,11 @@ window.MDManager = window.MDManager || {};
     ], { duration: 120, easing: "cubic-bezier(.4,0,1,1)", fill: "forwards" });
   }
 
+  /** @param {number} featureIndex @param {number} taskIndex @param {number} lineIndex */
   function animateTodoToggle(featureIndex, taskIndex, lineIndex) {
     const checkbox = document.querySelector(`.release[data-feature="${featureIndex}"] .card[data-task="${taskIndex}"] .todo-item[data-line="${lineIndex}"] .checkbox`);
     if (!checkbox) return;
-    animate(checkbox, [
+    animate(/** @type {HTMLElement} */ (checkbox), [
       { transform: "scale(.82)" },
       { transform: "scale(1.08)", offset: .65 },
       { transform: "scale(1)" }
@@ -39,6 +51,7 @@ window.MDManager = window.MDManager || {};
     document.getElementById("toggleViewMenu").setAttribute("aria-expanded", "false");
   }
 
+  /** @param {boolean} active */
   function setGridView(active) {
     if (document.body.classList.contains("toggle-grid-view") === active) return;
     if (active) {
@@ -54,9 +67,11 @@ window.MDManager = window.MDManager || {};
     }
     if (active) collapseAll();
     app.layout.layoutGrid();
-    if (!active && expandedBeforeGrid) requestAnimationFrame(() => restoreScrollState(expandedBeforeGrid));
+    const stateBeforeGrid = expandedBeforeGrid;
+    if (!active && stateBeforeGrid) requestAnimationFrame(() => restoreScrollState(stateBeforeGrid));
   }
 
+  /** @returns {MDViewState} */
   function captureViewState() {
     const content = document.getElementById("content");
     const backlog = document.getElementById("backlog");
@@ -83,6 +98,7 @@ window.MDManager = window.MDManager || {};
     });
   }
 
+  /** @param {MDViewState} viewState */
   function restoreExpandedState(viewState) {
     document.querySelectorAll(".card").forEach((task, index) => {
       const expanded = viewState.tasks[index] ?? false;
@@ -96,6 +112,7 @@ window.MDManager = window.MDManager || {};
     });
   }
 
+  /** @param {MDViewState} viewState */
   function restoreScrollState(viewState) {
     const content = document.getElementById("content");
     const backlog = document.getElementById("backlog");
@@ -145,9 +162,10 @@ window.MDManager = window.MDManager || {};
       ghostClass: "sortable-ghost",
       chosenClass: "sortable-chosen",
       dragClass: "sortable-drag",
+      /** @param {any} event */
       onEnd(event) {
         app.domain.moveFeature(project, event.oldIndex, event.newIndex);
-        changed(captureViewState());
+        changed?.(captureViewState());
       }
     }));
 
@@ -163,11 +181,12 @@ window.MDManager = window.MDManager || {};
         ghostClass: "sortable-ghost",
         chosenClass: "sortable-chosen",
         dragClass: "sortable-drag",
+        /** @param {any} event */
         onEnd(event) {
           const fromFeature = Number(event.from.closest(".release").dataset.feature);
           const toFeature = Number(event.to.closest(".release").dataset.feature);
           app.domain.moveTask(project, fromFeature, event.oldIndex, toFeature, event.newIndex);
-          changed(captureViewState());
+          changed?.(captureViewState());
         }
       }));
     });
@@ -185,6 +204,7 @@ window.MDManager = window.MDManager || {};
         ghostClass: "sortable-ghost",
         chosenClass: "sortable-chosen",
         dragClass: "sortable-drag",
+        /** @param {any} event */
         onEnd(event) {
           const fromTask = event.from.closest(".card");
           const toTask = event.to.closest(".card");
@@ -195,54 +215,69 @@ window.MDManager = window.MDManager || {};
             Number(fromFeature.dataset.feature), Number(fromTask.dataset.task), Number(event.item.dataset.line),
             Number(toFeature.dataset.feature), Number(toTask.dataset.task), Number(event.to.dataset.anchorLine), event.newIndex
           );
-          changed(captureViewState());
+          changed?.(captureViewState());
         }
       }));
     });
 
   }
 
+  /** @param {MDProject} nextProject @param {(viewState: MDViewState, options?: any) => void} onChanged */
   function setProject(nextProject, onChanged) {
     project = nextProject;
     changed = onChanged;
     connectSortable();
   }
 
+  /** @param {Event} event @returns {Element} */
+  function eventElement(event) {
+    return /** @type {Element} */ (event.target);
+  }
+
+  /** @param {Element} element @param {string} selector @returns {HTMLElement} */
+  function requiredClosest(element, selector) {
+    return /** @type {HTMLElement} */ (element.closest(selector));
+  }
+
+  /** @param {MouseEvent} event */
   async function handleContentClick(event) {
-    if (event.target.closest(".backlog-close")) {
+    if (!project && !eventElement(event).closest(".recent-file")) return;
+    if (eventElement(event).closest(".backlog-close")) {
       toggleBacklog();
       return;
     }
 
-    const removeRecentButton = event.target.closest(".recent-delete");
+    const removeRecentButton = eventElement(event).closest(".recent-delete");
     if (removeRecentButton) {
       removeRecentButton.disabled = true;
-      await animateRemoval(removeRecentButton.closest(".recent-file"));
-      removeRecent(Number(removeRecentButton.dataset.removeRecent));
+      await animateRemoval(requiredClosest(removeRecentButton, ".recent-file"));
+      removeRecent?.(Number(removeRecentButton.dataset.removeRecent));
       return;
     }
 
-    const recentFile = event.target.closest(".recent-file-open");
+    const recentFile = eventElement(event).closest(".recent-file-open");
     if (recentFile) {
-      openRecent(Number(recentFile.dataset.recent));
+      openRecent?.(Number(recentFile.dataset.recent));
       return;
     }
 
-    const noteToggle = event.target.closest(".note-toggle");
+    if (!project) return;
+
+    const noteToggle = eventElement(event).closest(".note-toggle");
     if (noteToggle) {
-      const note = noteToggle.closest(".feature-note");
+      const note = requiredClosest(noteToggle, ".feature-note");
       const expanded = note.classList.toggle("collapsed") === false;
       note.setAttribute("aria-expanded", String(expanded));
       return;
     }
 
-    const deleteButton = event.target.closest(".delete-btn");
+    const deleteButton = eventElement(event).closest(".delete-btn");
     if (deleteButton) {
       event.stopPropagation();
-      const featureElement = deleteButton.closest(".release");
+      const featureElement = requiredClosest(deleteButton, ".release");
       const featureIndex = Number(featureElement.dataset.feature);
       const viewState = captureViewState();
-      const removedElement = deleteButton.closest(".todo-item, .card, .release");
+      const removedElement = requiredClosest(deleteButton, ".todo-item, .card, .release");
       deleteButton.disabled = true;
       await animateRemoval(removedElement);
       if (deleteButton.dataset.delete === "feature") {
@@ -250,47 +285,47 @@ window.MDManager = window.MDManager || {};
         if (firstTask >= 0) viewState.tasks.splice(firstTask, featureElement.querySelectorAll(".card").length);
         app.domain.deleteFeature(project, featureIndex);
       } else if (deleteButton.dataset.delete === "task") {
-        const taskElement = deleteButton.closest(".card");
+        const taskElement = requiredClosest(deleteButton, ".card");
         viewState.tasks.splice([...document.querySelectorAll(".card")].indexOf(taskElement), 1);
         app.domain.deleteTask(project, featureIndex, Number(taskElement.dataset.task));
       } else {
-        const taskElement = deleteButton.closest(".card");
-        const task = project.features[featureIndex].tasks[taskElement.dataset.task];
-        app.domain.deleteTodo(task, Number(deleteButton.closest(".todo-item").dataset.line));
+        const taskElement = requiredClosest(deleteButton, ".card");
+        const task = project.features[featureIndex].tasks[Number(taskElement.dataset.task)];
+        app.domain.deleteTodo(task, Number(requiredClosest(deleteButton, ".todo-item").dataset.line));
       }
-      changed(viewState);
+      changed?.(viewState);
       return;
     }
 
-    const checkbox = event.target.closest(".checkbox");
+    const checkbox = eventElement(event).closest(".checkbox");
     if (checkbox) {
       event.stopPropagation();
-      const todo = checkbox.closest(".todo-item");
-      const taskElement = checkbox.closest(".card");
-      const featureElement = checkbox.closest(".release");
+      const todo = requiredClosest(checkbox, ".todo-item");
+      const taskElement = requiredClosest(checkbox, ".card");
+      const featureElement = requiredClosest(checkbox, ".release");
       const featureIndex = Number(featureElement.dataset.feature);
       const taskIndex = Number(taskElement.dataset.task);
       const lineIndex = Number(todo.dataset.line);
       const task = project.features[featureIndex].tasks[taskIndex];
       app.domain.setTodo(task, lineIndex, checkbox.dataset.checked !== "true");
       app.render.updateTodo(project, featureIndex, taskIndex, lineIndex);
-      changed(captureViewState(), { render: false });
+      changed?.(captureViewState(), { render: false });
       animateTodoToggle(featureIndex, taskIndex, lineIndex);
       return;
     }
 
-    const taskHeader = event.target.closest(".card-header");
+    const taskHeader = eventElement(event).closest(".card-header");
     if (taskHeader) {
-      const task = taskHeader.closest(".card");
+      const task = requiredClosest(taskHeader, ".card");
       const body = task.querySelector(".card-body");
       body.hidden = !body.hidden;
       task.setAttribute("aria-expanded", String(!body.hidden));
       return;
     }
 
-    const featureHeader = event.target.closest(".release-header");
+    const featureHeader = eventElement(event).closest(".release-header");
     if (featureHeader) {
-      const feature = featureHeader.closest(".release");
+      const feature = requiredClosest(featureHeader, ".release");
       const tasks = [...feature.querySelectorAll(".card")];
       const notes = [...feature.querySelectorAll(".feature-note")];
       const expand = tasks.some(task => task.getAttribute("aria-expanded") !== "true") || notes.some(note => note.getAttribute("aria-expanded") !== "true");
@@ -305,16 +340,18 @@ window.MDManager = window.MDManager || {};
     }
   }
 
+  /** @param {MouseEvent} event */
   function handleTitleEnter(event) {
-    const header = event.target.closest(".card-header, .release-heading, .backlog-header");
-    if (!header || header.contains(event.relatedTarget)) return;
+    const header = eventElement(event).closest(".card-header, .release-heading, .backlog-header");
+    if (!header || header.contains(/** @type {Node | null} */ (event.relatedTarget))) return;
     const title = header.querySelector(".card-title, .release-title, .backlog-title");
     if (title) app.layout.startTitleScroll(title);
   }
 
+  /** @param {MouseEvent} event */
   function handleTitleLeave(event) {
-    const header = event.target.closest(".card-header, .release-heading, .backlog-header");
-    if (!header || header.contains(event.relatedTarget)) return;
+    const header = eventElement(event).closest(".card-header, .release-heading, .backlog-header");
+    if (!header || header.contains(/** @type {Node | null} */ (event.relatedTarget))) return;
     const title = header.querySelector(".card-title, .release-title, .backlog-title");
     if (title) app.layout.stopTitleScroll(title);
   }
@@ -329,7 +366,7 @@ window.MDManager = window.MDManager || {};
   document.getElementById("toggleViewMenu").addEventListener("click", event => {
     const options = document.getElementById("viewOptions");
     options.hidden = !options.hidden;
-    event.currentTarget.setAttribute("aria-expanded", String(!options.hidden));
+    (/** @type {HTMLElement} */ (event.currentTarget)).setAttribute("aria-expanded", String(!options.hidden));
   });
   document.getElementById("showBoardView").addEventListener("click", () => setGridView(false));
   document.addEventListener("keydown", event => {
@@ -342,17 +379,17 @@ window.MDManager = window.MDManager || {};
 
   document.getElementById("toggleMetadata").addEventListener("click", event => {
     const active = document.body.classList.toggle("show-metadata");
-    event.currentTarget.setAttribute("aria-pressed", String(active));
+    (/** @type {HTMLElement} */ (event.currentTarget)).setAttribute("aria-pressed", String(active));
     app.layout.equalizeReleaseHeaders();
     app.layout.layoutGrid(true);
   });
 
   document.getElementById("toggleStats").addEventListener("click", event => {
     const active = document.body.classList.toggle("hide-stats") === false;
-    event.currentTarget.setAttribute("aria-pressed", String(active));
+    (/** @type {HTMLElement} */ (event.currentTarget)).setAttribute("aria-pressed", String(active));
   });
   document.getElementById("projectStats").addEventListener("click", event => {
-    if (!event.target.closest(".stats-close")) return;
+    if (!eventElement(event).closest(".stats-close")) return;
     document.body.classList.add("hide-stats");
     document.getElementById("toggleStats").setAttribute("aria-pressed", "false");
   });
@@ -361,23 +398,28 @@ window.MDManager = window.MDManager || {};
 
   document.getElementById("saveFile").addEventListener("click", async () => {
     try {
-      await save();
+      await save?.();
     } catch (error) {
+      if (!(error instanceof Error)) throw error;
       app.render.saveError(error.message);
     }
   });
-  document.getElementById("undoChange").addEventListener("click", () => undo());
-  document.getElementById("redoChange").addEventListener("click", () => redo());
+  document.getElementById("undoChange").addEventListener("click", () => undo?.());
+  document.getElementById("redoChange").addEventListener("click", () => redo?.());
   document.addEventListener("click", event => {
-    if (!event.target.closest(".view-menu")) closeViewMenu();
+    if (!eventElement(event).closest(".view-menu")) closeViewMenu();
   });
 
   app.interactions = {
     setProject,
     getViewState: captureViewState,
+    /** @param {(index: number) => void} callback */
     setOpenRecent(callback) { openRecent = callback; },
+    /** @param {(index: number) => void} callback */
     setRemoveRecent(callback) { removeRecent = callback; },
+    /** @param {{save: () => Promise<void>, undo: () => void, redo: () => void}} actions */
     setHistoryActions(actions) { save = actions.save; undo = actions.undo; redo = actions.redo; },
+    /** @param {{dirty: boolean, canUndo: boolean, canRedo: boolean}} state */
     setHistoryState(state) {
       const saveButton = document.getElementById("saveFile");
       saveButton.textContent = "Save";
