@@ -116,18 +116,19 @@ window.MDManager = window.MDManager || {};
     const titles = [...document.querySelectorAll("#content > .release .release-title")];
     const headers = [...document.querySelectorAll("#content > .release > .release-header")];
     const key = layoutKey();
+    const grid = document.body.classList.contains("toggle-grid-view");
     let cached = headerHeightCache.get(key);
     if (!cached) {
       titles.forEach(title => title.style.height = "auto");
       headers.forEach(header => header.style.height = "auto");
       const titleHeight = Math.max(0, ...titles.map(title => title.offsetHeight));
       titles.forEach(title => title.style.height = `${titleHeight}px`);
-      const headerHeight = Math.max(0, ...headers.map(header => header.offsetHeight));
+      const headerHeight = grid ? Math.max(0, ...headers.map(header => header.offsetHeight)) : null;
       cached = { titleHeight, headerHeight };
       headerHeightCache.set(key, cached);
     }
     titles.forEach(title => title.style.height = `${cached.titleHeight}px`);
-    headers.forEach(header => header.style.height = `${cached.headerHeight}px`);
+    headers.forEach(header => header.style.height = cached.headerHeight === null ? "auto" : `${cached.headerHeight}px`);
   }
 
   /** @param {HTMLElement} content */

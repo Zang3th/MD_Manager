@@ -381,7 +381,7 @@ window.MDManager = window.MDManager || {};
     const active = document.body.classList.toggle("show-metadata");
     (/** @type {HTMLElement} */ (event.currentTarget)).setAttribute("aria-pressed", String(active));
     app.layout.equalizeReleaseHeaders();
-    app.layout.layoutGrid(true);
+    app.layout.layoutGrid();
   });
 
   document.getElementById("toggleStats").addEventListener("click", event => {

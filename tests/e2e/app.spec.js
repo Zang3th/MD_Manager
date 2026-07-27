@@ -28,16 +28,16 @@ const fixture = `# Test Project
 ### Deferred Task
 - [ ] someday`;
 
-async function openFixture(page) {
+async function openFixture(page, markdown = fixture) {
   await page.goto(appUrl);
-  await page.evaluate(markdown => {
+  await page.evaluate(value => {
     const handle = { name: "Fixture.md" };
-    window.MDManager.files.open = async () => ({ handle, markdown });
+    window.MDManager.files.open = async () => ({ handle, markdown: value });
     window.MDManager.files.remember = async () => {};
     window.MDManager.files.save = async (_handle, value) => { window.__savedMarkdown = value; };
-  }, fixture);
+  }, markdown);
   await page.getByRole("button", { name: "Open", exact: true }).click();
-  await expect(page.locator("#projectTitle")).toHaveText("Test Project");
+  await expect(page.locator("#projectTitle")).toHaveText(markdown.match(/^#\s+(.+)$/m)[1]);
 }
 
 test("start screen exposes the application identity and open action", async ({ page }) => {
@@ -58,14 +58,29 @@ test("Markdown import renders features, tasks, progress states, and filename tit
   await expect(page.locator("#toggleBacklog")).toBeEnabled();
 });
 
-test("metadata toggles without changing the shared header height", async ({ page }) => {
+test("metadata uses natural board header heights while keeping title rows aligned", async ({ page }) => {
   await openFixture(page);
   await page.locator("#toggleViewMenu").click();
   await page.locator("#toggleMetadata").click();
   await expect(page.locator(".release-version")).toHaveText("v1.2.3");
   await expect(page.locator(".release-dates")).toContainText("2026-01-01");
-  const heights = await page.locator("#content > .release > .release-header").evaluateAll(nodes => nodes.map(node => node.getBoundingClientRect().height));
-  expect(new Set(heights).size).toBe(1);
+  const titleHeights = await page.locator("#content > .release .release-title").evaluateAll(nodes => nodes.map(node => node.getBoundingClientRect().height));
+  expect(new Set(titleHeights).size).toBe(1);
+  const headerHeights = await page.locator("#content > .release > .release-header").evaluateAll(nodes => nodes.map(node => node.getBoundingClientRect().height));
+  expect(headerHeights[0]).toBeGreaterThan(headerHeights[1]);
+});
+
+test("metadata recalculates grid row height when cards wrap onto another row", async ({ page }) => {
+  const features = Array.from({ length: 6 }, (_, index) => `## Feature ${index + 1}\n#Version\n- 1.0.${index}\n#Date\n- 2026-01-01 - 2026-12-31\n### Task ${index + 1}\n- [ ] pending`).join("\n\n");
+  await openFixture(page, `# Grid Metadata\n\n${features}`);
+  await page.locator("#toggleGridView").click();
+  const heightBefore = await page.locator("#content").evaluate(node => parseFloat(getComputedStyle(node).getPropertyValue("--grid-feature-height")));
+
+  await page.locator("#toggleViewMenu").click();
+  await page.locator("#toggleMetadata").click();
+
+  await expect.poll(() => page.locator("#content").evaluate(node => parseFloat(getComputedStyle(node).getPropertyValue("--grid-feature-height")))).toBeGreaterThan(heightBefore);
+  await expect(page.locator("#content > .release")).toHaveCount(6);
 });
 
 test("backlog opens as a separate pane and closes from its framed button", async ({ page }) => {
