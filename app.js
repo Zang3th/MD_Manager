@@ -58,11 +58,12 @@ window.MDManager = window.MDManager || {};
   async function useOpenedFile(opened) {
     if (!opened) return;
     fileHandle = opened.handle;
-    project = app.markdown.parse(opened.markdown);
+    const openedProject = app.markdown.parse(opened.markdown);
+    project = openedProject;
     savedMarkdown = opened.markdown;
     history = app.history.create(opened.markdown);
     render();
-    app.files.remember(fileHandle).catch(() => {});
+    app.files.remember(fileHandle, openedProject.title).catch(() => {});
   }
 
   document.getElementById("openFile").addEventListener("click", async () => {

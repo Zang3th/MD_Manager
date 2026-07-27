@@ -25,8 +25,8 @@ window.MDManager = window.MDManager || {};
     return /** @type {MDRecentFile[]} */ (entries).sort((left, right) => right.openedAt - left.openedAt).slice(0, 5);
   }
 
-  /** @param {MDFileHandle} handle */
-  async function remember(handle) {
+  /** @param {MDFileHandle} handle @param {string} [projectTitle] */
+  async function remember(handle, projectTitle) {
     const entries = await recent();
     let existing = null;
     for (const entry of entries) {
@@ -38,6 +38,7 @@ window.MDManager = window.MDManager || {};
     const record = {
       id: existing?.id || `${Date.now()}-${Math.random()}`,
       name: handle.name,
+      projectTitle: projectTitle || existing?.projectTitle || "",
       openedAt: Date.now(),
       handle
     };

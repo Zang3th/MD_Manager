@@ -94,8 +94,9 @@ test("recent entries are sorted, deduplicated, limited, and removable", async ()
   assert.equal(recent.length, 5);
   assert.equal(recent[0].name, "5.md");
   const newestId = recent[0].id;
-  await files.remember({ name: "5.md", async isSameEntry(other) { return other.name === this.name; } });
+  await files.remember({ name: "5.md", async isSameEntry(other) { return other.name === this.name; } }, "Project Five");
   assert.equal(records.size, 5);
+  assert.equal((await files.recent())[0].projectTitle, "Project Five");
   await files.forget(newestId);
   assert.equal(records.has(newestId), false);
 });

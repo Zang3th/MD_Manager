@@ -189,7 +189,10 @@ main>.release { flex:0 0 320px; width:320px; min-width:320px; }
 .recent-file-actions { flex:0 0 3.25rem; display:grid; place-items:center; border-left:1px solid var(--border); background:var(--bg-primary); }
 .recent-delete { position:relative; display:grid; place-items:center; width:24px; height:24px; padding:0; border:2px solid var(--border); border-radius:4px; background:transparent; color:var(--muted); cursor:pointer; transition:background .15s,border-color .15s,color .15s; } .recent-delete:hover { border-color:var(--error); background:rgba(254,128,25,.15); color:var(--error); }
 .delete-btn>span,.recent-delete>span { display:block; width:16px; height:16px; font:700 16px/16px "Segoe UI Symbol",sans-serif; text-align:center; transform:translateY(-1px); }
-.recent-file-name { overflow:hidden; font-weight:600; text-align:left; text-overflow:ellipsis; white-space:nowrap; }
+.recent-file-details { display:grid; min-width:0; text-align:left; }
+.recent-project-name,.recent-file-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.recent-project-name { font-weight:600; }
+.recent-file-name { color:var(--muted); font-size:var(--text-sm); }
 .recent-file-time { flex:none; color:var(--muted); font-size:var(--text-md); }
 .recent-files-empty { padding:1rem; color:var(--muted); font-size:var(--text-base); }
 .watermark { position:fixed; bottom:.75rem; left:.75rem; color:var(--muted); font-size:var(--text-sm); } .watermark[hidden] { display:none; } .watermark a { color:inherit; }

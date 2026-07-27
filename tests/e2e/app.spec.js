@@ -55,6 +55,21 @@ test("start screen exposes the application identity and open action", async ({ p
   await expect(page.locator("#helpPopover")).toBeVisible();
 });
 
+test("recent files show the Markdown project title and filename", async ({ page }) => {
+  await page.goto(appUrl);
+  await expect(page.locator(".recent-files-empty")).toBeVisible();
+  await page.evaluate(() => window.MDManager.render.start([{
+    id: "roadmap",
+    name: "Roadmap.md",
+    projectTitle: "MD Manager",
+    openedAt: Date.now(),
+    handle: {}
+  }]));
+  await expect(page.locator(".recent-project-name")).toHaveText("MD Manager");
+  await expect(page.locator(".recent-file-name")).toHaveText("Roadmap.md");
+  await expect(page.locator(".recent-file-time")).toBeVisible();
+});
+
 test("theme toggle switches Gruvbox themes on the start screen and in the app", async ({ page }) => {
   await page.goto(appUrl);
   const toggle = page.locator("#toggleTheme");

@@ -60,7 +60,7 @@ type MDFileHandle = {
   createWritable(): Promise<{write(value: string): Promise<void>; close(): Promise<void>}>;
   isSameEntry(other: MDFileHandle): Promise<boolean>;
 };
-type MDRecentFile = { id: string; name: string; handle: MDFileHandle; openedAt: number };
+type MDRecentFile = { id: string; name: string; projectTitle?: string; handle: MDFileHandle; openedAt: number };
 type MDOpenedFile = {handle: MDFileHandle; markdown: string};
 type MDViewState = {
   tasks: boolean[];
