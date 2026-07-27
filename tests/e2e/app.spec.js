@@ -104,6 +104,25 @@ test("Markdown import renders features, tasks, progress states, and filename tit
   await expect(page.locator("#toggleBacklog")).toBeEnabled();
 });
 
+test("text below a task label keeps its position and visual hierarchy", async ({ page }) => {
+  await openFixture(page, "# Project\n\n## Feature\n\n### Task\n\n**Label**\nDescription text\n- [ ] Todo text");
+  const card = page.locator(".card");
+  await card.locator(".card-header").click();
+  const group = card.locator(".todo-group");
+  await expect(group.locator(":scope > *")).toHaveCount(3);
+  await expect(group.locator(":scope > *").nth(0)).toHaveClass("todo-separator");
+  await expect(group.locator(":scope > *").nth(1)).toHaveClass("todo-description");
+  await expect(group.locator(":scope > *").nth(2)).toHaveClass("todo-list");
+  await expect(group.locator(".todo-separator")).toHaveCSS("font-size", "13px");
+  await expect(group.locator(".todo-description")).toHaveCSS("font-size", "13px");
+  await expect(group.locator(".todo-text")).toHaveCSS("font-size", "13px");
+  const gaps = await group.locator(":scope > *").evaluateAll(elements => {
+    const boxes = elements.map(element => element.getBoundingClientRect());
+    return [boxes[1].top - boxes[0].bottom, boxes[2].top - boxes[1].bottom];
+  });
+  expect(gaps[0]).toBeCloseTo(gaps[1], 5);
+});
+
 test("metadata uses natural board header heights while keeping title rows aligned", async ({ page }) => {
   await openFixture(page);
   await page.locator("#toggleViewMenu").click();

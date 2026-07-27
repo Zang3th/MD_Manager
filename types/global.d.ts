@@ -35,7 +35,7 @@ declare const Sortable: {
 type MDTodo = { type: "todo"; lineIndex: number; checked: boolean; text: string };
 type MDNoteItem = { text: string; indent?: number; paragraph?: boolean };
 type MDNote = { type: string; noteType?: string; items: MDNoteItem[] };
-type MDGroupBlock = { type: "group"; title: string; lineIndex: number; todos: MDTodo[] };
+type MDGroupBlock = { type: "group"; title: string; lineIndex: number; descriptions: MDParagraphBlock[]; todos: MDTodo[] };
 type MDNoteBlock = { type: "note"; noteType: string; lineIndex: number; items: MDNoteItem[] };
 type MDParagraphBlock = { type: "paragraph"; text: string };
 type MDTaskContent = { blocks: Array<MDGroupBlock | MDNoteBlock | MDParagraphBlock>; todos: MDTodo[] };

@@ -263,7 +263,7 @@
 - [ ] Smooth mit UI-Feedback
 - [ ] Anzeige von gefülltem Zwischenspeicher
 
-### Hosting
+### Hosting und Deployment
 
 - [ ] Anwendung zentral hosten
 - [ ] Automatisches Deployment neuer Versionen
@@ -277,3 +277,11 @@
 - [ ] Stopwatch/Clock implementieren
 - [ ] Liegt oben in der Mitte
 - [ ] Liefert aktuelle Zeit und seit wann die Datei offen ist
+
+### Ergänzung der Tests
+
+- [ ] Roadmap.md kann wieder als Roadtrip-Test verwendet werden
+
+### README.md
+
+- [ ] Ordentliche README im Stil der anderen Projekte erstellen

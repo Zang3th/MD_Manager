@@ -18,10 +18,11 @@ test("parses project, metadata, notes, tasks, todos, and backlog", () => {
 });
 
 test("taskContent separates groups, notes, paragraphs, indentation, and todo syntax", () => {
-  const content = markdown.taskContent({ lines: ["intro", "#Warn", "  - nested", "paragraph", "**Phase**", "+ [X] done"] });
+  const content = markdown.taskContent({ lines: ["intro", "#Warn", "  - nested", "paragraph", "**Phase**", "description", "+ [X] done"] });
   assert.deepEqual(Array.from(content.blocks, x => x.type), ["group", "paragraph", "note", "group"]);
   assert.equal(content.blocks[2].items[0].indent, 2);
   assert.equal(content.blocks[2].items[1].paragraph, true);
+  assert.equal(content.blocks[3].descriptions[0].text, "description");
   assert.equal(content.todos[0].checked, true);
 });
 

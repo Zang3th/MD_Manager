@@ -4,7 +4,7 @@ window.MDManager = window.MDManager || {};
   /** @param {MDTask} task @returns {MDTaskContent} */
   function taskContent(task) {
     /** @type {MDGroupBlock} */
-    const initialGroup = { type: "group", title: "", lineIndex: -1, todos: [] };
+    const initialGroup = { type: "group", title: "", lineIndex: -1, descriptions: [], todos: [] };
     /** @type {MDTaskContent} */
     const result = { blocks: [initialGroup], todos: [] };
     /** @type {MDGroupBlock | null} */
@@ -26,7 +26,7 @@ window.MDManager = window.MDManager || {};
       const separator = line.match(/^\s*\*\*(.+)\*\*\s*$/);
       if (separator) {
         note = null;
-        group = { type: "group", title: separator[1], lineIndex, todos: [] };
+        group = { type: "group", title: separator[1], lineIndex, descriptions: [], todos: [] };
         result.blocks.push(group);
         return;
       }
@@ -41,6 +41,7 @@ window.MDManager = window.MDManager || {};
           result.todos.push(todo);
         }
       } else if (line.trim() && note) note.items.push({ text: line.trim(), paragraph: true });
+      else if (line.trim() && group?.title && !group.todos.length) group.descriptions.push({ type: "paragraph", text: line.trim() });
       else if (line.trim()) result.blocks.push({ type: "paragraph", text: line.trim() });
     });
     return result;
@@ -260,6 +261,7 @@ window.MDManager = window.MDManager || {};
       while (cleaned[index + 1]?.trim() === "") index++;
       if (heading && cleaned.slice(index + 1).some(nextLine => nextLine.trim())) normalized.push("");
     }
+    if (cleaned.at(-1)?.trim() === "" && normalized.at(-1)?.trim() !== "") normalized.push("");
     return normalized.join(project.newline);
   }
 
