@@ -48,6 +48,30 @@ test("start screen exposes the application identity and open action", async ({ p
   await expect(page.locator("#watermark")).toBeVisible();
 });
 
+test("theme toggle switches Gruvbox themes on the start screen and in the app", async ({ page }) => {
+  await page.goto(appUrl);
+  const toggle = page.locator("#toggleTheme");
+  await expect(toggle).toBeVisible();
+  await expect(toggle).toHaveAttribute("aria-label", "Switch to Light Mode");
+  await toggle.click();
+  await expect(page.locator("body")).toHaveAttribute("data-theme", "gruvbox-light");
+  await expect(toggle).toHaveAttribute("aria-label", "Switch to Dark Mode");
+  await expect(page.locator("body")).toHaveCSS("background-color", "rgb(251, 241, 199)");
+
+  await page.evaluate(markdown => {
+    const handle = { name: "Fixture.md" };
+    window.MDManager.files.open = async () => ({ handle, markdown });
+    window.MDManager.files.remember = async () => {};
+  }, fixture);
+  await page.getByRole("button", { name: "Open", exact: true }).click();
+  await expect(toggle).toBeVisible();
+  await expect(page.locator("body")).toHaveAttribute("data-theme", "gruvbox-light");
+
+  await toggle.click();
+  await expect(page.locator("body")).toHaveAttribute("data-theme", "gruvbox-dark");
+  await expect(page.locator("body")).toHaveCSS("background-color", "rgb(29, 32, 33)");
+});
+
 test("Markdown import renders features, tasks, progress states, and filename title", async ({ page }) => {
   await openFixture(page);
   await expect(page).toHaveTitle("MD_Manager - Fixture.md");

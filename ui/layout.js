@@ -219,7 +219,10 @@ window.MDManager = window.MDManager || {};
     schedule({ titles: true, gridWidth: true });
   }
 
-  window.addEventListener("resize", () => layoutGrid(true));
+  window.addEventListener("resize", () => {
+    reset();
+    layoutGrid();
+  });
   document.fonts.ready.then(() => {
     reset();
     equalizeReleaseHeaders();
