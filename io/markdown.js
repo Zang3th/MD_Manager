@@ -3,12 +3,16 @@ window.MDManager = window.MDManager || {};
 (function (app) {
   /** @param {MDTask} task @returns {MDTaskContent} */
   function taskContent(task) {
+    /** @type {MDGroupSection} */
+    const initialSection = { lineIndex: -1, descriptions: [], todos: [] };
     /** @type {MDGroupBlock} */
-    const initialGroup = { type: "group", title: "", lineIndex: -1, descriptions: [], todos: [] };
+    const initialGroup = { type: "group", title: "", lineIndex: -1, descriptions: [], todos: [], sections: [initialSection] };
     /** @type {MDTaskContent} */
     const result = { blocks: [initialGroup], todos: [] };
     /** @type {MDGroupBlock | null} */
     let group = initialGroup;
+    /** @type {MDGroupSection | null} */
+    let section = initialSection;
     /** @type {MDNoteBlock | null} */
     let note = null;
     task.lines.forEach((line, lineIndex) => {
@@ -21,12 +25,14 @@ window.MDManager = window.MDManager || {};
           result.blocks.push(note);
         }
         group = null;
+        section = null;
         return;
       }
       const separator = line.match(/^\s*\*\*(.+)\*\*\s*$/);
       if (separator) {
         note = null;
-        group = { type: "group", title: separator[1], lineIndex, descriptions: [], todos: [] };
+        section = { lineIndex, descriptions: [], todos: [] };
+        group = { type: "group", title: separator[1], lineIndex, descriptions: [], todos: [], sections: [section] };
         result.blocks.push(group);
         return;
       }
@@ -37,11 +43,22 @@ window.MDManager = window.MDManager || {};
           const checked = listItem[2]?.toLowerCase() === "x" || /^~.*~$/.test(listItem[3]);
           /** @type {MDTodo} */
           const todo = { type: "todo", lineIndex, checked, text: listItem[3].replace(/^~(.*)~$/, "$1") };
+          section?.todos.push(todo);
           group?.todos.push(todo);
           result.todos.push(todo);
         }
       } else if (line.trim() && note) note.items.push({ text: line.trim(), paragraph: true });
-      else if (line.trim() && group?.title && !group.todos.length) group.descriptions.push({ type: "paragraph", text: line.trim() });
+      else if (line.trim() && group?.title) {
+        if (section?.todos.length) {
+          section = { lineIndex, descriptions: [], todos: [] };
+          group.sections.push(section);
+        }
+        /** @type {MDParagraphBlock} */
+        const description = { type: "paragraph", text: line.trim() };
+        section?.descriptions.push(description);
+        group.descriptions.push(description);
+        if (section) section.lineIndex = lineIndex;
+      }
       else if (line.trim()) result.blocks.push({ type: "paragraph", text: line.trim() });
     });
     return result;

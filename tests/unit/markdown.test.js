@@ -26,6 +26,20 @@ test("taskContent separates groups, notes, paragraphs, indentation, and todo syn
   assert.equal(content.todos[0].checked, true);
 });
 
+test("taskContent preserves repeated descriptions and todo lists within a label", () => {
+  const content = markdown.taskContent({ lines: ["**AA**", "Geometry.", "- [ ] segments", "Shader AA.", "- [ ] smoothstep", "- [ ] distance", "MSAA.", "- [ ] samples"] });
+  const group = content.blocks[1];
+  assert.deepEqual(Array.from(group.sections, section => ({
+    descriptions: Array.from(section.descriptions, description => description.text),
+    todos: Array.from(section.todos, todo => todo.text)
+  })), [
+    { descriptions: ["Geometry."], todos: ["segments"] },
+    { descriptions: ["Shader AA."], todos: ["smoothstep", "distance"] },
+    { descriptions: ["MSAA."], todos: ["samples"] }
+  ]);
+  assert.deepEqual(Array.from(content.todos, todo => todo.text), ["segments", "smoothstep", "distance", "samples"]);
+});
+
 test("task editor separates Markdown, info, and warn without trailing blank lines", () => {
   const fields = markdown.taskEditorFields(["", "- [ ] todo", "", "#Info", "- detail", "", "#Warn", "warning", ""]);
   assert.deepEqual({ ...fields }, { markdown: "- [ ] todo", info: "- detail", warn: "warning" });

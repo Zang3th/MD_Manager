@@ -123,6 +123,18 @@ test("text below a task label keeps its position and visual hierarchy", async ({
   expect(gaps[0]).toBeCloseTo(gaps[1], 5);
 });
 
+test("a task label renders repeated descriptions with their following todos in source order", async ({ page }) => {
+  await openFixture(page, "# Project\n\n## Feature\n\n### Task\n\n**Anti-Aliasing**\nGeometry.\n- [ ] segments\nShader AA.\n- [ ] smoothstep\n- [ ] distance\nMSAA.\n- [ ] samples");
+  const card = page.locator(".card");
+  await card.locator(".card-header").click();
+  const group = card.locator(".todo-group");
+  await expect(group.locator(":scope > *")).toHaveCount(7);
+  await expect(group.locator(":scope > *")).toHaveClass(["todo-separator", "todo-description", "todo-list", "todo-description", "todo-list", "todo-description", "todo-list"]);
+  await expect(group.locator(".todo-description")).toHaveText(["Geometry.", "Shader AA.", "MSAA."]);
+  await expect(group.locator(".todo-text")).toHaveText(["segments", "smoothstep", "distance", "samples"]);
+  await expect(group.locator(".todo-list")).toHaveCount(3);
+});
+
 test("metadata uses natural board header heights while keeping title rows aligned", async ({ page }) => {
   await openFixture(page);
   await page.locator("#toggleViewMenu").click();

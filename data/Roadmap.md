@@ -253,8 +253,29 @@
 - [x] ~Abmessungen kompakter Grid-Karten und Seitenleisten vereinheitlichen~
 - [x] ~Typografie, Abstände, Steuerelemente, Dialoge und Scrollbars abstimmen~
 
-#Backlog
-## Backlog
+## QoL-Verbesserungen
+
+#Version
+- 0.1.1
+
+#Date
+- 28.07.2026
+
+### Formatanpassungen
+
+- [x] ~Fließtext unter Labels parsen können~
+
+### Clock
+
+- [ ] Stopwatch/Clock implementieren
+- [ ] Liegt oben in der Mitte
+- [ ] Liefert aktuelle Zeit und seit wann die Datei offen ist
+
+### Notifications
+
+- [ ] Notificationsystem bauen (UI ähnlich zu Neovim)
+- [ ] Notifications ergänzen
+- [ ] Stack kann über Button gezielt angeschaut werden
 
 ### Kopieren
 
@@ -262,6 +283,9 @@
 - [ ] Steuerung per Maus (Rechtsklick) und Tastatur (STRG + C/V)
 - [ ] Smooth mit UI-Feedback
 - [ ] Anzeige von gefülltem Zwischenspeicher
+
+#Backlog
+## Backlog
 
 ### Hosting und Deployment
 
@@ -272,11 +296,9 @@
 
 - [ ] Mobilunterstützung ausarbeiten
 
-### Clock
+### Monetarisierung
 
-- [ ] Stopwatch/Clock implementieren
-- [ ] Liegt oben in der Mitte
-- [ ] Liefert aktuelle Zeit und seit wann die Datei offen ist
+- [ ] Strategie überlegen
 
 ### Ergänzung der Tests
 
