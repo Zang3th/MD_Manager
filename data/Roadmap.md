@@ -284,6 +284,116 @@
 - [x] ~Anzeige von gefülltem Zwischenspeicher~
 - [x] ~Entsprechende Notification~
 
+## Editieren und Hinzufügen
+
+#Version
+- 0.3.0
+
+#Date
+- TBD
+
+### Edit-Dialog
+
+- [ ] Clunkyness verbessern
+- [ ] Fokus, Navigation, Tastatursteuerung verbessern
+- [ ] Erweiterte Editierfunktion wie Autovervollständigung
+
+### New-Dialog
+
+- [ ] Neben "Empty" auch Vorlagen anbieten
+- [ ] Templates für Tasks und Features
+
+### Tests
+
+- [ ] Roadmap.md kann wieder als Roadtrip-Test verwendet werden
+
+## Dateisystem
+
+#Version
+- 0.4.0
+
+#Date
+- TBD
+
+### Externe Dateiänderungen
+
+- [ ] Detection
+- [ ] Overwrite
+- [ ] Reload
+
+### Undo-System
+
+- [ ] Ein richtiges Undo-System integrieren
+- [ ] Schlauere State-Erkennung
+
+### Markdown-Linting
+
+- [ ] Nach Linting-Regeln importieren/exportieren
+- [ ] Schalter im UI (Default = False)
+
+## Markdown-Erweiterungen
+
+#Version
+- 0.5.0
+
+#Date
+- TBD
+
+### Cross-Platform
+
+- [ ] Plattformabhängige Unicode-Symbole durch lokale SVG- oder CSS-Symbole ersetzen
+- [ ] Lokale Monospace-Schrift für Clock, Metadaten und Code-Darstellung ergänzen
+- [ ] Schriftmetriken, Icons und Steuerelemente auf Windows, Linux und macOS testen
+- [ ] Chromium-Layouttests für Windows, Linux und macOS
+
+### Markdown-Features
+
+- [ ] URLs unterstützen
+- [ ] Referenzen herstellen + hervorheben können
+- [ ] Quellcode unterstützen können
+- [ ] Bilder unterstützen können
+- [ ] Auch einen Umgang mit anderen Markdown-Features + inline-HTML finden
+
+### Help
+
+- [ ] An die neuen Features anpassen
+
+## Archivierung und Suche
+
+#Version
+- 0.6.0
+
+#Date
+- TBD
+
+### Archiv
+
+- [ ] Archivierung von Features anbieten
+- [ ] Neues Tag integrieren
+
+### Suche
+
+- [ ] Fuzzy-Finding mit Echtzeitfilter
+- [ ] Enter führt zu Navigation zur richtigen Stelle
+
+## Mehr Dateiformate
+
+#Version
+- 0.7.0
+
+#Date
+- TBD
+
+### Import/Export
+
+- [ ] csv
+- [ ] json
+- [ ] PDF-Report
+
+### README.md
+
+- [ ] Ordentliche README im Stil der anderen Projekte erstellen
+
 #Backlog
 ## Backlog
 
@@ -292,25 +402,11 @@
 - [ ] Anwendung zentral hosten
 - [ ] Automatisches Deployment neuer Versionen
 
+### Monetarisierung
+
+- [ ] Coffee auf der Startseite
+- [ ] Hosting/Deployment in der Premiumversion
+
 ### Mobile
 
 - [ ] Mobilunterstützung ausarbeiten
-
-### Monetarisierung
-
-- [ ] Strategie überlegen
-
-### Ergänzung der Tests
-
-- [ ] Roadmap.md kann wieder als Roadtrip-Test verwendet werden
-
-### Cross-Platform
-
-- [ ] Plattformabhängige Unicode-Symbole durch lokale SVG- oder CSS-Symbole ersetzen
-- [ ] Lokale Monospace-Schrift für Clock, Metadaten und Code-Darstellung ergänzen
-- [ ] Schriftmetriken, Icons und Steuerelemente auf Windows, Linux und macOS vergleichen
-- [ ] Chromium-Layouttests für Windows, Linux und macOS
-
-### README.md
-
-- [ ] Ordentliche README im Stil der anderen Projekte erstellen

@@ -175,7 +175,10 @@ test("feature editor saves title, metadata, info, and warn as one undo step", as
   const feature = page.locator("#content > .release").first();
   const heading = feature.locator(".release-heading");
   await heading.hover();
-  await heading.locator('[data-edit="feature"]').click();
+  const editFeature = heading.locator('[data-edit="feature"]');
+  await expect(editFeature).toHaveAttribute("title", "Edit feature");
+  await expect(editFeature).toHaveAccessibleName("Edit feature");
+  await editFeature.click();
   const dialog = page.locator("#featureEditor");
   await expect(dialog).toBeVisible();
   await expect(page.locator("#featureEditorMetadata")).toHaveValue(/#Version/);
