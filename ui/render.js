@@ -119,9 +119,10 @@ window.MDManager = window.MDManager || {};
     const visibleTasks = feature.tasks.filter(task => !task.ignored);
     const taskCount = visibleTasks.length;
     return `<header class="backlog-header"><div class="backlog-heading"><h2 class="backlog-title" data-full-title="${escapeHtml(feature.title)}"><span class="title-text">${escapeHtml(feature.title)}</span></h2><span class="backlog-count">${taskCount} ${taskCount === 1 ? "Task" : "Tasks"}</span></div><button class="backlog-close" type="button" aria-label="Close backlog" title="Close backlog">${deleteIcon}</button></header>
-      ${feature.notes.length ? `<div class="feature-notes task-notes">${notesMarkup(feature.notes, true)}</div>` : ""}
-      <div class="board">${visibleTasks.map(task => taskMarkup(task, feature.tasks.indexOf(task))).join("")}</div>
-      <div class="add-task-footer"><button class="add-task-btn backlog-add-task action-btn" data-add-task type="button" aria-label="New task in ${escapeHtml(feature.title)}" title="New task">${addIcon}</button></div>`;
+      <div class="backlog-content">${feature.notes.length ? `<div class="feature-notes task-notes">${notesMarkup(feature.notes, true)}</div>` : ""}
+        <div class="board">${visibleTasks.map(task => taskMarkup(task, feature.tasks.indexOf(task))).join("")}</div>
+        <div class="add-task-footer"><button class="add-task-btn backlog-add-task action-btn" data-add-task type="button" aria-label="New task in ${escapeHtml(feature.title)}" title="New task">${addIcon}</button></div>
+      </div>`;
   }
 
   /** @param {MDFeature} feature */
@@ -238,6 +239,7 @@ window.MDManager = window.MDManager || {};
     document.getElementById("saveFile").hidden = true;
     document.getElementById("addFeature").disabled = true;
     document.getElementById("appVersion").hidden = false;
+    document.getElementById("appClock").hidden = true;
     document.getElementById("projectStats").hidden = true;
     document.getElementById("toggleBacklog").disabled = true;
     document.getElementById("toggleBacklog").setAttribute("aria-pressed", "false");

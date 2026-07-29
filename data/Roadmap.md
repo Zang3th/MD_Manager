@@ -267,9 +267,8 @@
 
 ### Clock
 
-- [ ] Stopwatch/Clock implementieren
-- [ ] Liegt oben in der Mitte
-- [ ] Liefert aktuelle Zeit und seit wann die Datei offen ist
+- [x] ~Clock implementieren~
+- [x] ~Liegt oben in der Mitte~
 
 ### Notifications
 

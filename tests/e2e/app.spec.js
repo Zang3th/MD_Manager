@@ -296,10 +296,13 @@ test("statistics can close and reopen in board and grid", async ({ page }) => {
   await openFixture(page);
   const stats = page.locator("#projectStats");
   const content = page.locator("#content");
+  const firstRelease = page.locator("#content > .release").first();
   await expect(stats).toBeVisible();
   await expect(stats).toHaveCSS("width", "320px");
+  await expect(stats).toHaveCSS("border-radius", "10px");
   await expect(stats.locator("td").first()).toHaveCSS("font-size", "12px");
-  await expect.poll(() => stats.evaluate(node => node.getBoundingClientRect().bottom)).toBe(page.viewportSize().height - 10);
+  await expect.poll(() => stats.evaluate(node => node.getBoundingClientRect().bottom)).toBe(page.viewportSize().height - 12);
+  await expect.poll(async () => (await stats.boundingBox()).x).toBe((await firstRelease.boundingBox()).x);
   await expect.poll(() => content.evaluate(node => node.getBoundingClientRect().left)).toBe(0);
   await page.locator(".stats-close").click();
   await expect(stats).toBeHidden();
@@ -310,6 +313,30 @@ test("statistics can close and reopen in board and grid", async ({ page }) => {
   await expect(stats).toBeVisible();
   await expect(stats).toHaveCSS("width", "260px");
   await expect(stats.locator("td").first()).toHaveCSS("font-size", "11px");
+  await expect.poll(() => stats.evaluate(node => node.getBoundingClientRect().bottom)).toBe(page.viewportSize().height - 8);
+  await expect.poll(async () => (await stats.boundingBox()).x).toBe((await firstRelease.boundingBox()).x);
+});
+
+test("clock is app-only, centered, and controlled from View", async ({ page }) => {
+  await page.goto(appUrl);
+  const clock = page.locator("#appClock");
+  await expect(clock).toBeHidden();
+  await openFixture(page);
+  await expect(clock).toBeVisible();
+  await expect(page.locator("#clockCurrent")).toHaveText(/^\d{2}:\d{2}:\d{2}$/);
+  const centerOffset = await clock.evaluate(node => {
+    const bounds = node.getBoundingClientRect();
+    return Math.abs(bounds.x + bounds.width / 2 - window.innerWidth / 2);
+  });
+  expect(centerOffset).toBeLessThanOrEqual(1);
+  await page.locator("#toggleViewMenu").click();
+  const toggle = page.locator("#toggleClock");
+  await expect(toggle).toHaveAttribute("aria-pressed", "true");
+  await toggle.click();
+  await expect(clock).toBeHidden();
+  await expect(toggle).toHaveAttribute("aria-pressed", "false");
+  await toggle.click();
+  await expect(clock).toBeVisible();
 });
 
 test("help popover documents shortcuts and Markdown and closes predictably", async ({ page }) => {
@@ -363,6 +390,74 @@ test("collapsed grid cards have no local scrollbar and expanded cards enable it"
   await expect(content).toHaveCSS("overflow-y", "hidden");
   await page.locator("#content .card-header").first().click();
   await expect(content).toHaveCSS("overflow-y", "auto");
+});
+
+test("board tasks use the scrollbar space only when the feature overflows", async ({ page }) => {
+  const todos = Array.from({ length: 40 }, (_, index) => `- [ ] Todo ${index + 1}`).join("\n");
+  await page.setViewportSize({ width: 800, height: 500 });
+  await openFixture(page, `# Scrollbar Width\n\n## Feature\n### Task\n${todos}`);
+  const content = page.locator("#content > .release .release-content");
+  const metrics = () => content.evaluate(node => {
+    const bounds = node.getBoundingClientRect();
+    const cardBounds = node.querySelector(".card").getBoundingClientRect();
+    return {
+      overflow: node.scrollHeight > node.clientHeight,
+      cardWidth: cardBounds.width,
+      leftGap: cardBounds.left - bounds.left,
+      rightGap: bounds.right - cardBounds.right
+    };
+  });
+  const before = await metrics();
+  expect(before.overflow).toBe(false);
+  expect(Math.abs(before.leftGap - before.rightGap)).toBeLessThanOrEqual(1);
+  await page.locator(".card-header").click();
+  await expect.poll(async () => (await metrics()).overflow).toBe(true);
+  await expect.poll(async () => before.cardWidth - (await metrics()).cardWidth).toBeGreaterThanOrEqual(9);
+  await content.evaluate(node => node.scrollTop = node.scrollHeight);
+  const buttonBounds = await content.locator(".add-task-btn").boundingBox();
+  const contentBounds = await content.boundingBox();
+  expect(buttonBounds.y).toBeGreaterThanOrEqual(contentBounds.y);
+  expect(buttonBounds.y + buttonBounds.height).toBeLessThanOrEqual(contentBounds.y + contentBounds.height);
+});
+
+test("backlog tasks use the scrollbar space only when the backlog overflows", async ({ page }) => {
+  const metrics = () => page.locator("#backlog > .backlog-content").evaluate(node => {
+    const bounds = node.getBoundingClientRect();
+    const cardBounds = node.querySelector(".card").getBoundingClientRect();
+    return {
+      overflow: node.scrollHeight > node.clientHeight,
+      cardWidth: cardBounds.width,
+      leftGap: cardBounds.left - bounds.left,
+      rightGap: bounds.right - cardBounds.right
+    };
+  });
+  await openFixture(page);
+  await page.locator("#toggleBacklog").click();
+  const before = await metrics();
+  const headerBefore = await page.locator(".backlog-header").boundingBox();
+  const closeBefore = await page.locator(".backlog-close").boundingBox();
+  expect(before.overflow).toBe(false);
+  expect(Math.abs(before.leftGap - before.rightGap)).toBeLessThanOrEqual(1);
+
+  const tasks = Array.from({ length: 40 }, (_, index) => `### Backlog Task ${index + 1}\n- [ ] pending`).join("\n\n");
+  await openFixture(page, `# Backlog Width\n\n## Feature\n### Task\n- [ ] current\n\n#Backlog\n## Later\n${tasks}`);
+  await page.locator("#toggleBacklog").click();
+  await expect.poll(async () => (await metrics()).overflow).toBe(true);
+  await expect.poll(async () => before.cardWidth - (await metrics()).cardWidth).toBeGreaterThanOrEqual(9);
+  const headerAfter = await page.locator(".backlog-header").boundingBox();
+  const closeAfter = await page.locator(".backlog-close").boundingBox();
+  const backlogContentBounds = await page.locator("#backlog > .backlog-content").boundingBox();
+  expect(headerAfter.width).toBeCloseTo(headerBefore.width, 0);
+  const closeOffsetBefore = headerBefore.x + headerBefore.width - closeBefore.x - closeBefore.width;
+  const closeOffsetAfter = headerAfter.x + headerAfter.width - closeAfter.x - closeAfter.width;
+  expect(closeOffsetAfter).toBeCloseTo(closeOffsetBefore, 0);
+  expect(backlogContentBounds.y).toBeCloseTo(headerAfter.y + headerAfter.height, 0);
+  const backlog = page.locator("#backlog > .backlog-content");
+  await backlog.evaluate(node => node.scrollTop = node.scrollHeight);
+  const buttonBounds = await backlog.locator(".add-task-btn").boundingBox();
+  const backlogBounds = await backlog.boundingBox();
+  expect(buttonBounds.y).toBeGreaterThanOrEqual(backlogBounds.y);
+  expect(buttonBounds.y + buttonBounds.height).toBeLessThanOrEqual(backlogBounds.y + backlogBounds.height);
 });
 
 test("checking a todo updates progress, dirty state, save output, undo, and redo", async ({ page }) => {
@@ -488,7 +583,7 @@ test("fixed grid uses 260px columns and backlog overlays without shifting it", a
   const backlog = await page.locator(".backlog-pane").boundingBox();
   const content = await page.locator("#content").boundingBox();
   expect(backlog.width).toBe(260);
-  await expect.poll(() => page.locator("#projectStats").evaluate(node => node.getBoundingClientRect().bottom)).toBe(page.viewportSize().height);
+  await expect.poll(() => page.locator("#projectStats").evaluate(node => node.getBoundingClientRect().bottom)).toBe(page.viewportSize().height - 8);
   expect(backlog.x + backlog.width).toBeCloseTo(content.x + content.width, 0);
 
   await page.setViewportSize({ width: 1707, height: 960 });

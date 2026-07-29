@@ -19,7 +19,34 @@ window.MDManager = window.MDManager || {};
   let redo = null;
   /** @type {MDViewState | null} */
   let expandedBeforeGrid = null;
+  /** @type {number | null} */
+  let clockInterval = null;
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+  /** @param {number} seconds */
+  function clockValue(seconds) {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor(seconds % 3600 / 60);
+    const remainingSeconds = seconds % 60;
+    return [hours, minutes, remainingSeconds].map(value => String(value).padStart(2, "0")).join(":");
+  }
+
+  function updateClock() {
+    const now = new Date();
+    const current = clockValue(now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds());
+    const currentTime = document.getElementById("clockCurrent");
+    document.getElementById("clockHours").textContent = current.slice(0, 2);
+    document.getElementById("clockMinutes").textContent = current.slice(3, 5);
+    document.getElementById("clockSeconds").textContent = current.slice(6, 8);
+    currentTime.setAttribute("datetime", current);
+  }
+
+  function startClock() {
+    if (clockInterval !== null) window.clearInterval(clockInterval);
+    document.getElementById("appClock").hidden = document.getElementById("toggleClock").getAttribute("aria-pressed") !== "true";
+    updateClock();
+    clockInterval = window.setInterval(updateClock, 1000);
+  }
 
   async function saveFile() {
     try {
@@ -89,6 +116,7 @@ window.MDManager = window.MDManager || {};
   function captureViewState() {
     const content = document.getElementById("content");
     const backlog = document.getElementById("backlog");
+    const backlogContent = backlog.querySelector(".backlog-content");
     return {
       tasks: [...document.querySelectorAll(".card")].map(task => task.getAttribute("aria-expanded") === "true"),
       featureNotes: [...document.querySelectorAll(".feature-note")].map(note => note.getAttribute("aria-expanded") === "true"),
@@ -96,8 +124,8 @@ window.MDManager = window.MDManager || {};
       contentScrollLeft: content.scrollLeft,
       contentScrollTop: content.scrollTop,
       featureScrolls: [...content.querySelectorAll(":scope > .release > .release-content")].map(featureContent => ({ left: featureContent.scrollLeft, top: featureContent.scrollTop })),
-      backlogScrollLeft: backlog.scrollLeft,
-      backlogScrollTop: backlog.scrollTop
+      backlogScrollLeft: backlogContent?.scrollLeft || 0,
+      backlogScrollTop: backlogContent?.scrollTop || 0
     };
   }
 
@@ -130,14 +158,17 @@ window.MDManager = window.MDManager || {};
   function restoreScrollState(viewState) {
     const content = document.getElementById("content");
     const backlog = document.getElementById("backlog");
+    const backlogContent = backlog.querySelector(".backlog-content");
     content.scrollLeft = viewState.contentScrollLeft;
     content.scrollTop = viewState.contentScrollTop;
     document.querySelectorAll("#content > .release > .release-content").forEach((featureContent, index) => {
       featureContent.scrollLeft = viewState.featureScrolls[index]?.left || 0;
       featureContent.scrollTop = viewState.featureScrolls[index]?.top || 0;
     });
-    backlog.scrollLeft = viewState.backlogScrollLeft;
-    backlog.scrollTop = viewState.backlogScrollTop;
+    if (backlogContent) {
+      backlogContent.scrollLeft = viewState.backlogScrollLeft;
+      backlogContent.scrollTop = viewState.backlogScrollTop;
+    }
   }
 
   function toggleBacklog() {
@@ -148,6 +179,7 @@ window.MDManager = window.MDManager || {};
     backlog.hidden = !open;
     button.setAttribute("aria-pressed", String(open));
     if (open) app.layout.fitTitles(backlog.querySelectorAll(".backlog-title, .card-title"));
+    app.layout.contentOverflowChanged();
   }
 
   function resetSortables() {
@@ -368,6 +400,7 @@ window.MDManager = window.MDManager || {};
       const body = task.querySelector(".card-body");
       body.hidden = !body.hidden;
       task.setAttribute("aria-expanded", String(!body.hidden));
+      app.layout.contentOverflowChanged();
       return;
     }
 
@@ -385,6 +418,7 @@ window.MDManager = window.MDManager || {};
         note.classList.toggle("collapsed", !expand);
         note.setAttribute("aria-expanded", String(expand));
       });
+      app.layout.contentOverflowChanged();
     }
   }
 
@@ -479,6 +513,12 @@ window.MDManager = window.MDManager || {};
     const active = document.body.classList.toggle("hide-stats") === false;
     (/** @type {HTMLElement} */ (event.currentTarget)).setAttribute("aria-pressed", String(active));
   });
+  document.getElementById("toggleClock").addEventListener("click", event => {
+    const clock = document.getElementById("appClock");
+    const active = clock.hidden;
+    clock.hidden = !active;
+    (/** @type {HTMLElement} */ (event.currentTarget)).setAttribute("aria-pressed", String(active));
+  });
   document.getElementById("projectStats").addEventListener("click", event => {
     if (!eventElement(event).closest(".stats-close")) return;
     document.body.classList.add("hide-stats");
@@ -497,6 +537,7 @@ window.MDManager = window.MDManager || {};
 
   app.interactions = {
     setProject,
+    startClock,
     getViewState: captureViewState,
     /** @param {(index: number) => void} callback */
     setOpenRecent(callback) { openRecent = callback; },

@@ -8,7 +8,7 @@ window.MDManager = window.MDManager || {};
   const gridHeightCache = new Map();
   const measureContext = /** @type {CanvasRenderingContext2D} */ (document.createElement("canvas").getContext("2d"));
   let layoutFrame = 0;
-  let layoutNeeds = { titles: false, headers: false, gridHeight: false };
+  let layoutNeeds = { titles: false, headers: false, gridHeight: false, scrollbars: false };
 
   function layoutKey() {
     return `${document.body.classList.contains("toggle-grid-view") ? "grid" : "board"}:${document.body.classList.contains("show-metadata") ? "metadata" : "plain"}`;
@@ -132,7 +132,7 @@ window.MDManager = window.MDManager || {};
   function runLayout() {
     layoutFrame = 0;
     const needs = layoutNeeds;
-    layoutNeeds = { titles: false, headers: false, gridHeight: false };
+    layoutNeeds = { titles: false, headers: false, gridHeight: false, scrollbars: false };
     const content = document.getElementById("content");
     const grid = document.body.classList.contains("toggle-grid-view");
     if (!grid) {
@@ -161,9 +161,18 @@ window.MDManager = window.MDManager || {};
       content.style.setProperty("--grid-feature-height", `${height}px`);
       document.body.style.setProperty("--grid-feature-height", `${height}px`);
     }
+    if (needs.scrollbars) {
+      const scrollAreas = [...document.querySelectorAll("#content > .release > .release-content, #backlog > .backlog-content")];
+      const overflows = scrollAreas.map(scrollArea => scrollArea.scrollHeight > scrollArea.clientHeight);
+      const needsSpace = scrollAreas.map((scrollArea, index) => overflows[index] && scrollArea.offsetWidth - scrollArea.clientWidth < 9);
+      scrollAreas.forEach((scrollArea, index) => {
+        scrollArea.classList.toggle("has-scrollbar", overflows[index]);
+        scrollArea.classList.toggle("needs-scrollbar-space", needsSpace[index]);
+      });
+    }
   }
 
-  /** @param {Partial<Record<"titles" | "headers" | "gridHeight", boolean>>} needs */
+  /** @param {Partial<Record<"titles" | "headers" | "gridHeight" | "scrollbars", boolean>>} needs */
   function schedule(needs) {
     for (const [key, value] of Object.entries(needs)) {
       layoutNeeds[/** @type {keyof typeof layoutNeeds} */ (key)] ||= value;
@@ -176,7 +185,11 @@ window.MDManager = window.MDManager || {};
   }
 
   function layoutGrid() {
-    schedule({ titles: true, headers: true, gridHeight: true });
+    schedule({ titles: true, headers: true, gridHeight: true, scrollbars: true });
+  }
+
+  function contentOverflowChanged() {
+    schedule({ scrollbars: true });
   }
 
   function reset() {
@@ -202,5 +215,5 @@ window.MDManager = window.MDManager || {};
     layoutGrid();
   });
 
-  app.layout = { reset, statusChanged, equalizeReleaseHeaders, layoutGrid, fitTitles, startTitleScroll, stopTitleScroll };
+  app.layout = { reset, statusChanged, equalizeReleaseHeaders, layoutGrid, contentOverflowChanged, fitTitles, startTitleScroll, stopTitleScroll };
 })(window.MDManager);

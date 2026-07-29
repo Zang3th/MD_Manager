@@ -63,6 +63,7 @@ window.MDManager = window.MDManager || {};
     savedMarkdown = opened.markdown;
     history = app.history.create(opened.markdown);
     render();
+    app.interactions.startClock();
     app.files.remember(fileHandle, openedProject.title).catch(() => {});
   }
 
