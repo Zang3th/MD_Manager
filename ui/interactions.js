@@ -1,6 +1,7 @@
 window.MDManager = window.MDManager || {};
 
 (function (app) {
+  /** @typedef {{kind: "task", value: MDTask, source: MDTask, expanded: boolean} | {kind: "feature", value: MDFeature, source: MDFeature, taskExpanded: boolean[], noteExpanded: boolean[]}} ClipboardEntry */
   /** @type {MDProject | null} */
   let project = null;
   /** @type {((viewState: MDViewState, options?: any) => void) | null} */
@@ -21,7 +22,19 @@ window.MDManager = window.MDManager || {};
   let expandedBeforeGrid = null;
   /** @type {number | null} */
   let clockInterval = null;
+  /** @type {HTMLElement | null} */
+  let hoveredElement = null;
+  /** @type {ClipboardEntry[]} */
+  let clipboard = [];
+  /** @type {HTMLElement[]} */
+  let clipboardIndicators = [];
+  /** @type {number | null} */
+  let clipboardPositionFrame = null;
+  /** @type {{x: number, y: number} | null} */
+  let lastPointer = null;
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  const clipboardIndicatorTemplate = /** @type {HTMLTemplateElement} */ (document.getElementById("clipboardIndicatorTemplate"));
+  const clipboardResizeObserver = new ResizeObserver(scheduleClipboardPosition);
 
   /** @param {MDTask} task */
   function taskComplete(task) {
@@ -81,6 +94,213 @@ window.MDManager = window.MDManager || {};
       { opacity: 1, transform: "scale(1)" },
       { opacity: 0, transform: "scale(.98)" }
     ], { duration: 120, easing: "cubic-bezier(.4,0,1,1)", fill: "forwards" });
+  }
+
+  /** @param {ClipboardEntry} entry @returns {HTMLElement | null} */
+  function clipboardSourceElement(entry) {
+    if (!project) return null;
+    if (entry.kind === "feature") {
+      const featureIndex = project.features.indexOf(entry.source);
+      return featureIndex >= 0 ? /** @type {HTMLElement | null} */ (document.querySelector(`#content > .release[data-feature="${featureIndex}"]`)) : null;
+    }
+    const source = entry.source;
+    const featureIndex = project.features.findIndex(feature => feature.tasks.includes(source));
+    const taskIndex = featureIndex >= 0 ? project.features[featureIndex].tasks.indexOf(source) : -1;
+    return taskIndex >= 0 ? /** @type {HTMLElement | null} */ (document.querySelector(`.release[data-feature="${featureIndex}"] .card[data-task="${taskIndex}"]`)) : null;
+  }
+
+  function positionClipboardIndicators() {
+    clipboardPositionFrame = null;
+    clipboard.forEach((entry, index) => {
+      const sourceElement = clipboardSourceElement(entry);
+      const indicator = clipboardIndicators[index];
+      if (!indicator) return;
+      if (!sourceElement) {
+        indicator.hidden = true;
+        return;
+      }
+      const rect = sourceElement.getBoundingClientRect();
+      const clippingElement = entry.kind === "task" ? sourceElement.closest(".release-content,.backlog-content") : document.getElementById("content");
+      const clippingRect = clippingElement?.getBoundingClientRect();
+      const visible = rect.right > 0 && rect.top < window.innerHeight && (!clippingRect || (rect.right >= clippingRect.left && rect.right <= clippingRect.right && rect.top >= clippingRect.top && rect.top <= clippingRect.bottom));
+      indicator.hidden = !visible;
+      indicator.style.left = `${rect.right}px`;
+      indicator.style.top = `${rect.top}px`;
+    });
+  }
+
+  function scheduleClipboardPosition() {
+    if (clipboardPositionFrame !== null) return;
+    clipboardPositionFrame = window.requestAnimationFrame(positionClipboardIndicators);
+  }
+
+  function placeClipboardIndicators() {
+    document.querySelectorAll(".clipboard-source").forEach(element => element.classList.remove("clipboard-source"));
+    clipboardIndicators.forEach(indicator => indicator.remove());
+    clipboardResizeObserver.disconnect();
+    const indicatorTemplate = /** @type {HTMLElement} */ (clipboardIndicatorTemplate.content.firstElementChild);
+    clipboardIndicators = clipboard.map(entry => {
+      const indicator = /** @type {HTMLElement} */ (indicatorTemplate.cloneNode(true));
+      indicator.hidden = true;
+      const sourceElement = clipboardSourceElement(entry);
+      sourceElement?.classList.add("clipboard-source");
+      if (sourceElement) {
+        clipboardResizeObserver.observe(sourceElement);
+        const layoutContainer = sourceElement.closest(".board,.release-content,.backlog-content");
+        if (layoutContainer) clipboardResizeObserver.observe(layoutContainer);
+      }
+      document.body.append(indicator);
+      return indicator;
+    });
+    positionClipboardIndicators();
+  }
+
+  /** @param {ClipboardEntry[]} value */
+  function setClipboard(value) {
+    clipboard = value;
+    placeClipboardIndicators();
+  }
+
+  /** @param {HTMLElement} element */
+  function copyFeedback(element) {
+    element.classList.remove("copy-feedback");
+    void element.offsetWidth;
+    element.classList.add("copy-feedback");
+    window.setTimeout(() => element.classList.remove("copy-feedback"), 300);
+  }
+
+  /** @param {Element} target @returns {HTMLElement | null} */
+  function hoveredCopyTarget(target) {
+    const taskHeader = target.closest(".card-header");
+    if (taskHeader) return requiredClosest(taskHeader, ".card");
+    const featureHeader = target.closest("#content > .release > .release-header");
+    return featureHeader ? requiredClosest(featureHeader, ".release") : null;
+  }
+
+  /** @param {boolean} [additive] */
+  function copyHovered(additive = false) {
+    if (!project || !hoveredElement?.isConnected) return false;
+    const taskElement = hoveredElement.matches(".card") ? hoveredElement : null;
+    if (taskElement) {
+      const featureElement = requiredClosest(taskElement, ".release");
+      const task = project.features[Number(featureElement.dataset.feature)]?.tasks[Number(taskElement.dataset.task)];
+      if (!task) return false;
+      if (additive && clipboard[0]?.kind === "task") {
+        const existing = clipboard.findIndex(entry => entry.source === task);
+        if (existing >= 0) {
+          setClipboard(clipboard.filter((_, index) => index !== existing));
+          app.notifications.show("info", "Task removed", [{ value: task.title }, " removed from clipboard."]);
+          return true;
+        }
+        setClipboard([...clipboard, { kind: "task", value: app.domain.copyTask(task), source: task, expanded: taskElement.getAttribute("aria-expanded") === "true" }]);
+      } else setClipboard([{ kind: "task", value: app.domain.copyTask(task), source: task, expanded: taskElement.getAttribute("aria-expanded") === "true" }]);
+      copyFeedback(taskElement);
+      app.notifications.show("info", "Task copied", [{ value: task.title }, " copied to clipboard."]);
+      return true;
+    }
+    if (!hoveredElement.matches("#content > .release")) return false;
+    const feature = project.features[Number(hoveredElement.dataset.feature)];
+    if (!feature || feature.isBacklog) return false;
+    const taskExpanded = [...hoveredElement.querySelectorAll(".card")].map(task => task.getAttribute("aria-expanded") === "true");
+    const noteExpanded = [...hoveredElement.querySelectorAll(".feature-note")].map(note => note.getAttribute("aria-expanded") === "true");
+    if (additive && clipboard[0]?.kind === "feature") {
+      const existing = clipboard.findIndex(entry => entry.source === feature);
+      if (existing >= 0) {
+        setClipboard(clipboard.filter((_, index) => index !== existing));
+        app.notifications.show("info", "Feature removed", [{ value: feature.title }, " removed from clipboard."]);
+        return true;
+      }
+      setClipboard([...clipboard, { kind: "feature", value: app.domain.copyFeature(feature), source: feature, taskExpanded, noteExpanded }]);
+    } else setClipboard([{ kind: "feature", value: app.domain.copyFeature(feature), source: feature, taskExpanded, noteExpanded }]);
+    copyFeedback(hoveredElement);
+    app.notifications.show("info", "Feature copied", [{ value: feature.title }, " copied to clipboard."]);
+    return true;
+  }
+
+  /** @param {{x: number, y: number}} position */
+  function featureInsertionIndex(position) {
+    const features = [...document.querySelectorAll("#content > .release")];
+    if (!features.length) return 0;
+    const pointed = document.elementFromPoint(position.x, position.y)?.closest(".release");
+    const direct = pointed?.parentElement?.id === "content" ? pointed : null;
+    const target = direct || features.reduce((nearest, feature) => {
+      const rect = feature.getBoundingClientRect();
+      const dx = Math.max(rect.left - position.x, 0, position.x - rect.right);
+      const dy = Math.max(rect.top - position.y, 0, position.y - rect.bottom);
+      const distance = dx * dx + dy * dy;
+      return distance < nearest.distance ? { feature, distance } : nearest;
+    }, { feature: features[0], distance: Number.POSITIVE_INFINITY }).feature;
+    const rect = target.getBoundingClientRect();
+    return Number(target.dataset.feature) + (position.x >= rect.left + rect.width / 2 ? 1 : 0);
+  }
+
+  /** @param {HTMLElement} featureElement @param {HTMLElement | null} beforeCard */
+  function taskViewIndex(featureElement, beforeCard) {
+    const allCards = [...document.querySelectorAll(".card")];
+    if (beforeCard) return allCards.indexOf(beforeCard);
+    const featureCards = [...featureElement.querySelectorAll(".card")];
+    if (featureCards.length) return allCards.indexOf(featureCards[featureCards.length - 1]) + 1;
+    const releases = [...document.querySelectorAll("#content > .release, #backlog.release")];
+    const featurePosition = releases.indexOf(featureElement);
+    const nextCard = releases.slice(featurePosition + 1).map(release => release.querySelector(".card")).find(Boolean);
+    return nextCard ? allCards.indexOf(nextCard) : allCards.length;
+  }
+
+  /** @param {{x: number, y: number}} position */
+  function pasteAt(position) {
+    if (!project || !clipboard.length) return false;
+    const viewState = captureViewState();
+    if (clipboard[0].kind === "feature") {
+      const entries = /** @type {Array<Extract<ClipboardEntry, {kind: "feature"}>>} */ (clipboard);
+      const index = featureInsertionIndex(position);
+      const taskIndex = document.querySelectorAll(`#content > .release[data-feature] .card`).length;
+      const targetFeature = [...document.querySelectorAll("#content > .release")].find(feature => Number(feature.dataset.feature) >= index);
+      const firstTargetTask = targetFeature?.querySelector(".card");
+      const viewIndex = firstTargetTask ? [...document.querySelectorAll(".card")].indexOf(firstTargetTask) : taskIndex;
+      viewState.tasks.splice(viewIndex, 0, ...entries.flatMap(entry => entry.taskExpanded));
+      const regularFeatures = [...document.querySelectorAll("#content > .release")];
+      const targetPosition = targetFeature ? regularFeatures.indexOf(targetFeature) : regularFeatures.length;
+      const firstTargetNote = regularFeatures.slice(targetPosition).map(feature => feature.querySelector(".feature-note")).find(Boolean);
+      const noteIndex = firstTargetNote ? [...document.querySelectorAll(".feature-note")].indexOf(firstTargetNote) : document.querySelectorAll("#content .feature-note").length;
+      viewState.featureNotes.splice(noteIndex, 0, ...entries.flatMap(entry => entry.noteExpanded));
+      entries.forEach((entry, offset) => app.domain.insertFeature(project, index + offset, entry.value));
+      setClipboard([]);
+      hoveredElement = null;
+      changed?.(viewState);
+      window.requestAnimationFrame(() => {
+        for (let offset = 0; offset < entries.length; offset += 1) {
+          const inserted = document.querySelector(`#content > .release[data-feature="${index + offset}"]`);
+          if (inserted) animate(/** @type {HTMLElement} */ (inserted), [{ opacity: 0, transform: "scale(.98)" }, { opacity: 1, transform: "scale(1)" }], { duration: 180, easing: "cubic-bezier(.2,.8,.2,1)" });
+        }
+      });
+      return true;
+    }
+
+    const entries = /** @type {Array<Extract<ClipboardEntry, {kind: "task"}>>} */ (clipboard);
+    const pointed = document.elementFromPoint(position.x, position.y);
+    const featureElement = pointed?.closest(".release");
+    if (!featureElement) return false;
+    const featureIndex = Number(featureElement.dataset.feature);
+    const board = featureElement.querySelector(".board");
+    if (!board || !project.features[featureIndex]) return false;
+    const cards = [...board.querySelectorAll(":scope > .card")];
+    const beforeCard = /** @type {HTMLElement | null} */ (cards.find(card => {
+      const rect = card.getBoundingClientRect();
+      return position.y < rect.top + rect.height / 2;
+    }) || null);
+    const taskIndex = beforeCard ? Number(beforeCard.dataset.task) : project.features[featureIndex].tasks.length;
+    viewState.tasks.splice(taskViewIndex(/** @type {HTMLElement} */ (featureElement), beforeCard), 0, ...entries.map(entry => entry.expanded));
+    entries.forEach((entry, offset) => app.domain.insertTask(project, featureIndex, taskIndex + offset, entry.value));
+    setClipboard([]);
+    hoveredElement = null;
+    changed?.(viewState);
+    window.requestAnimationFrame(() => {
+      for (let offset = 0; offset < entries.length; offset += 1) {
+        const inserted = document.querySelector(`.release[data-feature="${featureIndex}"] .card[data-task="${taskIndex + offset}"]`);
+        if (inserted) animate(/** @type {HTMLElement} */ (inserted), [{ opacity: 0, transform: "translateY(5px) scale(.98)" }, { opacity: 1, transform: "none" }], { duration: 180, easing: "cubic-bezier(.2,.8,.2,1)" });
+      }
+    });
+    return true;
   }
 
   /** @param {number} featureIndex @param {number} taskIndex @param {number} lineIndex */
@@ -276,9 +496,11 @@ window.MDManager = window.MDManager || {};
 
   /** @param {MDProject} nextProject @param {(viewState: MDViewState, options?: any) => void} onChanged */
   function setProject(nextProject, onChanged) {
+    hoveredElement = null;
     project = nextProject;
     changed = onChanged;
     connectSortable();
+    placeClipboardIndicators();
   }
 
   /** @param {Event} event @returns {Element} */
@@ -408,8 +630,11 @@ window.MDManager = window.MDManager || {};
       app.render.updateTodo(project, featureIndex, taskIndex, lineIndex);
       changed?.(captureViewState(), { render: false });
       animateTodoToggle(featureIndex, taskIndex, lineIndex);
-      if (completingTodo) void app.sounds.play();
-      if (!wasTaskComplete && taskComplete(task)) app.notifications.show("info", "Task finished", [{ value: task.title }, " completed."], "rocket");
+      const taskFinished = !wasTaskComplete && taskComplete(task);
+      if (taskFinished) {
+        void app.sounds.play();
+        app.notifications.show("info", "Task finished", [{ value: task.title }, " completed."], "rocket");
+      }
       if (!feature.isBacklog && !wasFeatureComplete && featureComplete(feature)) app.notifications.show("info", "Feature finished", [{ value: feature.title }, " completed."], "confetti");
       return;
     }
@@ -460,10 +685,45 @@ window.MDManager = window.MDManager || {};
     if (title) app.layout.stopTitleScroll(title);
   }
 
+  /** @param {MouseEvent} event */
+  function handleContextMenu(event) {
+    if (!project) return;
+    lastPointer = { x: event.clientX, y: event.clientY };
+    const target = eventElement(event);
+    const copyTarget = hoveredCopyTarget(target);
+    if (copyTarget) {
+      hoveredElement = copyTarget;
+      if (copyHovered(event.ctrlKey || event.metaKey)) event.preventDefault();
+      return;
+    }
+    if (clipboard.length) {
+      if (pasteAt(lastPointer)) event.preventDefault();
+      return;
+    }
+    hoveredElement = null;
+  }
+
+  /** @param {PointerEvent} event */
+  function rememberPointer(event) {
+    lastPointer = { x: event.clientX, y: event.clientY };
+    hoveredElement = hoveredCopyTarget(eventElement(event));
+  }
+
   [document.getElementById("content"), document.getElementById("backlog")].forEach(container => {
     container.addEventListener("click", handleContentClick);
+    container.addEventListener("contextmenu", handleContextMenu);
+    container.addEventListener("pointermove", rememberPointer);
+    container.addEventListener("pointerleave", () => { hoveredElement = null; });
     container.addEventListener("mouseover", handleTitleEnter);
     container.addEventListener("mouseout", handleTitleLeave);
+  });
+  window.addEventListener("resize", scheduleClipboardPosition);
+  document.addEventListener("scroll", scheduleClipboardPosition, true);
+  new MutationObserver(scheduleClipboardPosition).observe(/** @type {HTMLElement} */ (document.querySelector(".workspace")), {
+    subtree: true,
+    childList: true,
+    attributes: true,
+    attributeFilter: ["class", "hidden", "aria-expanded"]
   });
 
   document.getElementById("toggleBacklog").addEventListener("click", toggleBacklog);
@@ -518,6 +778,12 @@ window.MDManager = window.MDManager || {};
       event.preventDefault();
       document.getElementById("openFile").click();
     }
+    if (shortcut && !editsText && !event.shiftKey && key === "c" && window.getSelection()?.isCollapsed !== false) {
+      if (copyHovered()) event.preventDefault();
+    }
+    if (shortcut && !editsText && !event.shiftKey && key === "v" && clipboard.length && lastPointer) {
+      if (pasteAt(lastPointer)) event.preventDefault();
+    }
     if (shortcut && !editsText && !event.shiftKey && key === "z") {
       event.preventDefault();
       undo?.();
@@ -561,8 +827,13 @@ window.MDManager = window.MDManager || {};
   document.getElementById("undoChange").addEventListener("click", () => undo?.());
   document.getElementById("redoChange").addEventListener("click", () => redo?.());
   document.addEventListener("click", event => {
-    if (!eventElement(event).closest(".view-menu")) closeViewMenu();
-    if (!eventElement(event).closest(".help-menu")) closeHelp();
+    const target = eventElement(event);
+    if (!target.closest(".view-menu")) closeViewMenu();
+    if (!target.closest(".help-menu")) closeHelp();
+    if (!target.closest(".release,.card")) {
+      hoveredElement = null;
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    }
   });
 
   app.interactions = {

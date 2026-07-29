@@ -22,7 +22,8 @@ body { height:100vh; display:flex; flex-direction:column; overflow:hidden; backg
 .project-title { max-width:20rem; overflow:hidden; font-size:var(--text-xl); font-weight:600; text-overflow:ellipsis; white-space:nowrap; } .app-version { flex:none; display:grid; place-items:center; height:32px; margin-left:auto; padding:0 .75rem; border:1px solid var(--muted); border-radius:8px; background:var(--bg-tertiary); color:var(--text); box-shadow:var(--shadow); font-size:var(--text-base); font-weight:600; letter-spacing:.02em; line-height:1; } .app-version[hidden] { display:none; } .app-logo-button { flex:none; display:grid; place-items:center; width:36px; height:36px; padding:0; border:2px solid #b8bb26; border-radius:7px; background:#3c3836; box-shadow:0 2px 5px rgba(0,0,0,.35); cursor:pointer; transition:border-color var(--motion-fast) var(--ease-out),background var(--motion-fast) var(--ease-out),box-shadow var(--motion-fast) var(--ease-out),transform var(--motion-fast) var(--ease-out); } .app-logo-button:hover:not(:disabled),.app-logo-button:focus-visible { border-color:#d8da48; background:#282828; box-shadow:0 0 0 2px rgba(184,187,38,.22),0 3px 10px rgba(184,187,38,.38); } .app-logo-button:active:not(:disabled) { transform:scale(.96); } .app-logo-button:disabled { opacity:.72; cursor:default; } .app-logo { display:block; width:2rem; height:2rem; }
 .project-stats { position:absolute; bottom:.75rem; left:.75rem; z-index:20; width:320px; overflow:hidden; border:1px solid var(--border); border-radius:10px; background:var(--bg-secondary); box-shadow:0 5px 16px rgba(0,0,0,.28); white-space:nowrap; } .project-stats:not([hidden]) { animation:statistics-in var(--motion-base) var(--ease-out); } .project-stats[hidden] { display:none; } .stats-header { display:flex; align-items:center; justify-content:space-between; gap:.5rem; min-height:42px; padding:.4rem .5rem .4rem .65rem; border-bottom:1px solid var(--border); background:linear-gradient(180deg,var(--bg-tertiary),var(--bg-secondary)); } .stats-title { color:var(--text); font-size:var(--text-md); font-weight:600; } .stats-close,.backlog-close { flex:none; display:grid; place-items:center; width:28px; height:28px; padding:0; border:2px solid var(--border); border-radius:5px; background:transparent; color:var(--muted); cursor:pointer; transition:background var(--motion-fast) var(--ease-out),border-color var(--motion-fast) var(--ease-out),color var(--motion-fast) var(--ease-out),transform var(--motion-fast) var(--ease-out); } .stats-close:hover { border-color:var(--text); background:var(--bg-tertiary); color:var(--text); } .stats-close:active,.backlog-close:active { transform:scale(.94); } .stats-close>span,.backlog-close>span { display:block; width:16px; height:16px; font:700 16px/16px "Segoe UI Symbol",sans-serif; text-align:center; transform:translateY(-1px); } .project-stats table { width:100%; table-layout:fixed; border-collapse:collapse; color:var(--muted); font-size:var(--text-xs); line-height:1.25; text-align:center; } .project-stats th,.project-stats td { padding:.3rem .35rem; border-left:1px solid var(--border); } .project-stats tr+tr th,.project-stats tr+tr td { border-top:1px solid var(--border); } .project-stats th:first-child { border-left:0; text-align:left; } .project-stats thead th { border-bottom:1px solid var(--border); font-weight:600; } .project-stats tbody th { font-weight:500; } .project-stats td { color:var(--text); font-size:var(--text-sm); font-weight:600; } .project-stats .done { color:var(--success); } .project-stats .active { color:var(--orange); } .project-stats .open { color:var(--text); } .project-stats .backlog-stat { color:var(--pink); }
 .project-stats { --surface-accent:var(--muted); }
-:is(.app-clock,.project-stats,.backlog-header,.notification)::before { position:absolute; z-index:2; inset:0 0 auto; height:2px; background:var(--surface-accent); content:""; pointer-events:none; }
+.app-version { --surface-accent:var(--success); position:relative; overflow:hidden; }
+:is(.app-clock,.app-version,.project-stats,.backlog-header,.notification)::before { position:absolute; z-index:2; inset:0 0 auto; height:2px; background:var(--surface-accent); content:""; pointer-events:none; }
 .hide-stats .project-stats { display:none; }
 .header-actions,.control-bar { display:flex; align-items:center; gap:.6rem; } .header-actions { margin-left:auto; } .header-actions:has(.control-bar[hidden]) { display:none; } .control-bar[hidden] { display:none; }
 .btn { padding:.4rem .65rem; border:1px solid var(--border); border-radius:6px; background:var(--accent); color:var(--bg-primary); font:inherit; font-weight:600; cursor:pointer; transition:background var(--motion-fast) var(--ease-out),border-color var(--motion-fast) var(--ease-out),color var(--motion-fast) var(--ease-out),box-shadow var(--motion-fast) var(--ease-out),transform var(--motion-fast) var(--ease-out); }
@@ -48,6 +49,9 @@ body { height:100vh; display:flex; flex-direction:column; overflow:hidden; backg
 .history-controls .btn:first-child { border-radius:6px 0 0 6px; }
 .history-controls .btn:last-child { margin-left:-1px; border-radius:0 6px 6px 0; }
 .history-controls .btn:hover:not(:disabled),.history-controls .btn:focus-visible { position:relative; z-index:2; }
+.clipboard-indicator { position:fixed; top:0; left:0; z-index:80; display:grid; place-items:center; width:20px; height:20px; border:1px solid var(--bg-secondary); border-radius:5px; background:var(--link); color:var(--bg-primary); box-shadow:0 2px 6px rgba(0,0,0,.42); transform:translate(-50%,-50%); pointer-events:none; animation:clipboard-indicator-in var(--motion-fast) var(--ease-out); }
+.clipboard-indicator[hidden] { display:none; }
+.clipboard-indicator svg { width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; }
 .view-mode { display:flex; padding-left:.6rem; border-left:1px solid var(--border); }
 .view-mode .btn { width:4.25rem; padding:0; border-radius:0; }
 .view-mode .btn:first-child { border-radius:6px 0 0 6px; }
@@ -56,6 +60,8 @@ body { height:100vh; display:flex; flex-direction:column; overflow:hidden; backg
 .view-mode .btn:hover:not(:disabled),.view-mode .btn:focus-visible { position:relative; z-index:2; }
 .view-menu { position:relative; }
 .help-menu { position:relative; }
+.control-bar>.help-menu { order:1; padding-left:.6rem; border-left:1px solid var(--border); }
+.start-view .control-bar>.help-menu { padding-left:0; border-left:0; }
 .help-button { width:32px; padding:0; font-size:var(--text-lg); font-weight:700; }
 .help-popover { position:absolute; top:calc(100% + .65rem); right:0; z-index:60; width:min(32rem,calc(100vw - 1rem)); max-height:min(76vh,44rem); overflow:hidden; border:1px solid var(--border); border-radius:12px; background:var(--bg-secondary); box-shadow:0 8px 24px rgba(0,0,0,.45); color:var(--text); }
 .help-popover:not([hidden]) { animation:surface-in var(--motion-base) var(--ease-out); }
@@ -232,8 +238,7 @@ main>.release { flex:0 0 320px; width:320px; min-width:320px; }
 .start-view .header-actions { order:1; }
 .start-view .sound-toggle { order:2; }
 .start-view .theme-toggle { order:3; }
-.start-view .app-version { position:static; display:flex; align-items:center; gap:.4rem; height:28px; margin:0; padding:0 .6rem; border-color:var(--border); border-radius:6px; background:var(--bg-tertiary); color:var(--muted); box-shadow:none; font-size:var(--text-sm); letter-spacing:.03em; animation:surface-in var(--motion-base) var(--ease-out); }
-.start-view .app-version::before { width:6px; height:6px; border-radius:50%; background:var(--success); content:""; }
+.start-view .app-version { display:flex; align-items:center; height:28px; margin:0; padding:2px .6rem 0; border-color:var(--border); border-radius:6px; background:var(--bg-tertiary); color:var(--muted); box-shadow:none; font-size:var(--text-sm); letter-spacing:.03em; animation:surface-in var(--motion-base) var(--ease-out); }
 .app-logo-button:disabled { border-color:transparent; background:transparent; box-shadow:none; opacity:1; }
 .app-logo-button:not(:disabled) { border-color:var(--success); background:var(--bg-tertiary); box-shadow:var(--shadow); }
 .app-logo-button:hover:not(:disabled),.app-logo-button:focus-visible { border-color:var(--success); background:var(--bg-secondary); box-shadow:0 0 0 2px color-mix(in srgb,var(--success) 20%,transparent),0 3px 10px color-mix(in srgb,var(--success) 32%,transparent); }
@@ -247,11 +252,17 @@ button:focus-visible { outline:2px solid var(--text); outline-offset:2px; }
 .sortable-chosen { cursor:grabbing; }
 .sortable-ghost { opacity:.3; }
 .sortable-drag { box-shadow:0 10px 28px rgba(0,0,0,.58); }
+.release.clipboard-source,.card.clipboard-source { outline:2px solid var(--link); outline-offset:-2px; }
+.release.copy-feedback,.card.copy-feedback { animation:clipboard-copy 280ms var(--ease-out); }
+.release.copy-feedback::after,.card.copy-feedback::after { position:absolute; z-index:7; inset:0; border-radius:inherit; background:var(--link); content:""; pointer-events:none; animation:clipboard-surface-flash 280ms var(--ease-out) forwards; }
 @keyframes surface-in { from { opacity:0; transform:translateY(-4px) scale(.98); } to { opacity:1; transform:none; } }
 @keyframes backlog-in { from { opacity:0; transform:translateX(8px); } to { opacity:1; transform:none; } }
 @keyframes statistics-in { from { opacity:0; transform:translateX(-8px); } to { opacity:1; transform:none; } }
 @keyframes notification-in { from { opacity:0; transform:translateX(18px) scale(.98); } to { opacity:1; transform:none; } }
 @keyframes notification-out { to { opacity:0; transform:translateX(18px) scale(.98); } }
+@keyframes clipboard-copy { 50% { box-shadow:0 0 0 3px color-mix(in srgb,var(--link) 24%,transparent),var(--shadow); } }
+@keyframes clipboard-surface-flash { from,to { opacity:0; } 45% { opacity:.18; } }
+@keyframes clipboard-indicator-in { from { opacity:0; transform:translate(-50%,-50%) scale(.72); } to { opacity:1; transform:translate(-50%,-50%) scale(1); } }
 @keyframes title-scroll { from { transform:translateX(0); } to { transform:translateX(var(--title-scroll-distance)); } }
 @media (prefers-reduced-motion:reduce) {
   *,*::before,*::after { scroll-behavior:auto!important; animation-duration:.01ms!important; animation-iteration-count:1!important; transition-duration:.01ms!important; }

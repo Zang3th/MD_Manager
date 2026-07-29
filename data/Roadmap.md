@@ -256,10 +256,10 @@
 ## QoL-Verbesserungen
 
 #Version
-- 0.1.1
+- 0.2.0
 
 #Date
-- 28.07.2026
+- 28.07.2026 - 29.07.2026
 
 ### Formatanpassungen
 
@@ -278,11 +278,11 @@
 
 ### Kopieren
 
-- [ ] Copy/Paste im UI von Features und Tasks
-- [ ] Steuerung per Maus (Rechtsklick) und Tastatur (STRG + C/V)
-- [ ] Smooth mit UI-Feedback
-- [ ] Anzeige von gefülltem Zwischenspeicher
-- [ ] Entsprechende Notification
+- [x] ~Copy/Paste im UI von Features und Tasks~
+- [x] ~Steuerung per Maus (Rechtsklick) und Tastatur (STRG + C/V)~
+- [x] ~Smooth mit UI-Feedback~
+- [x] ~Anzeige von gefülltem Zwischenspeicher~
+- [x] ~Entsprechende Notification~
 
 #Backlog
 ## Backlog

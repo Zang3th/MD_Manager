@@ -7,6 +7,18 @@ window.MDManager = window.MDManager || {};
     items.splice(toIndex, 0, items.splice(fromIndex, 1)[0]);
   }
 
+  /** @param {string} line */
+  function resetCopiedTodo(line) {
+    const match = line.match(/^(\s*[-*+]\s+)\[[xX]\]\s+(.*)$/);
+    if (!match) return line;
+    return `${match[1]}[ ] ${match[2].replace(/^~(.*)~$/, "$1")}`;
+  }
+
+  /** @param {MDTask} task @returns {MDTask} */
+  function copyTask(task) {
+    return { ...task, lines: task.lines.map(resetCopiedTodo) };
+  }
+
   app.domain = {
     /** @param {MDProject} project @param {MDFeature} feature */
     addFeature(project, feature) {
@@ -16,6 +28,29 @@ window.MDManager = window.MDManager || {};
     /** @param {MDProject} project @param {number} featureIndex @param {MDTask} task */
     addTask(project, featureIndex, task) {
       project.features[featureIndex].tasks.push(task);
+    },
+    copyTask,
+    /** @param {MDFeature} feature @returns {MDFeature} */
+    copyFeature(feature) {
+      return {
+        ...feature,
+        headerLines: (feature.headerLines || []).slice(),
+        dates: (feature.dates || []).map(date => ({ ...date })),
+        notes: (feature.notes || []).map(note => ({ ...note, items: note.items.map(item => typeof item === "string" ? item : { ...item }) })),
+        tasks: feature.tasks.map(copyTask),
+        isBacklog: false
+      };
+    },
+    /** @param {MDProject} project @param {number} index @param {MDFeature} feature */
+    insertFeature(project, index, feature) {
+      const backlogIndex = project.features.findIndex(item => item.isBacklog);
+      const boundary = backlogIndex < 0 ? project.features.length : backlogIndex;
+      project.features.splice(Math.max(0, Math.min(index, boundary)), 0, feature);
+    },
+    /** @param {MDProject} project @param {number} featureIndex @param {number} index @param {MDTask} task */
+    insertTask(project, featureIndex, index, task) {
+      const tasks = project.features[featureIndex].tasks;
+      tasks.splice(Math.max(0, Math.min(index, tasks.length)), 0, task);
     },
     /** @param {MDProject} project @param {number} featureIndex @param {string} title @param {MDFeature} metadata */
     updateFeature(project, featureIndex, title, metadata) {

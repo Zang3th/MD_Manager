@@ -24,6 +24,19 @@ test("features are added before the backlog and tasks at the end of their featur
   assert.deepEqual(value.features[0].tasks.map(task => task.title), ["A1", "A2"]);
 });
 
+test("copied features and tasks reset completed todos and insert at requested positions", () => {
+  const value = project();
+  value.features[0].tasks[0].lines[0] = "- [x] ~one~";
+  const taskCopy = domain.copyTask(value.features[0].tasks[0]);
+  const featureCopy = domain.copyFeature(value.features[0]);
+  domain.insertTask(value, 1, 0, taskCopy);
+  domain.insertFeature(value, 1, featureCopy);
+  assert.deepEqual(taskCopy.lines, ["- [ ] one", "**Next**", "- [ ] two"]);
+  assert.deepEqual(featureCopy.tasks[0].lines, ["- [ ] one", "**Next**", "- [ ] two"]);
+  assert.deepEqual(value.features.map(feature => feature.title), ["A", "A", "B", "Backlog"]);
+  assert.deepEqual(value.features[2].tasks.map(task => task.title), ["A1", "B1"]);
+});
+
 test("feature titles and complete task drafts update only their target", () => {
   const value = project();
   domain.updateFeature(value, 0, "Renamed Feature", { headerLines: ["#Info", "- changed"], version: "2.0.0", dates: [], notes: [], tasks: [], title: "", isBacklog: false });

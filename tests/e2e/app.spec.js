@@ -44,13 +44,17 @@ test("start screen exposes the application identity and open action", async ({ p
   await page.goto(appUrl);
   await expect(page).toHaveTitle("MD_Manager");
   await expect(page.locator("#appVersion")).toHaveText(/^v\d+\.\d+\.\d+$/);
+  expect(await page.locator("#appVersion").evaluate(element => getComputedStyle(element, "::before").height)).toBe("2px");
   await expect(page.getByRole("button", { name: "Open", exact: true })).toBeVisible();
   await expect(page.locator("#watermark")).toBeVisible();
   const help = page.getByRole("button", { name: "Help", exact: true });
+  const sound = page.locator("#toggleSounds");
   const theme = page.locator("#toggleTheme");
   await expect(help).toBeVisible();
-  const positions = await Promise.all([help, theme].map(locator => locator.evaluate(node => node.getBoundingClientRect().x)));
+  const positions = await Promise.all([help, sound, theme].map(locator => locator.evaluate(node => node.getBoundingClientRect().x)));
   expect(positions[0]).toBeLessThan(positions[1]);
+  expect(positions[1]).toBeLessThan(positions[2]);
+  await expect(page.locator(".help-menu")).toHaveCSS("border-left-style", "none");
   await help.click();
   await expect(page.locator("#helpPopover")).toBeVisible();
 });
@@ -412,17 +416,136 @@ test("todo completion sound can be muted", async ({ page }) => {
     window.MDManager.sounds.play = async () => { window.__completionSounds += 1; };
   });
   await page.locator(".card-header").first().click();
-  const todo = page.locator('.checkbox[data-checked="false"]').first();
-  await todo.click();
+  const todos = page.locator(".card").first().locator(".checkbox");
+  await todos.nth(0).click();
+  await todos.nth(1).click();
+  expect(await page.evaluate(() => window.__completionSounds)).toBe(0);
+  await todos.nth(0).click();
   expect(await page.evaluate(() => window.__completionSounds)).toBe(1);
+});
+
+test("keyboard copy pastes a task at the pointer and resets completed todos", async ({ page }) => {
+  await openFixture(page, "# Copy\n\n## Alpha\n#Info\n- Details\n- More details\n### Finished\n- [x] ~done~\n\n## Beta\n### Existing\n- [ ] open");
+  const source = page.locator("#content > .release").nth(0).locator(".card");
+  await source.locator(".card-header").click();
+  await page.locator("#content").click({ position: { x: 5, y: 5 } });
+  await expect(page.locator(".clipboard-source")).toHaveCount(0);
+  await source.locator(".card-header").hover();
+  await expect(source).toHaveCSS("border-color", "rgb(235, 219, 178)");
+  await expect(page.locator(".clipboard-source")).toHaveCount(0);
+  await page.keyboard.press("Control+c");
+  await expect(source).toHaveClass(/copy-feedback/);
+  await expect(source).toHaveClass(/clipboard-source/);
+  await expect(source).toHaveCSS("outline-color", "rgb(131, 165, 152)");
+  expect(await source.evaluate(element => getComputedStyle(element, "::after").backgroundColor)).toBe("rgb(131, 165, 152)");
+  expect(await source.evaluate(element => getComputedStyle(element, "::after").animationFillMode)).toBe("forwards");
+  await expect(page.locator(".clipboard-indicator")).toHaveCount(1);
+  await expect(page.locator(".notification-title").last()).toHaveText("Task copied");
+  await expect(page.locator(".notification-body").last()).toHaveText("Finished copied to clipboard.");
+  await expect(page.locator(".notification-value").last()).toHaveText("Finished");
+  const sourceBounds = await source.boundingBox();
+  const indicatorBounds = await page.locator(".clipboard-indicator").boundingBox();
+  expect(Math.abs(indicatorBounds.x + indicatorBounds.width / 2 - sourceBounds.x - sourceBounds.width)).toBeLessThanOrEqual(1);
+  expect(Math.abs(indicatorBounds.y + indicatorBounds.height / 2 - sourceBounds.y)).toBeLessThanOrEqual(1);
+  await expect(page.locator(".clipboard-indicator")).toHaveCSS("width", "20px");
+  await expect(page.locator(".clipboard-indicator")).toHaveCSS("height", "20px");
+
+  await page.locator("#content > .release").nth(0).locator(".note-toggle").click();
+  await expect.poll(async () => {
+    const movedSource = await source.boundingBox();
+    const movedIndicator = await page.locator(".clipboard-indicator").boundingBox();
+    return Math.max(
+      Math.abs(movedIndicator.x + movedIndicator.width / 2 - movedSource.x - movedSource.width),
+      Math.abs(movedIndicator.y + movedIndicator.height / 2 - movedSource.y)
+    );
+  }).toBeLessThanOrEqual(1);
+
+  await source.locator(".checkbox").click();
+  await page.locator("#undoChange").click();
+  await expect(page.locator(".clipboard-indicator")).toBeHidden();
+
+  const existing = page.locator("#content > .release").nth(1).locator(".card");
+  await existing.locator(".card-header").click({ button: "right" });
+  await expect(existing).toHaveClass(/clipboard-source/);
+  await expect(source).not.toHaveClass(/clipboard-source/);
+  await expect(page.locator(".notification-body").last()).toHaveText("Existing copied to clipboard.");
+  await source.locator(".card-header").click({ button: "right" });
+  await expect(source).toHaveClass(/clipboard-source/);
+
+  await page.keyboard.down("Control");
+  await existing.locator(".card-header").click({ button: "right" });
+  await page.keyboard.up("Control");
+  await expect(page.locator(".clipboard-source")).toHaveCount(2);
+  await expect(page.locator(".clipboard-indicator")).toHaveCount(2);
+  await page.keyboard.down("Control");
+  await existing.locator(".card-header").click({ button: "right" });
+  await page.keyboard.up("Control");
+  await expect(page.locator(".clipboard-source")).toHaveCount(1);
+  await expect(page.locator(".notification-body").last()).toHaveText("Existing removed from clipboard.");
+  await page.keyboard.down("Control");
+  await existing.locator(".card-header").click({ button: "right" });
+  await page.keyboard.up("Control");
+  await expect(page.locator(".clipboard-source")).toHaveCount(2);
+
+  const targetBoard = page.locator("#content > .release").nth(1).locator(".board");
+  await targetBoard.hover({ position: { x: 10, y: 2 } });
+  await page.keyboard.press("Control+v");
+  await expect(page.locator(".clipboard-indicator")).toHaveCount(0);
+  const targetCards = page.locator("#content > .release").nth(1).locator(".card");
+  await expect(targetCards).toHaveCount(3);
+  await expect(targetCards.locator(".card-title")).toHaveText(["Finished", "Existing", "Existing"]);
+  await expect(targetCards.nth(0)).toHaveAttribute("aria-expanded", "true");
+  await expect(targetCards.nth(1)).toHaveAttribute("aria-expanded", "false");
+  await expect(targetCards.first().locator(".card-body")).toBeVisible();
+  await expect(targetCards.first().locator(".checkbox")).toHaveAttribute("data-checked", "false");
+  await expect(targetCards.first().locator(".todo-text")).not.toHaveClass(/completed/);
+  await expect(page.locator("#saveFile")).toHaveClass(/dirty/);
+  await page.locator("#undoChange").click();
+  await expect(page.locator("#content > .release").nth(1).locator(".card")).toHaveCount(1);
+});
+
+test("context copy inserts feature cards before or after the pointed midpoint", async ({ page }) => {
+  await openFixture(page, "# Copy\n\n## Alpha\n#Info\n- Details\n### Finished\n- [x] ~done~\n\n## Beta\n### Existing\n- [ ] open");
+  const features = page.locator("#content > .release");
+  await features.nth(0).locator(".card-header").click();
+  await features.nth(0).locator(".note-toggle").click();
+  await features.nth(0).locator(".release-header").click({ button: "right" });
+  await expect(features.nth(0)).toHaveClass(/copy-feedback/);
+  await expect(features.nth(0)).toHaveClass(/clipboard-source/);
+  expect(await features.nth(0).evaluate(element => getComputedStyle(element, "::after").backgroundColor)).toBe("rgb(131, 165, 152)");
+  await expect(page.locator(".notification-title").last()).toHaveText("Feature copied");
+
+  await features.nth(1).locator(".release-header").click({ button: "right" });
+  await expect(features.nth(1)).toHaveClass(/clipboard-source/);
+  await expect(page.locator(".notification-body").last()).toHaveText("Beta copied to clipboard.");
+  await features.nth(0).locator(".release-header").click({ button: "right" });
+  await expect(features.nth(0)).toHaveClass(/clipboard-source/);
+
+  let betaBounds = await features.nth(1).boundingBox();
+  await page.mouse.click(betaBounds.x + betaBounds.width * .75, betaBounds.y + betaBounds.height - 4, { button: "right" });
+  await expect(page.locator(".clipboard-indicator")).toHaveCount(0);
+  await expect(page.locator("#content .release-title")).toHaveText(["Alpha", "Beta", "Alpha"]);
+  const copiedTask = features.nth(2).locator(".card");
+  await expect(copiedTask).toHaveAttribute("aria-expanded", "true");
+  await expect(features.nth(2).locator(".feature-note")).toHaveAttribute("aria-expanded", "true");
+  await expect(copiedTask.locator(".checkbox")).toHaveAttribute("data-checked", "false");
+
+  await features.nth(0).locator(".release-header").click({ button: "right" });
+  betaBounds = await features.nth(1).boundingBox();
+  await page.mouse.click(betaBounds.x + betaBounds.width * .25, betaBounds.y + betaBounds.height - 4, { button: "right" });
+  await expect(page.locator("#content .release-title")).toHaveText(["Alpha", "Alpha", "Beta", "Alpha"]);
+  await expect(page.locator(".clipboard-indicator")).toHaveCount(0);
 });
 
 test("help popover documents shortcuts and Markdown and closes predictably", async ({ page }) => {
   await openFixture(page);
   const helpButton = page.getByRole("button", { name: "Help", exact: true });
   const backlogButton = page.locator("#toggleBacklog");
-  const positions = await Promise.all([helpButton, backlogButton].map(locator => locator.evaluate(node => node.getBoundingClientRect().x)));
+  const soundButton = page.locator("#toggleSounds");
+  const positions = await Promise.all([backlogButton, helpButton, soundButton].map(locator => locator.evaluate(node => node.getBoundingClientRect().x)));
   expect(positions[0]).toBeLessThan(positions[1]);
+  expect(positions[1]).toBeLessThan(positions[2]);
+  await expect(page.locator(".help-menu")).toHaveCSS("border-left-style", "solid");
   await helpButton.click();
   const help = page.locator("#helpPopover");
   await expect(help).toBeVisible();
