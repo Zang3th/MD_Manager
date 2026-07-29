@@ -23,6 +23,17 @@ window.MDManager = window.MDManager || {};
   let clockInterval = null;
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
+  /** @param {MDTask} task */
+  function taskComplete(task) {
+    return app.status.progress(app.markdown.taskContent(task).todos).complete;
+  }
+
+  /** @param {MDFeature} feature */
+  function featureComplete(feature) {
+    const todos = feature.tasks.filter(task => !task.ignored).flatMap(task => app.markdown.taskContent(task).todos);
+    return app.status.progress(todos).complete;
+  }
+
   /** @param {number} seconds */
   function clockValue(seconds) {
     const hours = Math.floor(seconds / 3600);
@@ -54,6 +65,7 @@ window.MDManager = window.MDManager || {};
     } catch (error) {
       if (!(error instanceof Error)) throw error;
       app.render.saveError(error.message);
+      app.notifications.show("error", "File save", `File could not be saved: ${error.message}`);
     }
   }
 
@@ -313,6 +325,7 @@ window.MDManager = window.MDManager || {};
       app.editor.open({ title: "New Task", lines: [] }, { project: project.title, feature: feature.title }, (/** @type {{title: string, lines: string[]}} */ draft) => {
         app.domain.addTask(project, featureIndex, { title: draft.title, lines: draft.lines.slice() });
         changed?.(viewState);
+        app.notifications.show("info", "Task added", [{ value: draft.title }, " added to ", { value: feature.title }, "."]);
       });
       return;
     }
@@ -386,11 +399,18 @@ window.MDManager = window.MDManager || {};
       const featureIndex = Number(featureElement.dataset.feature);
       const taskIndex = Number(taskElement.dataset.task);
       const lineIndex = Number(todo.dataset.line);
-      const task = project.features[featureIndex].tasks[taskIndex];
-      app.domain.setTodo(task, lineIndex, checkbox.dataset.checked !== "true");
+      const feature = project.features[featureIndex];
+      const task = feature.tasks[taskIndex];
+      const wasTaskComplete = taskComplete(task);
+      const wasFeatureComplete = featureComplete(feature);
+      const completingTodo = checkbox.dataset.checked !== "true";
+      app.domain.setTodo(task, lineIndex, completingTodo);
       app.render.updateTodo(project, featureIndex, taskIndex, lineIndex);
       changed?.(captureViewState(), { render: false });
       animateTodoToggle(featureIndex, taskIndex, lineIndex);
+      if (completingTodo) void app.sounds.play();
+      if (!wasTaskComplete && taskComplete(task)) app.notifications.show("info", "Task finished", [{ value: task.title }, " completed."], "rocket");
+      if (!feature.isBacklog && !wasFeatureComplete && featureComplete(feature)) app.notifications.show("info", "Feature finished", [{ value: feature.title }, " completed."], "confetti");
       return;
     }
 
@@ -449,12 +469,14 @@ window.MDManager = window.MDManager || {};
   document.getElementById("toggleBacklog").addEventListener("click", toggleBacklog);
   document.getElementById("addFeature").addEventListener("click", () => {
     if (!project) return;
+    const projectTitle = project.title;
     const viewState = captureViewState();
     const draftFeature = { title: "New Feature", headerLines: [], version: "", dates: [], notes: [], tasks: [], isBacklog: false };
     app.editor.openFeature(project, draftFeature, (/** @type {{title: string, metadata: string, info: string, warn: string}} */ draft) => {
       const metadata = app.markdown.composeFeatureMetadata(draft);
       app.domain.addFeature(project, { ...metadata, title: draft.title, tasks: [], isBacklog: false });
       changed?.(viewState);
+      app.notifications.show("info", "Feature added", [{ value: draft.title }, " added to \"", { value: projectTitle }, "\"."]);
     });
   });
   document.getElementById("toggleViewMenu").addEventListener("click", event => {
@@ -462,6 +484,14 @@ window.MDManager = window.MDManager || {};
     const options = document.getElementById("viewOptions");
     options.hidden = !options.hidden;
     (/** @type {HTMLElement} */ (event.currentTarget)).setAttribute("aria-expanded", String(!options.hidden));
+  });
+  document.getElementById("toggleSounds").addEventListener("click", event => {
+    const button = /** @type {HTMLButtonElement} */ (event.currentTarget);
+    const muted = button.getAttribute("aria-pressed") !== "true";
+    button.setAttribute("aria-pressed", String(muted));
+    button.setAttribute("aria-label", muted ? "Unmute sounds" : "Mute sounds");
+    button.title = muted ? "Unmute sounds" : "Mute sounds";
+    app.sounds.setMuted(muted);
   });
   document.getElementById("toggleHelp").addEventListener("click", event => {
     closeViewMenu();

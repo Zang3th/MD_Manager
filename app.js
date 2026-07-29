@@ -33,6 +33,12 @@ window.MDManager = window.MDManager || {};
     });
   }
 
+  /** @param {Error} error */
+  function formatErrorBody(error) {
+    const lineNumber = /** @type {Error & {lineNumber?: number}} */ (error).lineNumber || 1;
+    return `Line ${lineNumber}: ${error.message}`;
+  }
+
   /** @param {MDViewState} viewState @param {any} [options] */
   function recordChange(viewState, options = {}) {
     app.history.record(history, currentMarkdown());
@@ -41,11 +47,12 @@ window.MDManager = window.MDManager || {};
   }
 
   async function save() {
-    if (!project || currentMarkdown() === savedMarkdown) return;
+    if (!project || !fileHandle || currentMarkdown() === savedMarkdown) return;
     const markdown = currentMarkdown();
     await app.files.save(fileHandle, markdown);
     savedMarkdown = markdown;
     updateHistoryControls();
+    app.notifications.show("info", "File saved", [{ value: fileHandle.name }, " saved."]);
   }
 
   /** @param {string} markdown @param {MDViewState} viewState */
@@ -54,27 +61,34 @@ window.MDManager = window.MDManager || {};
     render(viewState);
   }
 
-  /** @param {MDOpenedFile} opened */
+  /** @param {MDOpenedFile | null} opened */
   async function useOpenedFile(opened) {
     if (!opened) return;
-    fileHandle = opened.handle;
     const openedProject = app.markdown.parse(opened.markdown);
+    fileHandle = opened.handle;
     project = openedProject;
     savedMarkdown = opened.markdown;
     history = app.history.create(opened.markdown);
     render();
     app.interactions.startClock();
-    app.files.remember(fileHandle, openedProject.title).catch(() => {});
+    app.notifications.show("info", "File loaded", [{ value: fileHandle.name }, " is ready."]);
+    app.files.remember(fileHandle, openedProject.title).catch((/** @type {Error} */ error) => {
+      app.notifications.show("error", "Recent files", `Recent-files list could not be updated: ${error.message}`);
+    });
   }
 
   document.getElementById("openFile").addEventListener("click", async () => {
+    /** @type {MDOpenedFile | null} */
+    let opened = null;
     try {
-      const opened = await app.files.open();
+      opened = await app.files.open();
       await useOpenedFile(opened);
     } catch (error) {
       if (!(error instanceof Error)) throw error;
       if (error.name === "AbortError") return;
-      app.render.error(`The file could not be read: ${error.message}`);
+      const formatError = error.name === "MarkdownFormatError";
+      if (!formatError) app.render.error(`The file could not be read: ${error.message}`);
+      app.notifications.show("error", formatError ? "File format" : "File read", formatError ? formatErrorBody(error) : `File could not be read: ${error.message}`);
     }
   });
 
@@ -83,16 +97,24 @@ window.MDManager = window.MDManager || {};
       await useOpenedFile(await app.files.read(recentFiles[index].handle));
     } catch (error) {
       if (!(error instanceof Error)) throw error;
-      app.render.recentError(`The file could not be opened: ${error.message}`);
+      const formatError = error.name === "MarkdownFormatError";
+      if (!formatError) app.render.recentError(`The file could not be opened: ${error.message}`);
+      app.notifications.show("error", formatError ? "File format" : "File open", formatError ? formatErrorBody(error) : `Recent file could not be opened: ${error.message}`);
     }
   });
 
   app.interactions.setRemoveRecent(async (/** @type {number} */ index) => {
     const entry = recentFiles[index];
     if (!entry) return;
-    await app.files.forget(entry.id);
-    recentFiles.splice(index, 1);
-    app.render.start(recentFiles);
+    try {
+      await app.files.forget(entry.id);
+      recentFiles.splice(index, 1);
+      app.render.start(recentFiles);
+    } catch (error) {
+      if (!(error instanceof Error)) throw error;
+      app.render.start(recentFiles);
+      app.notifications.show("error", "Recent files", `File could not be removed from recent-files list: ${error.message}`);
+    }
   });
 
   app.interactions.setHistoryActions({
@@ -113,6 +135,7 @@ window.MDManager = window.MDManager || {};
     recentFiles = [];
     app.render.start(recentFiles);
     app.render.recentError(`Recent files could not be loaded: ${error.message}`);
+    app.notifications.show("error", "Recent files", `Recent-files list could not be loaded: ${error.message}`);
     updateHistoryControls();
   });
 })(window.MDManager);

@@ -1,6 +1,53 @@
 window.MDManager = window.MDManager || {};
 
 (function (app) {
+  /** @param {string} message @param {number} [lineNumber] */
+  function formatError(message, lineNumber = 1) {
+    const error = /** @type {Error & {lineNumber: number}} */ (new Error(message));
+    error.name = "MarkdownFormatError";
+    error.lineNumber = lineNumber;
+    throw error;
+  }
+
+  /** @param {string} markdown */
+  function validate(markdown) {
+    if (!markdown.trim()) formatError("File contains no Markdown content.");
+    let invalidCharacterIndex = -1;
+    for (let index = 0; index < markdown.length; index += 1) {
+      const code = markdown.charCodeAt(index);
+      if (code <= 8 || code === 11 || code === 12 || (code >= 14 && code <= 31) || code === 127 || code === 0xFFFD) {
+        invalidCharacterIndex = index;
+        break;
+      }
+    }
+    if (invalidCharacterIndex >= 0) {
+      const before = markdown.slice(0, invalidCharacterIndex).replace(/\r\n?/g, "\n");
+      const line = before.split("\n").length;
+      const column = before.length - before.lastIndexOf("\n");
+      formatError(`Unreadable character at column ${column}.`, line);
+    }
+
+    const lines = markdown.replace(/\r\n?/g, "\n").split("\n");
+    let projectHeading = 0;
+    let hasFeature = false;
+    lines.forEach((line, index) => {
+      if (/^#{1,3}\s*$/.test(line)) formatError("Heading has no title.", index + 1);
+      const heading = line.match(/^(#{1,3})\s+(.+?)\s*#*\s*$/);
+      if (!heading) return;
+      const level = heading[1].length;
+      if (level === 1) {
+        projectHeading += 1;
+        if (projectHeading > 1) formatError("Second project title found.", index + 1);
+      } else if (level === 2) {
+        if (!projectHeading) formatError("Feature heading appears before project title.", index + 1);
+        hasFeature = true;
+      } else if (!hasFeature) {
+        formatError("Task heading appears before feature heading.", index + 1);
+      }
+    });
+    if (!projectHeading) formatError("File has no project title. Level-one Markdown heading required.");
+  }
+
   /** @param {MDTask} task @returns {MDTaskContent} */
   function taskContent(task) {
     /** @type {MDGroupSection} */
@@ -97,6 +144,7 @@ window.MDManager = window.MDManager || {};
 
   /** @param {string} markdown @returns {MDProject} */
   function parse(markdown) {
+    validate(markdown);
     const newline = markdown.includes("\r\n") ? "\r\n" : "\n";
     const lines = markdown.replace(/\r\n?/g, "\n").split("\n");
     /** @type {MDProject} */

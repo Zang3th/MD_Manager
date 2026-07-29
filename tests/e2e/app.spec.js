@@ -88,6 +88,9 @@ test("theme toggle switches Gruvbox themes on the start screen and in the app", 
   await page.getByRole("button", { name: "Open", exact: true }).click();
   await expect(toggle).toBeVisible();
   await expect(page.locator("body")).toHaveAttribute("data-theme", "gruvbox-light");
+  await expect(page.locator(".task-in-progress")).toHaveCSS("color", "rgb(204, 36, 29)");
+  await page.evaluate(() => window.MDManager.notifications.show("error", "Application", "Preview"));
+  await expect(page.locator(".notification-error .notification-tag")).toHaveCSS("color", "rgb(204, 36, 29)");
 
   await toggle.click();
   await expect(page.locator("body")).toHaveAttribute("data-theme", "gruvbox-dark");
@@ -102,6 +105,9 @@ test("Markdown import renders features, tasks, progress states, and filename tit
   await expect(page.locator(".task-in-progress")).toHaveText("◐");
   await expect(page.locator(".task-check")).toHaveText("✓");
   await expect(page.locator("#toggleBacklog")).toBeEnabled();
+  await expect(page.locator(".notification-title").last()).toHaveText("File loaded");
+  await expect(page.locator(".notification-body").last()).toHaveText("Fixture.md is ready.");
+  await expect(page.locator(".notification").last().locator(".notification-value")).toHaveText("Fixture.md");
 });
 
 test("text below a task label keeps its position and visual hierarchy", async ({ page }) => {
@@ -200,6 +206,9 @@ test("logo and feature new buttons create features and tasks through existing ed
   await page.locator("#saveFeatureEditor").click();
   await expect(page.locator("#content > .release")).toHaveCount(3);
   await expect(page.locator("#content > .release").last().locator(".release-title")).toHaveText("New Feature");
+  await expect(page.locator(".notification-title").last()).toHaveText("Feature added");
+  await expect(page.locator(".notification-body").last()).toHaveText('New Feature added to "Test Project".');
+  await expect(page.locator(".notification").last().locator(".notification-value")).toHaveText(["New Feature", "Test Project"]);
 
   const firstFeature = page.locator("#content > .release").first();
   const tasksBefore = await firstFeature.locator(".card").count();
@@ -210,6 +219,9 @@ test("logo and feature new buttons create features and tasks through existing ed
   await page.locator("#saveTaskEditor").click();
   await expect(firstFeature.locator(".card")).toHaveCount(tasksBefore + 1);
   await expect(firstFeature.locator(".card-title").last()).toHaveText("New Task");
+  await expect(page.locator(".notification-title").last()).toHaveText("Task added");
+  await expect(page.locator(".notification-body").last()).toHaveText("New Task added to Active Feature.");
+  await expect(page.locator(".notification").last().locator(".notification-value")).toHaveText(["New Task", "Active Feature"]);
 });
 
 test("task editor opens in the foreground and saves title and Markdown as one undo step", async ({ page }) => {
@@ -339,6 +351,72 @@ test("clock is app-only, centered, and controlled from View", async ({ page }) =
   await expect(clock).toBeVisible();
 });
 
+test("notifications stack by severity, match feature widths, and disappear automatically", async ({ page }) => {
+  await openFixture(page);
+  await page.locator("#notifications").evaluate(node => node.replaceChildren());
+  const notifications = page.locator(".notification");
+  await page.evaluate(() => {
+    window.MDManager.notifications.show("info", "Information", "Operation completed.");
+    window.MDManager.notifications.show("error", "Application", "Operation failed.");
+  });
+  await expect(notifications).toHaveCount(2);
+  await expect(notifications.nth(0).locator(".notification-tag")).toHaveText("Info");
+  await expect(notifications.nth(1).locator(".notification-tag")).toHaveText("Error");
+  await expect(notifications.nth(0)).toHaveCSS("width", "320px");
+  await expect(notifications.nth(0)).toHaveCSS("height", "88px");
+  await page.locator("#toggleBacklog").click();
+  const accentBars = await page.locator("#appClock, #projectStats, .backlog-header, .notification-info").evaluateAll(nodes => nodes.map(node => {
+    const bounds = node.getBoundingClientRect();
+    const accent = getComputedStyle(node, "::before");
+    return { elementWidth: bounds.width, barWidth: Number.parseFloat(accent.width), barHeight: Number.parseFloat(accent.height), color: accent.backgroundColor };
+  }));
+  for (const accent of accentBars) {
+    expect(accent.barHeight).toBe(2);
+    expect(Math.round(Math.abs(accent.elementWidth - accent.barWidth))).toBeLessThanOrEqual(2);
+  }
+  expect(accentBars.map(accent => accent.color)).toEqual(["rgb(184, 187, 38)", "rgb(146, 131, 116)", "rgb(211, 134, 155)", "rgb(131, 165, 152)"]);
+  const positions = await notifications.evaluateAll(nodes => nodes.map(node => node.getBoundingClientRect().y));
+  expect(positions[0]).toBeLessThan(positions[1]);
+  await page.locator("#toggleGridView").click();
+  await expect(notifications.nth(0)).toHaveCSS("width", "260px");
+  await page.evaluate(() => {
+    for (let index = 0; index < 20; index += 1) window.MDManager.notifications.show("info", `Rapid ${index}`, `Notification ${index}`);
+  });
+  expect(await notifications.count()).toBeLessThan(20);
+  await expect(notifications.last().locator(".notification-title")).toHaveText("Rapid 19");
+  const notificationBounds = await notifications.first().boundingBox();
+  const headerBounds = await page.locator(".header").boundingBox();
+  expect(notificationBounds.y).toBeGreaterThan(headerBounds.y + headerBounds.height);
+  await expect(notifications).toHaveCount(0, { timeout: 5000 });
+});
+
+test("todo completion sound can be muted", async ({ page }) => {
+  await openFixture(page);
+  const soundToggle = page.locator("#toggleSounds");
+  await expect(page.locator("[data-notification-test]")).toHaveCount(0);
+  await expect(soundToggle).toHaveAttribute("aria-pressed", "false");
+  await expect(soundToggle).toHaveAttribute("aria-label", "Mute sounds");
+  const soundToggleX = await soundToggle.evaluate(button => button.getBoundingClientRect().x);
+  const themeToggleX = await page.locator("#toggleTheme").evaluate(button => button.getBoundingClientRect().x);
+  expect(soundToggleX).toBeLessThan(themeToggleX);
+  await soundToggle.click();
+  await expect(soundToggle).toHaveAttribute("aria-pressed", "true");
+  await expect(soundToggle).toHaveAttribute("aria-label", "Unmute sounds");
+  await expect(soundToggle.locator(".sound-toggle-off")).toBeVisible();
+  expect(await page.evaluate(() => window.MDManager.sounds.isMuted())).toBe(true);
+  await soundToggle.click();
+  await expect(soundToggle).toHaveAttribute("aria-pressed", "false");
+  expect(await page.evaluate(() => window.MDManager.sounds.isMuted())).toBe(false);
+  await page.evaluate(() => {
+    window.__completionSounds = 0;
+    window.MDManager.sounds.play = async () => { window.__completionSounds += 1; };
+  });
+  await page.locator(".card-header").first().click();
+  const todo = page.locator('.checkbox[data-checked="false"]').first();
+  await todo.click();
+  expect(await page.evaluate(() => window.__completionSounds)).toBe(1);
+});
+
 test("help popover documents shortcuts and Markdown and closes predictably", async ({ page }) => {
   await openFixture(page);
   const helpButton = page.getByRole("button", { name: "Help", exact: true });
@@ -431,7 +509,8 @@ test("backlog tasks use the scrollbar space only when the backlog overflows", as
       rightGap: bounds.right - cardBounds.right
     };
   });
-  await openFixture(page);
+  const todos = Array.from({ length: 40 }, (_, index) => `- [ ] Todo ${index + 1}`).join("\n");
+  await openFixture(page, `# Backlog Width\n\n## Feature\n### Task\n- [ ] current\n\n#Backlog\n## Later\n### Backlog Task\n${todos}`);
   await page.locator("#toggleBacklog").click();
   const before = await metrics();
   const headerBefore = await page.locator(".backlog-header").boundingBox();
@@ -439,9 +518,7 @@ test("backlog tasks use the scrollbar space only when the backlog overflows", as
   expect(before.overflow).toBe(false);
   expect(Math.abs(before.leftGap - before.rightGap)).toBeLessThanOrEqual(1);
 
-  const tasks = Array.from({ length: 40 }, (_, index) => `### Backlog Task ${index + 1}\n- [ ] pending`).join("\n\n");
-  await openFixture(page, `# Backlog Width\n\n## Feature\n### Task\n- [ ] current\n\n#Backlog\n## Later\n${tasks}`);
-  await page.locator("#toggleBacklog").click();
+  await page.locator("#backlog .card-header").click();
   await expect.poll(async () => (await metrics()).overflow).toBe(true);
   await expect.poll(async () => before.cardWidth - (await metrics()).cardWidth).toBeGreaterThanOrEqual(9);
   const headerAfter = await page.locator(".backlog-header").boundingBox();
@@ -465,12 +542,22 @@ test("checking a todo updates progress, dirty state, save output, undo, and redo
   const openTodo = page.locator(".card").first().locator(".checkbox").nth(1);
   await page.locator(".card-header").first().click();
   await openTodo.click();
+  const finishedTask = page.locator(".notification").filter({ hasText: "Task finished" });
+  const finishedFeature = page.locator(".notification").filter({ hasText: "Feature finished" });
+  await expect(finishedTask.locator(".notification-body")).toHaveText("Started Task completed.");
+  await expect(finishedTask.locator(".notification-value")).toHaveText("Started Task");
+  await expect(finishedTask.locator(".notification-symbol-rocket")).toBeVisible();
+  await expect(finishedFeature.locator(".notification-body")).toHaveText("Active Feature completed.");
+  await expect(finishedFeature.locator(".notification-value")).toHaveText("Active Feature");
+  await expect(finishedFeature.locator(".notification-symbol-confetti")).toBeVisible();
   await expect(page.locator(".card").first().locator(".task-check")).toBeVisible();
   await expect(page.locator("#saveFile")).toHaveClass(/dirty/);
   await page.locator("#undoChange").click();
   await expect(page.locator(".card").first().locator(".task-in-progress")).toBeVisible();
   await page.locator("#redoChange").click();
   await page.locator("#saveFile").click();
+  await expect(page.locator(".notification-title").last()).toHaveText("File saved");
+  await expect(page.locator(".notification-body").last()).toHaveText("Fixture.md saved.");
   await expect.poll(() => page.evaluate(() => window.__savedMarkdown)).toContain("- [x] ~open~");
 });
 

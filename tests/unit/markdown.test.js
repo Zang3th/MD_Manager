@@ -6,6 +6,20 @@ const load = require("./load-classic");
 
 const { markdown } = load("io/markdown.js");
 
+test("rejects Markdown that cannot be interpreted safely", () => {
+  const invalid = [
+    "",
+    "plain text without a project title",
+    "## Feature\n# Project",
+    "# Project\n### Orphan task",
+    "# First\n# Second",
+    "# Project\ntext\u0000after"
+  ];
+  for (const source of invalid) {
+    assert.throws(() => markdown.parse(source), error => error.name === "MarkdownFormatError" && Boolean(error.message));
+  }
+});
+
 test("parses project, metadata, notes, tasks, todos, and backlog", () => {
   const value = markdown.parse("# Project\r\n\r\n## Feature\r\n#Version\r\n- 1.2.3\r\n#Date\r\n- 2026-01-01 - 2026-02-01\r\n#Info\r\n- note\r\n### Task\r\n- [x] ~done~\r\n- [ ] open\r\n\r\n#Backlog\r\n## Later\r\n### Deferred\r\n- item");
   assert.equal(value.title, "Project"); assert.equal(value.newline, "\r\n");

@@ -272,9 +272,9 @@
 
 ### Notifications
 
-- [ ] Notificationsystem bauen (UI ähnlich zu Neovim)
-- [ ] Notifications ergänzen
-- [ ] Stack kann über Button gezielt angeschaut werden
+- [x] ~Notificationsystem bauen (UI ähnlich zu Neovim)~
+- [x] ~Notifications ergänzen~
+- [x] ~Sounds ergänzen~
 
 ### Kopieren
 
@@ -282,6 +282,7 @@
 - [ ] Steuerung per Maus (Rechtsklick) und Tastatur (STRG + C/V)
 - [ ] Smooth mit UI-Feedback
 - [ ] Anzeige von gefülltem Zwischenspeicher
+- [ ] Entsprechende Notification
 
 #Backlog
 ## Backlog
