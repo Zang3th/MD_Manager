@@ -9,7 +9,8 @@
 - Everything must run directly from the local filesystem.
 - SortableJS is the only permitted production dependency and must be stored locally under `vendor/`.
 - Test-only dependencies and package-manager tooling are permitted.
-- Do not add unrequested features, abstractions, fallbacks, tests, documentation, configuration, or polish.
+- Do not add unrequested features, abstractions, fallbacks, documentation, configuration, or polish.
+- Regression tests for requested product behavior are part of that behavior and do not require a separate request. Add or update the smallest deterministic regression coverage needed for every behavior change.
 - Follow requirements literally; when ambiguous, choose the simplest interpretation.
 
 ## Architecture
@@ -27,22 +28,31 @@
 
 ## Layout
 
-- `Layout.md` defines the required layout and structure.
-- Never modify `Layout.md` unless explicitly instructed.
-- Match `Layout.md` without inventing missing behavior.
+- `data/Layout.md` defines the required Markdown layout and structure and is the parsing golden file.
+- Never modify `data/Layout.md` unless explicitly instructed.
+- Match `data/Layout.md` without inventing missing behavior.
 
 ## Performance
 
-- Treat responsiveness and low interaction latency as core product requirements.
-- Measure performance with representative data in a real browser and optimize demonstrated bottlenecks.
-- Avoid layout thrashing: batch DOM reads, calculations, and DOM writes; never alternate reads and writes inside loops.
-- Coalesce layout and resize work into one pending animation frame.
-- Cache stable derived values with explicit, minimal invalidation conditions; do not recalculate them when dependencies are unchanged.
-- Prefer targeted DOM updates over rebuilding the application for localized changes.
+- Treat compute time, memory, browser layout, painting, and allocation as finite resources even on modern hardware. Do not choose knowingly naive algorithms or data flows merely because the current fixture is small.
+- Consider time complexity, allocation volume, retained memory, DOM size, and frequency of work when designing every hot or repeated path.
+- Do not parse, serialize, traverse, measure, allocate, or render data again when neither its input nor its relevant environment changed.
+- Cache stable derived values when reuse is meaningful. Give every cache explicit, minimal invalidation conditions and keep it bounded or clear it at well-defined lifecycle boundaries.
+- Prefer targeted state and DOM updates over rebuilding the application for localized changes. Avoid cloning, querying, or walking entire projects or DOM subtrees for a single-item change when a direct target is available.
+- Avoid layout thrashing: group DOM reads, calculations, and writes into separate phases and never alternate reads and writes inside loops.
+- Coalesce layout, resize, scroll, and observer-driven work into at most one pending animation frame. Observe the narrowest useful targets and avoid broad mutation work when a direct event or invalidation signal exists.
+- Keep interaction handlers short and interruptible. Move expensive non-visual work out of the immediate input path when doing so preserves deterministic behavior.
+- Keep transient collections and queues bounded. Disconnect observers, listeners, audio nodes, and other external resources when their lifecycle ends, and do not retain detached DOM or stale project objects unnecessarily.
+- Use compositor-friendly animations where possible and avoid animating properties that repeatedly trigger layout or expensive paint without a demonstrated need.
+- Measure representative small and large projects in a real browser. Optimize demonstrated bottlenecks, but prevent obvious algorithmic, allocation, and layout problems during design rather than waiting for a benchmark to expose them.
 
 ## User Experience
 
 - Deliver a modern, consistent, cross-platform experience with immediate and predictable feedback.
+- Cross-platform means equivalent behavior, structure, dimensions, typography, icons, and control states in the same supported browser and browser version on Windows, Linux, and macOS. It does not imply support for browsers that lack required platform APIs.
+- Use repository-local fonts and deterministic SVG or CSS symbols for visually significant UI. Do not rely on platform-dependent emoji, system icons, or unspecified font fallback when their appearance or metrics affect the layout.
+- Account for platform differences in native controls, dialogs, focus rendering, scrollbar metrics, font loading, and input methods. Normalize them where they affect application layout or behavior.
+- Treat small rasterization and font-antialiasing differences as platform rendering details, but keep computed sizes, spacing, wrapping, hierarchy, accessible names, and interaction behavior consistent.
 - Prevent layout shifts, jumping content, transient incorrect states, and avoidable interaction latency.
 - Preserve user context across view changes, including expanded items, enabled view options, and scroll positions where required.
 - Use consistent spacing, typography, symbols, colors, borders, hover states, and control dimensions across equivalent components.

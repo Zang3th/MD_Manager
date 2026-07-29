@@ -304,6 +304,13 @@
 
 - [ ] Roadmap.md kann wieder als Roadtrip-Test verwendet werden
 
+### Cross-Platform
+
+- [ ] Plattformabhängige Unicode-Symbole durch lokale SVG- oder CSS-Symbole ersetzen
+- [ ] Lokale Monospace-Schrift für Clock, Metadaten und Code-Darstellung ergänzen
+- [ ] Schriftmetriken, Icons und Steuerelemente auf Windows, Linux und macOS vergleichen
+- [ ] Chromium-Layouttests für Windows, Linux und macOS
+
 ### README.md
 
 - [ ] Ordentliche README im Stil der anderen Projekte erstellen

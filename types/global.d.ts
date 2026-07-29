@@ -52,7 +52,7 @@ type MDFeature = {
   ignored?: boolean;
 };
 type MDProject = { title: string; newline: string; beforeFeatures: string[]; features: MDFeature[] };
-type MDHistory = { entries: string[]; index: number };
+type MDHistory = { entries: string[]; index: number; totalSize: number };
 type MDFileHandle = {
   name: string;
   getFile(): Promise<{text(): Promise<string>}>;

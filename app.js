@@ -12,22 +12,22 @@ window.MDManager = window.MDManager || {};
   /** @type {MDHistory | null} */
   let history = null;
 
-  /** @param {MDViewState} [viewState] */
-  function render(viewState) {
+  /** @param {MDViewState} [viewState] @param {string} [markdown] */
+  function render(viewState, markdown) {
     if (!project || !fileHandle) return;
     app.render.project(project, viewState, fileHandle.name);
     app.interactions.setProject(project, recordChange);
-    updateHistoryControls();
+    updateHistoryControls(markdown);
   }
 
   function currentMarkdown() {
     return app.markdown.serialize(project);
   }
 
-  function updateHistoryControls() {
-    const markdown = project ? currentMarkdown() : "";
+  /** @param {string} [current] */
+  function updateHistoryControls(current = project ? currentMarkdown() : "") {
     app.interactions.setHistoryState({
-      dirty: Boolean(project) && markdown !== savedMarkdown,
+      dirty: Boolean(project) && current !== savedMarkdown,
       canUndo: Boolean(history) && app.history.canUndo(history),
       canRedo: Boolean(history) && app.history.canRedo(history)
     });
@@ -41,17 +41,19 @@ window.MDManager = window.MDManager || {};
 
   /** @param {MDViewState} viewState @param {any} [options] */
   function recordChange(viewState, options = {}) {
-    app.history.record(history, currentMarkdown());
-    if (options.render === false) updateHistoryControls();
-    else render(viewState);
+    const markdown = currentMarkdown();
+    app.history.record(history, markdown);
+    if (options.render === false) updateHistoryControls(markdown);
+    else render(viewState, markdown);
   }
 
   async function save() {
-    if (!project || !fileHandle || currentMarkdown() === savedMarkdown) return;
+    if (!project || !fileHandle) return;
     const markdown = currentMarkdown();
+    if (markdown === savedMarkdown) return;
     await app.files.save(fileHandle, markdown);
     savedMarkdown = markdown;
-    updateHistoryControls();
+    updateHistoryControls(markdown);
     app.notifications.show("info", "File saved", [{ value: fileHandle.name }, " saved."]);
   }
 

@@ -35,6 +35,8 @@ window.MDManager = window.MDManager || {};
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   const clipboardIndicatorTemplate = /** @type {HTMLTemplateElement} */ (document.getElementById("clipboardIndicatorTemplate"));
   const clipboardResizeObserver = new ResizeObserver(scheduleClipboardPosition);
+  const clipboardMutationObserver = new MutationObserver(scheduleClipboardPosition);
+  let clipboardTracking = false;
 
   /** @param {MDTask} task */
   function taskComplete(task) {
@@ -134,6 +136,30 @@ window.MDManager = window.MDManager || {};
     clipboardPositionFrame = window.requestAnimationFrame(positionClipboardIndicators);
   }
 
+  function startClipboardTracking() {
+    if (clipboardTracking) return;
+    clipboardTracking = true;
+    window.addEventListener("resize", scheduleClipboardPosition);
+    document.addEventListener("scroll", scheduleClipboardPosition, true);
+    clipboardMutationObserver.observe(/** @type {HTMLElement} */ (document.querySelector(".workspace")), {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ["hidden", "aria-expanded"]
+    });
+  }
+
+  function stopClipboardTracking() {
+    if (!clipboardTracking) return;
+    clipboardTracking = false;
+    window.removeEventListener("resize", scheduleClipboardPosition);
+    document.removeEventListener("scroll", scheduleClipboardPosition, true);
+    clipboardMutationObserver.disconnect();
+    clipboardResizeObserver.disconnect();
+    if (clipboardPositionFrame !== null) window.cancelAnimationFrame(clipboardPositionFrame);
+    clipboardPositionFrame = null;
+  }
+
   function placeClipboardIndicators() {
     document.querySelectorAll(".clipboard-source").forEach(element => element.classList.remove("clipboard-source"));
     clipboardIndicators.forEach(indicator => indicator.remove());
@@ -158,6 +184,8 @@ window.MDManager = window.MDManager || {};
   /** @param {ClipboardEntry[]} value */
   function setClipboard(value) {
     clipboard = value;
+    if (clipboard.length) startClipboardTracking();
+    else stopClipboardTracking();
     placeClipboardIndicators();
   }
 
@@ -717,15 +745,6 @@ window.MDManager = window.MDManager || {};
     container.addEventListener("mouseover", handleTitleEnter);
     container.addEventListener("mouseout", handleTitleLeave);
   });
-  window.addEventListener("resize", scheduleClipboardPosition);
-  document.addEventListener("scroll", scheduleClipboardPosition, true);
-  new MutationObserver(scheduleClipboardPosition).observe(/** @type {HTMLElement} */ (document.querySelector(".workspace")), {
-    subtree: true,
-    childList: true,
-    attributes: true,
-    attributeFilter: ["class", "hidden", "aria-expanded"]
-  });
-
   document.getElementById("toggleBacklog").addEventListener("click", toggleBacklog);
   document.getElementById("addFeature").addEventListener("click", () => {
     if (!project) return;

@@ -7,10 +7,16 @@ window.MDManager = window.MDManager || {};
   let activeSources = [];
   /** @type {GainNode | null} */
   let activeBus = null;
+  /** @type {AudioBuffer | null} */
+  let plateImpulse = null;
+  /** @type {number | null} */
+  let cleanupTimer = null;
   let requestId = 0;
   let muted = false;
 
   function stopActive() {
+    if (cleanupTimer !== null) window.clearTimeout(cleanupTimer);
+    cleanupTimer = null;
     if (activeBus && context) {
       activeBus.gain.cancelScheduledValues(context.currentTime);
       activeBus.gain.setValueAtTime(0, context.currentTime);
@@ -29,18 +35,20 @@ window.MDManager = window.MDManager || {};
     const audioContext = context;
     if (!audioContext) throw new Error("Audio context is unavailable.");
     const plate = audioContext.createConvolver();
-    const frameCount = audioContext.sampleRate;
-    const impulse = audioContext.createBuffer(2, frameCount, audioContext.sampleRate);
-    let seed = 48271;
-    for (let channel = 0; channel < impulse.numberOfChannels; channel += 1) {
-      const samples = impulse.getChannelData(channel);
-      for (let index = 0; index < samples.length; index += 1) {
-        seed = seed * 16807 % 2147483647;
-        const decay = Math.pow(1 - index / samples.length, 3);
-        samples[index] = (seed / 1073741824 - 1) * decay;
+    if (!plateImpulse) {
+      const frameCount = audioContext.sampleRate;
+      plateImpulse = audioContext.createBuffer(2, frameCount, audioContext.sampleRate);
+      let seed = 48271;
+      for (let channel = 0; channel < plateImpulse.numberOfChannels; channel += 1) {
+        const samples = plateImpulse.getChannelData(channel);
+        for (let index = 0; index < samples.length; index += 1) {
+          seed = seed * 16807 % 2147483647;
+          const decay = Math.pow(1 - index / samples.length, 3);
+          samples[index] = (seed / 1073741824 - 1) * decay;
+        }
       }
     }
-    plate.buffer = impulse;
+    plate.buffer = plateImpulse;
     plate.connect(bus);
     return plate;
   }
@@ -80,6 +88,19 @@ window.MDManager = window.MDManager || {};
     oscillator.start(start);
     oscillator.stop(start + duration + .02);
     activeSources.push(oscillator);
+    oscillator.addEventListener("ended", () => {
+      const index = activeSources.indexOf(oscillator);
+      if (index >= 0) activeSources.splice(index, 1);
+      oscillator.disconnect();
+      if (!activeSources.length && activeBus === bus) {
+        cleanupTimer = window.setTimeout(() => {
+          cleanupTimer = null;
+          if (activeBus !== bus) return;
+          bus.disconnect();
+          activeBus = null;
+        }, 1000);
+      }
+    }, { once: true });
   }
 
   async function play() {

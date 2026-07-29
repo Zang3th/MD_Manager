@@ -207,7 +207,16 @@ test("logo and feature new buttons create features and tasks through existing ed
   await page.locator("#cancelFeatureEditor").click();
   await expect(page.locator("#content > .release")).toHaveCount(2);
   await addFeature.click();
+  await page.evaluate(() => {
+    const serialize = window.MDManager.markdown.serialize;
+    window.__serializationCount = 0;
+    window.MDManager.markdown.serialize = project => {
+      window.__serializationCount += 1;
+      return serialize(project);
+    };
+  });
   await page.locator("#saveFeatureEditor").click();
+  expect(await page.evaluate(() => window.__serializationCount)).toBe(1);
   await expect(page.locator("#content > .release")).toHaveCount(3);
   await expect(page.locator("#content > .release").last().locator(".release-title")).toHaveText("New Feature");
   await expect(page.locator(".notification-title").last()).toHaveText("Feature added");
@@ -369,6 +378,8 @@ test("notifications stack by severity, match feature widths, and disappear autom
   await expect(notifications.nth(0)).toHaveCSS("width", "320px");
   await expect(notifications.nth(0)).toHaveCSS("height", "88px");
   await page.locator("#toggleBacklog").click();
+  await expect(notifications.nth(0)).toHaveCSS("transform", "none");
+  await expect(page.locator("#backlog")).toHaveCSS("transform", "none");
   const accentBars = await page.locator("#appClock, #projectStats, .backlog-header, .notification-info").evaluateAll(nodes => nodes.map(node => {
     const bounds = node.getBoundingClientRect();
     const accent = getComputedStyle(node, "::before");
@@ -384,9 +395,16 @@ test("notifications stack by severity, match feature widths, and disappear autom
   await page.locator("#toggleGridView").click();
   await expect(notifications.nth(0)).toHaveCSS("width", "260px");
   await page.evaluate(() => {
+    const clearTimeout = window.clearTimeout;
+    window.__clearedNotificationTimers = 0;
+    window.clearTimeout = timer => {
+      window.__clearedNotificationTimers += 1;
+      clearTimeout(timer);
+    };
     for (let index = 0; index < 20; index += 1) window.MDManager.notifications.show("info", `Rapid ${index}`, `Notification ${index}`);
   });
   expect(await notifications.count()).toBeLessThan(20);
+  expect(await page.evaluate(() => window.__clearedNotificationTimers)).toBeGreaterThan(0);
   await expect(notifications.last().locator(".notification-title")).toHaveText("Rapid 19");
   const notificationBounds = await notifications.first().boundingBox();
   const headerBounds = await page.locator(".header").boundingBox();
@@ -635,6 +653,7 @@ test("backlog tasks use the scrollbar space only when the backlog overflows", as
   const todos = Array.from({ length: 40 }, (_, index) => `- [ ] Todo ${index + 1}`).join("\n");
   await openFixture(page, `# Backlog Width\n\n## Feature\n### Task\n- [ ] current\n\n#Backlog\n## Later\n### Backlog Task\n${todos}`);
   await page.locator("#toggleBacklog").click();
+  await expect(page.locator("#backlog")).toHaveCSS("transform", "none");
   const before = await metrics();
   const headerBefore = await page.locator(".backlog-header").boundingBox();
   const closeBefore = await page.locator(".backlog-close").boundingBox();
@@ -662,9 +681,18 @@ test("backlog tasks use the scrollbar space only when the backlog overflows", as
 
 test("checking a todo updates progress, dirty state, save output, undo, and redo", async ({ page }) => {
   await openFixture(page);
+  await page.evaluate(() => {
+    const serialize = window.MDManager.markdown.serialize;
+    window.__serializationCount = 0;
+    window.MDManager.markdown.serialize = project => {
+      window.__serializationCount += 1;
+      return serialize(project);
+    };
+  });
   const openTodo = page.locator(".card").first().locator(".checkbox").nth(1);
   await page.locator(".card-header").first().click();
   await openTodo.click();
+  expect(await page.evaluate(() => window.__serializationCount)).toBe(1);
   const finishedTask = page.locator(".notification").filter({ hasText: "Task finished" });
   const finishedFeature = page.locator(".notification").filter({ hasText: "Feature finished" });
   await expect(finishedTask.locator(".notification-body")).toHaveText("Started Task completed.");

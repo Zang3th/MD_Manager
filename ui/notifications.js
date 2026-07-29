@@ -3,6 +3,15 @@ window.MDManager = window.MDManager || {};
 (function (app) {
   const duration = 4000;
   let resizeFrame = 0;
+  const dismissTimers = new WeakMap();
+
+  /** @param {HTMLElement} notification */
+  function remove(notification) {
+    const timer = dismissTimers.get(notification);
+    if (timer !== undefined) window.clearTimeout(timer);
+    dismissTimers.delete(notification);
+    notification.remove();
+  }
 
   /** @param {HTMLElement} container */
   function trim(container) {
@@ -15,14 +24,17 @@ window.MDManager = window.MDManager || {};
       if (removeCount < notifications.length - 1) usedHeight -= gap;
       removeCount += 1;
     }
-    notifications.slice(0, removeCount).forEach(notification => notification.remove());
+    notifications.slice(0, removeCount).forEach(remove);
   }
 
   /** @param {HTMLElement} notification */
   function dismiss(notification) {
     if (!notification.isConnected || notification.classList.contains("notification-leaving")) return;
+    const timer = dismissTimers.get(notification);
+    if (timer !== undefined) window.clearTimeout(timer);
+    dismissTimers.delete(notification);
     notification.classList.add("notification-leaving");
-    notification.addEventListener("animationend", () => notification.remove(), { once: true });
+    notification.addEventListener("animationend", () => remove(notification), { once: true });
   }
 
   const symbols = {
@@ -72,7 +84,7 @@ window.MDManager = window.MDManager || {};
     const container = document.getElementById("notifications");
     container.append(notification);
     trim(container);
-    window.setTimeout(() => dismiss(notification), duration);
+    if (notification.isConnected) dismissTimers.set(notification, window.setTimeout(() => dismiss(notification), duration));
   }
 
   /** @param {unknown} value */

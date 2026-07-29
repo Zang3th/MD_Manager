@@ -30,3 +30,18 @@ test("history ignores duplicates and discards the redo branch", () => {
   assert.deepEqual(Array.from(state.entries), ["a", "b", "d"]);
   assert.equal(history.canRedo(state), false);
 });
+
+test("history bounds retained snapshots by entry count and total size", () => {
+  const countLimited = history.create("0");
+  for (let index = 1; index <= 120; index++) history.record(countLimited, String(index));
+  assert.equal(countLimited.entries.length, 100);
+  assert.equal(countLimited.entries[0], "21");
+  assert.equal(countLimited.totalSize, countLimited.entries.reduce((size, entry) => size + entry.length, 0));
+
+  const chunk = "x".repeat(1024 * 1024);
+  const sizeLimited = history.create(`${chunk}0`);
+  for (let index = 1; index <= 9; index++) history.record(sizeLimited, `${chunk}${index}`);
+  assert.equal(sizeLimited.entries.length, 7);
+  assert.ok(sizeLimited.totalSize <= 8 * 1024 * 1024);
+  assert.equal(sizeLimited.entries.at(-1), `${chunk}9`);
+});
