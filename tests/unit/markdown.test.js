@@ -117,8 +117,8 @@ test("serialization preserves newline style, orders backlog last, and normalizes
   assert.match(output, /^- \[x\] ~complete~$/m);
 });
 
-test("Layout.md is the parsing golden file and round-trips without losing information", () => {
-  const source = fs.readFileSync(path.join(__dirname, "../../data/Layout.md"), "utf8");
+test("data/parsing/Layout.md is the parsing golden file and round-trips without losing information", () => {
+  const source = fs.readFileSync(path.join(__dirname, "../../data/parsing/Layout.md"), "utf8");
   const first = markdown.parse(source);
   const serialized = markdown.serialize(first);
   const second = markdown.parse(serialized);

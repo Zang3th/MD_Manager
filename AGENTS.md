@@ -28,9 +28,10 @@
 
 ## Layout
 
-- `data/Layout.md` defines the required Markdown layout and structure and is the parsing golden file.
-- Never modify `data/Layout.md` unless explicitly instructed.
-- Match `data/Layout.md` without inventing missing behavior.
+- `data/parsing/Layout.md` defines the required Markdown layout and structure and is the parsing golden file.
+- Never modify `data/parsing/Layout.md` unless explicitly instructed.
+- Match `data/parsing/Layout.md` without inventing missing behavior.
+- Never modify `docs/Roadmap.md` unless the user explicitly requests changes to it.
 
 ## Performance
 
@@ -64,7 +65,7 @@
 - The harness consists of strict TypeScript checking for JavaScript with JSDoc, ESLint with zero warnings, the architecture checker, `node:test`, and Playwright Test.
 - `npm run verify` runs all checks in that order, fails fast, and is the only Definition of Done for local development, agents, and CI.
 - Keep the harness deterministic, isolated, non-interactive, offline during verification, and independent of machine-specific paths or user state.
-- Treat `data/Layout.md` as the parsing golden file and preserve all existing tests, assertions, and architecture rules.
+- Treat `data/parsing/Layout.md` as the parsing golden file and preserve all existing tests, assertions, and architecture rules.
 - Extend checks and regression coverage with behavior changes; never weaken the harness to make a change pass.
 
 ## Tests

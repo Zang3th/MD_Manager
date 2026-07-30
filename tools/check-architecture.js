@@ -96,8 +96,8 @@ for (const file of productionFiles) {
   }
 }
 
-if (!fs.existsSync(path.join(root, "data/Layout.md"))) {
-  report("data/Layout.md", "layout-contract", "the required Markdown layout and parsing golden file is missing");
+if (!fs.existsSync(path.join(root, "data/parsing/Layout.md"))) {
+  report("data/parsing/Layout.md", "layout-contract", "the required Markdown layout and parsing golden file is missing");
 }
 
 const html = source("MD_Manager.html");

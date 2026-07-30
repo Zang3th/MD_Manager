@@ -311,17 +311,12 @@
 
 ### Tests
 
-- [x] ~Ausbau von Layout.md mit Pseudodaten und alles unterstützten Features~
+- [x] ~Ausbau von Layout.md mit Pseudodaten und allen unterstützten Features~
 
 ### Help
 
 - [x] ~Im Edit-Dialog ergänzen~
 - [x] ~Quick-Reference an die neuen Features anpassen~
-
-### New-Dialog
-
-- [ ] Neben "Empty" auch Vorlagen anbieten
-- [ ] Templates für Tasks und Features lokal ablegen
 
 ## Dateisystem
 
@@ -342,10 +337,10 @@
 - [ ] Ein richtiges Undo-System integrieren
 - [ ] Schlauere State-Erkennung
 
-### Markdown-Linting
+### New-Dialog
 
-- [ ] Nach Linting-Regeln importieren/exportieren
-- [ ] Schalter im UI (Default = False)
+- [ ] Neben "Empty" auch Vorlagen anbieten
+- [ ] Templates für Tasks und Features lokal ablegen
 
 ## Markdown-Erweiterungen
 
@@ -355,19 +350,24 @@
 #Date
 - TBD
 
-### Cross-Platform
-
-- [ ] Plattformabhängige Unicode-Symbole durch lokale SVG- oder CSS-Symbole ersetzen
-- [ ] Lokale Monospace-Schrift für Clock, Metadaten und Code-Darstellung ergänzen
-- [ ] Schriftmetriken, Icons und Steuerelemente auf Windows, Linux und macOS testen
-- [ ] Chromium-Layouttests für Windows, Linux und macOS
-
 ### Markdown-Features
 
 - [ ] Referenzen herstellen + hervorheben können
 - [ ] Bilder unterstützen können
 - [ ] Auch einen Umgang mit anderen Markdown-Features + inline-HTML finden
 - [ ] Live-Parsing mit Fehlermeldungen
+
+### Markdown-Linting
+
+- [ ] Nach Linting-Regeln importieren/exportieren
+- [ ] Schalter im UI (Default = False)
+
+### Cross-Platform
+
+- [ ] Plattformabhängige Unicode-Symbole durch lokale SVG- oder CSS-Symbole ersetzen
+- [ ] Lokale Monospace-Schrift für Clock, Metadaten und Code-Darstellung ergänzen
+- [ ] Schriftmetriken, Icons und Steuerelemente auf Windows, Linux und macOS testen
+- [ ] Chromium-Layouttests für Windows, Linux und macOS
 
 ## Archivierung und Suche
 

@@ -43,10 +43,11 @@ async function openFixture(page, markdown = fixture) {
 test("start screen exposes the application identity and open action", async ({ page }) => {
   await page.goto(appUrl);
   await expect(page).toHaveTitle("MD_Manager");
-  await expect(page.locator("#appVersion")).toHaveText(/^v\d+\.\d+\.\d+$/);
+  await expect(page.locator("#appVersion")).toHaveText("v0.3.0");
   expect(await page.locator("#appVersion").evaluate(element => getComputedStyle(element, "::before").height)).toBe("2px");
   await expect(page.getByRole("button", { name: "Open", exact: true })).toBeVisible();
   await expect(page.locator("#watermark")).toBeVisible();
+  await expect(page.locator("#watermark")).toContainText("MD_Manager v0.3.0");
   const help = page.getByRole("button", { name: "Help", exact: true });
   const sound = page.locator("#toggleSounds");
   const theme = page.locator("#toggleTheme");
