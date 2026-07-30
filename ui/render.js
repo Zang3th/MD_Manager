@@ -16,13 +16,34 @@ window.MDManager = window.MDManager || {};
   }
 
   /** @param {string} value */
+  function inlineCode(value) {
+    let markup = "";
+    for (let index = 0; index < value.length;) {
+      const operator = value.slice(index, index + 2);
+      if (operator === "=>" || operator === "->" || operator === "::") {
+        markup += `${escapeHtml(operator)}${index + 2 < value.length ? "<wbr>" : ""}`;
+        index += 2;
+        continue;
+      }
+      const previous = value[index - 1] || "";
+      const character = value[index];
+      const next = value[index + 1] || "";
+      if ((/[a-z0-9]/.test(previous) && /[A-Z]/.test(character)) || (/[A-Z]/.test(previous) && /[A-Z]/.test(character) && /[a-z]/.test(next))) markup += "<wbr>";
+      markup += escapeHtml(character);
+      if (index + 1 < value.length && /[.,_/\\:;=+\-*<>()[\]{}|&]/.test(character)) markup += "<wbr>";
+      index += 1;
+    }
+    return markup;
+  }
+
+  /** @param {string} value */
   function inlineMarkdown(value) {
     const tokens = /(`([^`\n]+)`|\[([^\]\n]+)]\((https?:\/\/[^\s)]+)\)|\*\*([^*\n]+)\*\*|~([^~\n]+)~|\*([^*\n]+)\*)/g;
     let markup = "";
     let offset = 0;
     for (const match of value.matchAll(tokens)) {
       markup += escapeHtml(value.slice(offset, match.index));
-      if (match[2] !== undefined) markup += `<code>${escapeHtml(match[2])}</code>`;
+      if (match[2] !== undefined) markup += `<code>${inlineCode(match[2])}</code>`;
       else if (match[3] !== undefined) markup += `<a href="${escapeHtml(match[4])}" target="_blank" rel="noopener noreferrer">${escapeHtml(match[3])}</a>`;
       else if (match[5] !== undefined) markup += `<strong>${escapeHtml(match[5])}</strong>`;
       else if (match[6] !== undefined) markup += `<s>${escapeHtml(match[6])}</s>`;

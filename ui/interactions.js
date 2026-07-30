@@ -440,6 +440,12 @@ window.MDManager = window.MDManager || {};
     button.setAttribute("aria-pressed", String(open));
     if (open) app.layout.fitTitles(backlog.querySelectorAll(".backlog-title, .card-title"));
     app.layout.contentOverflowChanged();
+    if (open && !document.body.classList.contains("toggle-grid-view")) {
+      const content = document.getElementById("content");
+      requestAnimationFrame(() => {
+        if (!backlog.hidden) content.scrollLeft = content.scrollWidth;
+      });
+    }
   }
 
   function resetSortables() {

@@ -40,6 +40,12 @@ async function openFixture(page, markdown = fixture) {
   await expect(page.locator("#projectTitle")).toHaveText(markdown.match(/^#\s+(.+)$/m)[1]);
 }
 
+async function toggleBacklogFromView(page) {
+  await page.locator("#toggleViewMenu").click();
+  await page.locator("#toggleBacklog").click();
+  await page.locator("#toggleViewMenu").click();
+}
+
 test("start screen exposes the application identity and open action", async ({ page }) => {
   await page.goto(appUrl);
   await expect(page).toHaveTitle("MD_Manager");
@@ -132,6 +138,18 @@ test("text below a task label keeps its position and visual hierarchy", async ({
     return [boxes[1].top - boxes[0].bottom, boxes[2].top - boxes[1].bottom];
   });
   expect(gaps[0]).toBeCloseTo(gaps[1], 5);
+});
+
+test("inline code wraps at punctuation and case transitions", async ({ page }) => {
+  const source = "HTTPServer.longIdentifier_value=>NextCase(argument_one)";
+  await openFixture(page, `# Project\n\n## Feature\n\n### Task\n\`${source}\``);
+  await page.locator(".card-header").click();
+  const code = page.locator(".card-body code");
+  await expect(code).toHaveText(source);
+  await expect(code.locator("wbr")).toHaveCount(8);
+  await expect(code).toHaveCSS("overflow-wrap", "break-word");
+  await code.evaluate(element => { element.parentElement.style.width = "8rem"; });
+  await expect.poll(() => code.evaluate(element => element.getClientRects().length)).toBeGreaterThan(1);
 });
 
 test("a task label renders repeated descriptions with their following todos in source order", async ({ page }) => {
@@ -689,10 +707,10 @@ test("dragging a Markdown selection beyond the dialog does not cancel editing", 
 
 test("backlog opens as a separate pane and closes from its framed button", async ({ page }) => {
   await openFixture(page);
-  await page.locator("#toggleBacklog").click();
+  await toggleBacklogFromView(page);
   await expect(page.locator("#backlog")).toBeVisible();
   await expect(page.locator(".backlog-title")).toHaveText("Later");
-  await expect(page.locator(".backlog-pane")).toHaveCSS("width", "320px");
+  await expect(page.locator(".backlog-pane")).toHaveCSS("width", "300px");
   await expect.poll(async () => {
     const backlogBounds = await page.locator("#backlog").boundingBox();
     const paneBounds = await page.locator(".backlog-pane").boundingBox();
@@ -714,13 +732,31 @@ test("backlog opens as a separate pane and closes from its framed button", async
   await expect(page.locator("#backlog")).toBeHidden();
 });
 
+test("opening the backlog scrolls the board to its right edge", async ({ page }) => {
+  const features = Array.from({ length: 5 }, (_, index) => `## Feature ${index + 1}\n### Task\n- [ ] pending`).join("\n\n");
+  await page.setViewportSize({ width: 900, height: 720 });
+  await openFixture(page, `# Scroll Test\n\n${features}\n\n#Backlog\n## Backlog\n### Deferred\n- [ ] later`);
+  const content = page.locator("#content");
+  await expect.poll(() => content.evaluate(node => node.scrollWidth - node.clientWidth)).toBeGreaterThan(0);
+  await expect.poll(() => content.evaluate(node => node.scrollLeft)).toBe(0);
+  await toggleBacklogFromView(page);
+  await expect.poll(() => content.evaluate(node => node.scrollLeft)).toBeGreaterThan(0);
+  await expect.poll(() => content.evaluate(node => {
+    const current = node.scrollLeft;
+    node.scrollLeft = node.scrollWidth;
+    const rightEdge = node.scrollLeft;
+    node.scrollLeft = current;
+    return Math.abs(current - rightEdge);
+  })).toBeLessThanOrEqual(1);
+});
+
 test("statistics can close and reopen in board and grid", async ({ page }) => {
   await openFixture(page);
   const stats = page.locator("#projectStats");
   const content = page.locator("#content");
   const firstRelease = page.locator("#content > .release").first();
   await expect(stats).toBeVisible();
-  await expect(stats).toHaveCSS("width", "320px");
+  await expect(stats).toHaveCSS("width", "300px");
   await expect(stats).toHaveCSS("border-radius", "10px");
   await expect(stats.locator("td").first()).toHaveCSS("font-size", "12px");
   await expect.poll(() => stats.evaluate(node => node.getBoundingClientRect().bottom)).toBe(page.viewportSize().height - 12);
@@ -761,7 +797,7 @@ test("clock is app-only, centered, and controlled from View", async ({ page }) =
   await expect(clock).toBeVisible();
 });
 
-test("notifications stack by severity, match feature widths, and disappear automatically", async ({ page }) => {
+test("notifications stack by severity, use the board width, and disappear automatically", async ({ page }) => {
   await openFixture(page);
   await page.locator("#notifications").evaluate(node => node.replaceChildren());
   const notifications = page.locator(".notification");
@@ -772,9 +808,9 @@ test("notifications stack by severity, match feature widths, and disappear autom
   await expect(notifications).toHaveCount(2);
   await expect(notifications.nth(0).locator(".notification-tag")).toHaveText("Info");
   await expect(notifications.nth(1).locator(".notification-tag")).toHaveText("Error");
-  await expect(notifications.nth(0)).toHaveCSS("width", "320px");
+  await expect(notifications.nth(0)).toHaveCSS("width", "300px");
   await expect(notifications.nth(0)).toHaveCSS("height", "88px");
-  await page.locator("#toggleBacklog").click();
+  await toggleBacklogFromView(page);
   await expect(notifications.nth(0)).toHaveCSS("transform", "none");
   await expect(page.locator("#backlog")).toHaveCSS("transform", "none");
   const accentBars = await page.locator("#appClock, #projectStats, .backlog-header, .notification-info").evaluateAll(nodes => nodes.map(node => {
@@ -955,11 +991,9 @@ test("context copy inserts feature cards before or after the pointed midpoint", 
 test("help popover documents shortcuts and Markdown and closes predictably", async ({ page }) => {
   await openFixture(page);
   const helpButton = page.getByRole("button", { name: "Help", exact: true });
-  const backlogButton = page.locator("#toggleBacklog");
   const soundButton = page.locator("#toggleSounds");
-  const positions = await Promise.all([backlogButton, helpButton, soundButton].map(locator => locator.evaluate(node => node.getBoundingClientRect().x)));
+  const positions = await Promise.all([helpButton, soundButton].map(locator => locator.evaluate(node => node.getBoundingClientRect().x)));
   expect(positions[0]).toBeLessThan(positions[1]);
-  expect(positions[1]).toBeLessThan(positions[2]);
   await expect(page.locator(".help-menu")).toHaveCSS("border-left-style", "solid");
   await helpButton.click();
   const help = page.locator("#helpPopover");
@@ -1065,7 +1099,7 @@ test("backlog tasks use the scrollbar space only when the backlog overflows", as
   });
   const todos = Array.from({ length: 40 }, (_, index) => `- [ ] Todo ${index + 1}`).join("\n");
   await openFixture(page, `# Backlog Width\n\n## Feature\n### Task\n- [ ] current\n\n#Backlog\n## Later\n### Backlog Task\n${todos}`);
-  await page.locator("#toggleBacklog").click();
+  await toggleBacklogFromView(page);
   await expect(page.locator("#backlog")).toHaveCSS("transform", "none");
   const before = await metrics();
   const headerBefore = await page.locator(".backlog-header").boundingBox();
@@ -1169,6 +1203,8 @@ test("view menu, keyboard shortcut, and accessibility states stay synchronized",
   await openFixture(page);
   await page.locator("#toggleViewMenu").click();
   await expect(page.locator("#toggleViewMenu")).toHaveAttribute("aria-expanded", "true");
+  await expect(page.locator("#viewOptions > button")).toHaveText(["Backlog", "Clock", "Metadata", "Statistics"]);
+  await expect(page.locator("#toggleBacklog")).toHaveCSS("color", "rgb(235, 219, 178)");
   await page.keyboard.press("Escape");
   await expect(page.locator("#viewOptions")).toBeHidden();
   await page.keyboard.press("Control+b");
@@ -1203,13 +1239,17 @@ test("SortableJS moves a task between features and persists the new order", asyn
   await expect.poll(() => page.evaluate(() => window.__savedMarkdown)).toMatch(/## Open Feature[\s\S]*### Started Task/);
 });
 
-test("board feature widths remain bounded on common and 4K viewports", async ({ page }) => {
+test("board uses 380px features and 360px tasks on common and 4K viewports", async ({ page }) => {
   await openFixture(page);
   const normalWidth = await page.locator("#content > .release").first().evaluate(node => node.getBoundingClientRect().width);
+  const normalTaskWidth = await page.locator("#content > .release").first().locator(".card").first().evaluate(node => node.getBoundingClientRect().width);
   await page.setViewportSize({ width: 3840, height: 2160 });
   const wideWidth = await page.locator("#content > .release").first().evaluate(node => node.getBoundingClientRect().width);
-  expect(normalWidth).toBe(320);
-  expect(wideWidth).toBe(320);
+  const wideTaskWidth = await page.locator("#content > .release").first().locator(".card").first().evaluate(node => node.getBoundingClientRect().width);
+  expect(normalWidth).toBe(380);
+  expect(normalTaskWidth).toBe(360);
+  expect(wideWidth).toBe(380);
+  expect(wideTaskWidth).toBe(360);
 });
 
 test("fixed grid uses 260px columns and backlog overlays without shifting it", async ({ page }) => {
@@ -1227,7 +1267,7 @@ test("fixed grid uses 260px columns and backlog overlays without shifting it", a
   await expect(releases.first().locator(".card-title").first()).toHaveCSS("font-size", "12px");
 
   const before = await releases.first().boundingBox();
-  await page.locator("#toggleBacklog").click();
+  await toggleBacklogFromView(page);
   await expect(page.locator(".backlog-title")).toHaveText("Backlog");
   const after = await releases.first().boundingBox();
   expect(after).toEqual(before);

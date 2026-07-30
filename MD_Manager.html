@@ -98,13 +98,13 @@
               </div>
             </aside>
           </div>
-          <button class="btn control-btn backlog-control" id="toggleBacklog" type="button" aria-pressed="false" disabled>Backlog</button>
           <div class="view-menu">
             <button class="btn control-btn" id="toggleViewMenu" type="button" aria-expanded="false" aria-controls="viewOptions">View <span aria-hidden="true">▾</span></button>
             <div class="view-options" id="viewOptions" hidden>
+              <button class="view-option" id="toggleBacklog" type="button" aria-pressed="false" disabled>Backlog</button>
+              <button class="view-option" id="toggleClock" type="button" aria-pressed="true">Clock</button>
               <button class="view-option" id="toggleMetadata" type="button" aria-pressed="false">Metadata</button>
               <button class="view-option" id="toggleStats" type="button" aria-pressed="true">Statistics</button>
-              <button class="view-option" id="toggleClock" type="button" aria-pressed="true">Clock</button>
             </div>
           </div>
           <div class="view-mode" role="group" aria-label="View mode">

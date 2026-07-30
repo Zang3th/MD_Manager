@@ -76,6 +76,7 @@ test("sounds reuse the reverb buffer, stop overlap, and release the completed gr
 
   const currentSources = audio.oscillators.slice(2);
   const currentBus = audio.gains.filter(gain => gain.connections.includes(audio.destination)).at(-1);
+  assert.equal(currentBus.gain.value, .12);
   currentSources.forEach(sourceNode => sourceNode.finish());
   assert.equal(timers.size, 1);
   timers.values().next().value();

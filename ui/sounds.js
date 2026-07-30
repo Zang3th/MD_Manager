@@ -112,7 +112,7 @@ window.MDManager = window.MDManager || {};
     stopActive();
 
     const bus = context.createGain();
-    bus.gain.value = .3;
+    bus.gain.value = .12;
     bus.connect(context.destination);
     activeBus = bus;
     const plate = createPlate(bus);
