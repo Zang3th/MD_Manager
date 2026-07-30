@@ -576,7 +576,7 @@ window.MDManager = window.MDManager || {};
         app.domain.addTask(project, featureIndex, { title: draft.title, lines: draft.lines.slice() });
         changed?.(viewState);
         app.notifications.show("info", "Task added", [{ value: draft.title }, " added to ", { value: feature.title }, "."]);
-      });
+      }, true);
       return;
     }
 
@@ -756,7 +756,7 @@ window.MDManager = window.MDManager || {};
       app.domain.addFeature(project, { ...metadata, title: draft.title, tasks: [], isBacklog: false });
       changed?.(viewState);
       app.notifications.show("info", "Feature added", [{ value: draft.title }, " added to \"", { value: projectTitle }, "\"."]);
-    });
+    }, true);
   });
   document.getElementById("toggleViewMenu").addEventListener("click", event => {
     closeHelp();
@@ -811,7 +811,7 @@ window.MDManager = window.MDManager || {};
       event.preventDefault();
       redo?.();
     }
-    if (event.ctrlKey && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "b" && !document.getElementById("toggleBacklog").disabled) {
+    if (event.ctrlKey && !event.altKey && !event.shiftKey && !editsText && event.key.toLowerCase() === "b" && !document.getElementById("toggleBacklog").disabled) {
       event.preventDefault();
       toggleBacklog();
     }
@@ -849,7 +849,7 @@ window.MDManager = window.MDManager || {};
     const target = eventElement(event);
     if (!target.closest(".view-menu")) closeViewMenu();
     if (!target.closest(".help-menu")) closeHelp();
-    if (!target.closest(".release,.card")) {
+    if (!target.closest(".release,.card,.task-editor-dialog,.feature-editor-dialog")) {
       hoveredElement = null;
       if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     }

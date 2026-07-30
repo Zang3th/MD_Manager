@@ -115,7 +115,7 @@ test("Markdown import renders features, tasks, progress states, and filename tit
 });
 
 test("text below a task label keeps its position and visual hierarchy", async ({ page }) => {
-  await openFixture(page, "# Project\n\n## Feature\n\n### Task\n\n**Label**\nDescription text\n- [ ] Todo text");
+  await openFixture(page, "# Project\n\n## Feature\n\n### Task\n\n#### Label\nDescription text\n- [ ] Todo text");
   const card = page.locator(".card");
   await card.locator(".card-header").click();
   const group = card.locator(".todo-group");
@@ -134,7 +134,7 @@ test("text below a task label keeps its position and visual hierarchy", async ({
 });
 
 test("a task label renders repeated descriptions with their following todos in source order", async ({ page }) => {
-  await openFixture(page, "# Project\n\n## Feature\n\n### Task\n\n**Anti-Aliasing**\nGeometry.\n- [ ] segments\nShader AA.\n- [ ] smoothstep\n- [ ] distance\nMSAA.\n- [ ] samples");
+  await openFixture(page, "# Project\n\n## Feature\n\n### Task\n\n#### Anti-Aliasing\nGeometry.\n- [ ] segments\nShader AA.\n- [ ] smoothstep\n- [ ] distance\nMSAA.\n- [ ] samples");
   const card = page.locator(".card");
   await card.locator(".card-header").click();
   const group = card.locator(".todo-group");
@@ -143,6 +143,48 @@ test("a task label renders repeated descriptions with their following todos in s
   await expect(group.locator(".todo-description")).toHaveText(["Geometry.", "Shader AA.", "MSAA."]);
   await expect(group.locator(".todo-text")).toHaveText(["segments", "smoothstep", "distance", "samples"]);
   await expect(group.locator(".todo-list")).toHaveCount(3);
+});
+
+test("tag content renders nested lists, code, and URLs while task todos stay flat", async ({ page }) => {
+  await openFixture(page, "# Project\n\n## Feature\n\n#Info\n- Parent `literal * code` [docs](https://example.com/a_b)\n  + Child\n    * Grandchild\n\n### Task\n\n#### Work\n  + [ ] Plus\n* [x] ~Star~\n- Minus\n\n#Warn\n- Warning `literal * code` [docs](https://example.com/warn_a)\n  + Nested\n\n#Info\nParagraph content");
+
+  const featureNote = page.locator(".feature-note");
+  const collapsedTagTop = (await featureNote.locator(".note-toggle").boundingBox()).y;
+  await expect(featureNote.locator(".note-toggle")).toHaveCSS("border-bottom-width", "0px");
+  await featureNote.locator(".note-toggle").click();
+  await expect(featureNote.locator(".note-toggle")).toHaveCSS("border-bottom-width", "1px");
+  await expect(featureNote.locator(".note-toggle")).toHaveCSS("border-bottom-color", "rgb(131, 165, 152)");
+  expect((await featureNote.locator(".note-toggle").boundingBox()).y).toBeCloseTo(collapsedTagTop, 1);
+  await expect(featureNote.locator("ul > li > ul > li > ul > li")).toHaveText("Grandchild");
+  const noteFontSizes = await featureNote.locator("ul > li").evaluateAll(items => items.slice(0, 2).map(item => Number.parseFloat(getComputedStyle(item).fontSize)));
+  expect(noteFontSizes[0] - noteFontSizes[1]).toBe(1);
+  await expect(featureNote.locator("code")).toHaveText("literal * code");
+  await expect(featureNote.locator("code")).toHaveCSS("color", "rgb(184, 187, 38)");
+  await expect(featureNote.locator("code")).not.toHaveCSS("box-shadow", "none");
+  await expect(featureNote.locator("a")).toHaveAttribute("href", "https://example.com/a_b");
+  await expect(featureNote.locator("a")).toHaveCSS("color", "rgb(211, 134, 155)");
+
+  const card = page.locator(".card");
+  await card.locator(".card-header").click();
+  await expect(card.locator(".task-warn h4")).toHaveCSS("border-bottom-width", "1px");
+  await expect(card.locator(".task-warn h4")).toHaveCSS("border-bottom-color", "rgb(215, 153, 33)");
+  const noteContentGaps = await card.locator(".task-note").evaluateAll(notes => notes.map(note => {
+    const header = note.querySelector("h4").getBoundingClientRect();
+    const content = note.querySelector("h4 + *").getBoundingClientRect();
+    return content.top - header.bottom;
+  }));
+  expect(noteContentGaps[0]).toBeCloseTo(noteContentGaps[1], 1);
+  await expect(card.locator(".task-warn ul > li > ul > li")).toHaveText("Nested");
+  await expect(card.locator(".task-warn code")).toHaveText("literal * code");
+  const taskLink = card.locator(".task-warn a");
+  await expect(taskLink).toHaveAttribute("href", "https://example.com/warn_a");
+  await expect(taskLink).toHaveCSS("pointer-events", "auto");
+  await taskLink.evaluate(link => link.addEventListener("click", event => { event.preventDefault(); link.dataset.clicked = "true"; }, { once: true }));
+  await taskLink.click();
+  await expect(taskLink).toHaveAttribute("data-clicked", "true");
+  await expect(card.locator(".todo-item")).toHaveCount(3);
+  const todoOffsets = await card.locator(".todo-item").evaluateAll(items => items.map(item => item.getBoundingClientRect().left));
+  expect(new Set(todoOffsets.map(offset => Math.round(offset))).size).toBe(1);
 });
 
 test("metadata uses natural board header heights while keeping title rows aligned", async ({ page }) => {
@@ -182,10 +224,9 @@ test("feature editor saves title, metadata, info, and warn as one undo step", as
   const dialog = page.locator("#featureEditor");
   await expect(dialog).toBeVisible();
   await expect(page.locator("#featureEditorMetadata")).toHaveValue(/#Version/);
+  await expect(page.locator("#featureEditorMetadata")).toHaveValue(/#Info/);
   await page.locator("#featureEditorTitle").fill("Renamed Feature");
-  await page.locator("#featureEditorMetadata").fill("#Version\n- 2.0.0\n#Date\n- 2027-01-01 - 2027-06-30");
-  await page.locator("#featureEditorInfo").fill("- Updated metadata");
-  await page.locator("#featureEditorWarn").fill("- Check this");
+  await page.locator("#featureEditorMetadata").fill("#Version\n- 2.0.0\n#Date\n- 2027-01-01 - 2027-06-30\n\n#Info\n- Updated metadata\n\n#Warn\n- Check this");
   await expect(page.locator("#saveFeatureEditor")).toHaveClass(/dirty/);
   await page.locator("#saveFeatureEditor").click();
   await expect(dialog).toBeHidden();
@@ -199,6 +240,337 @@ test("feature editor saves title, metadata, info, and warn as one undo step", as
   await page.locator("#undoChange").click();
   await expect(page.locator("#content > .release").first().locator(".release-title")).toHaveText("Active Feature");
   await expect(page.locator("#content > .release").first().locator(".release-version")).toHaveText("v1.2.3");
+});
+
+test("editors open without focusing a field and keep immediate field clicks", async ({ page }) => {
+  await openFixture(page);
+  const featureHeading = page.locator(".release-heading").first();
+  await featureHeading.hover();
+  await featureHeading.locator('[data-edit="feature"]').click();
+  await expect(page.locator("#featureEditor")).toBeFocused();
+  await page.locator("#featureEditorMetadata").click();
+  await expect(page.locator("#featureEditorMetadata")).toBeFocused();
+  await page.locator("#cancelFeatureEditor").click();
+
+  const taskHeader = page.locator(".card-header").first();
+  await taskHeader.hover();
+  await taskHeader.locator('[data-edit="task"]').click();
+  await expect(page.locator("#taskEditor")).toBeFocused();
+  await page.locator("#taskEditorMarkdown").click();
+  await expect(page.locator("#taskEditorMarkdown")).toBeFocused();
+});
+
+test("Control+Enter saves feature and task dialogs", async ({ page }) => {
+  await openFixture(page);
+  const feature = page.locator("#content > .release").first();
+  await feature.locator(".release-heading").hover();
+  await feature.locator('[data-edit="feature"]').click();
+  await page.locator("#featureEditorTitle").fill("Feature shortcut");
+  await page.keyboard.press("Control+Enter");
+  await expect(page.locator("#featureEditor")).toBeHidden();
+  await expect(feature.locator(".release-title")).toHaveText("Feature shortcut");
+
+  const task = feature.locator(".card").first();
+  await task.locator(".card-header").hover();
+  await task.locator('[data-edit="task"]').click();
+  await page.locator("#taskEditorTitle").fill("Task shortcut");
+  await page.keyboard.press("Control+Enter");
+  await expect(page.locator("#taskEditor")).toBeHidden();
+  await expect(task.locator(".card-title")).toHaveText("Task shortcut");
+});
+
+test("unchanged dialogs close without creating a project change", async ({ page }) => {
+  await openFixture(page);
+  const initialSaveClass = await page.locator("#saveFile").getAttribute("class");
+  const task = page.locator(".card").first();
+  await task.locator(".card-header").hover();
+  await task.locator('[data-edit="task"]').click();
+  await page.locator("#taskEditorTitle").focus();
+  await page.locator("#taskEditorTitle").press("Tab");
+  await expect(page.locator("#saveTaskEditor")).not.toHaveClass(/dirty/);
+  await page.keyboard.press("Control+Enter");
+  await expect(page.locator("#taskEditor")).toBeHidden();
+  await expect(page.locator("#saveFile")).toHaveAttribute("class", initialSaveClass);
+  await expect(page.locator("#undoChange")).toBeDisabled();
+
+  const feature = page.locator(".release").first();
+  await feature.locator(".release-heading").hover();
+  await feature.locator('[data-edit="feature"]').click();
+  await page.locator("#featureEditorTitle").focus();
+  await page.locator("#featureEditorTitle").press("Tab");
+  await expect(page.locator("#saveFeatureEditor")).not.toHaveClass(/dirty/);
+  await page.keyboard.press("Control+Enter");
+  await expect(page.locator("#featureEditor")).toBeHidden();
+  await expect(page.locator("#saveFile")).toHaveAttribute("class", initialSaveClass);
+  await expect(page.locator("#undoChange")).toBeDisabled();
+});
+
+test("Markdown toolbars format defaults and selected text in the active field", async ({ page }) => {
+  await openFixture(page);
+  const task = page.locator(".card").first();
+  await task.locator(".card-header").hover();
+  await task.locator('[data-edit="task"]').click();
+  const textarea = page.locator("#taskEditorMarkdown");
+  const title = page.locator("#taskEditorTitle");
+  const toolbar = page.locator("#taskMarkdownToolbar");
+  await expect(page.getByText("Content, todos, #Info and #Warn", { exact: true })).toHaveCount(0);
+  await expect(toolbar.locator(".markdown-tool-group")).toHaveCount(2);
+  await expect(toolbar.locator("[data-editor-history]")).toHaveCount(0);
+  await expect(toolbar.locator(".markdown-tags > summary")).toHaveText("Tags");
+  await expect(toolbar.getByRole("button", { name: "Bold" })).toBeDisabled();
+  await textarea.evaluate(element => element.setSelectionRange(element.value.length, element.value.length));
+  await title.focus();
+  await title.press("Tab");
+  await expect(textarea).toBeFocused();
+  await expect.poll(() => textarea.evaluate(element => [element.selectionStart, element.selectionEnd])).toEqual([0, 0]);
+  expect(await toolbar.evaluate(node => node.parentElement?.querySelector("textarea")?.id)).toBe("taskEditorMarkdown");
+  expect(await toolbar.evaluate(node => {
+    const toolbarBounds = node.getBoundingClientRect();
+    const editorBounds = node.nextElementSibling.getBoundingClientRect();
+    return Math.abs(toolbarBounds.bottom - editorBounds.top);
+  })).toBeLessThanOrEqual(1);
+  await textarea.click();
+  await expect(textarea).toHaveCSS("color", "rgba(0, 0, 0, 0)");
+  await expect(textarea).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  const editorHeightRatio = await page.locator(".task-editor-dialog").evaluate((dialog, editor) => editor.getBoundingClientRect().height / dialog.getBoundingClientRect().height, await page.locator("#taskEditorMarkdown").elementHandle());
+  expect(editorHeightRatio).toBeGreaterThan(.55);
+  await expect(toolbar.getByRole("button", { name: "Bold" })).toBeEnabled();
+  await expect(toolbar).toHaveCSS("border-top-color", "rgb(235, 219, 178)");
+  await expect(page.locator("#taskMarkdownHighlight").locator("..")).toHaveCSS("border-bottom-color", "rgb(235, 219, 178)");
+  await textarea.fill("word next");
+  await textarea.evaluate(element => {
+    element.setSelectionRange(2, 2);
+    element.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0, detail: 2 }));
+  });
+  await expect.poll(() => textarea.evaluate(element => [element.selectionStart, element.selectionEnd])).toEqual([0, 4]);
+  const helpButton = toolbar.getByRole("button", { name: "Formatting help" });
+  await helpButton.click();
+  const formattingHelp = toolbar.locator(".help-popover");
+  await expect(formattingHelp).toBeVisible();
+  await expect(formattingHelp.locator(".markdown-reference")).toHaveCount(0);
+  await expect(formattingHelp).toContainText("Bold");
+  await expect(formattingHelp).toContainText("Ctrl");
+  await expect(formattingHelp).not.toContainText("press twice");
+  await expect(formattingHelp).toContainText("or ⌘ B");
+  await expect(formattingHelp).toContainText("⌘ Shift Z");
+  await expect(formattingHelp.locator(".shortcut-list > div").filter({ hasText: "Redo" }).locator("kbd")).toHaveText(["Ctrl", "Shift", "Z"]);
+  await formattingHelp.getByRole("button", { name: "Close formatting help" }).click();
+  await expect(formattingHelp).toBeHidden();
+
+  const defaults = [
+    ["Bold", "**bold text**"],
+    ["Italic", "*italic text*"],
+    ["Strikethrough", "~strikethrough text~"],
+    ["Todo list", "- [ ] list item"],
+    ["Code", "`code`"],
+    ["URL", "[link text](https://example.com)"]
+  ];
+  for (const [name, expected] of defaults) {
+    await textarea.fill("");
+    await toolbar.getByRole("button", { name }).click();
+    await expect(textarea).toHaveValue(expected);
+    await expect(textarea).toBeFocused();
+  }
+
+  const selections = [
+    ["Bold", "chosen", "**chosen**"],
+    ["Italic", "chosen", "*chosen*"],
+    ["Strikethrough", "chosen", "~chosen~"],
+    ["Todo list", "one\ntwo", "- [ ] one\n- [ ] two"],
+    ["Code", "chosen", "`chosen`"],
+    ["URL", "chosen", "[chosen](https://example.com)"]
+  ];
+  for (const [name, selected, expected] of selections) {
+    const button = toolbar.getByRole("button", { name });
+    await textarea.fill(selected);
+    await textarea.selectText();
+    await button.click();
+    await expect(textarea).toHaveValue(expected);
+    await expect(button).toHaveClass(/active/);
+    await expect(button).toHaveCSS("border-color", "rgb(131, 165, 152)");
+    await button.click();
+    await expect(textarea).toHaveValue(selected);
+    await expect(button).not.toHaveClass(/active/);
+    await button.click();
+    await expect(textarea).toHaveValue(expected);
+  }
+  await page.locator("#taskEditor").getByRole("button", { name: "Undo dialog edit" }).click();
+  await expect(textarea).toHaveValue("chosen");
+  await page.locator("#taskEditor").getByRole("button", { name: "Redo dialog edit" }).click();
+  await expect(textarea).toHaveValue("[chosen](https://example.com)");
+  await textarea.fill("**bold**");
+  await textarea.selectText();
+  await toolbar.getByRole("button", { name: "Bold" }).click();
+  await expect(textarea).toHaveValue("bold");
+  await textarea.fill("**bold**");
+  await textarea.selectText();
+  await toolbar.getByRole("button", { name: "Italic" }).click();
+  await expect(textarea).toHaveValue("***bold***");
+  await toolbar.getByRole("button", { name: "Italic" }).click();
+  await expect(textarea).toHaveValue("**bold**");
+  await expect(page.locator("#taskEditorDirty")).toBeVisible();
+});
+
+test("Markdown fields continue and finish lists while formatting shortcuts wrap selections", async ({ page }) => {
+  await openFixture(page);
+  const task = page.locator(".card").first();
+  await task.locator(".card-header").hover();
+  await task.locator('[data-edit="task"]').click();
+  const textarea = page.locator("#taskEditorMarkdown");
+
+  await textarea.fill("- first");
+  await textarea.press("End");
+  await textarea.press("Enter");
+  await textarea.type("second");
+  await textarea.press("Enter");
+  await expect(textarea).toHaveValue("- first\n- [ ] second\n- [ ] ");
+  await textarea.press("Enter");
+  await expect(textarea).toHaveValue("- first\n- [ ] second\n");
+
+  await textarea.fill("- [x] done");
+  await textarea.press("End");
+  await textarea.press("Enter");
+  await expect(textarea).toHaveValue("- [x] done\n- [ ] ");
+
+  await textarea.fill("  + [x] nested todo");
+  await textarea.press("End");
+  await textarea.press("Enter");
+  await expect(textarea).toHaveValue("  + [x] nested todo\n- [ ] ");
+
+  await textarea.fill("#Info\n  * nested note");
+  await textarea.press("End");
+  await textarea.press("Enter");
+  await expect(textarea).toHaveValue("#Info\n  * nested note\n  - ");
+
+  const beforeContinuedList = "- [ ] selected";
+  await textarea.fill(beforeContinuedList);
+  await textarea.evaluate(element => element.setSelectionRange(6, element.value.length));
+  await textarea.press("End");
+  await textarea.press("Enter");
+  await expect(textarea).toHaveValue(`${beforeContinuedList}\n- [ ] `);
+  await textarea.press("Control+z");
+  await expect(textarea).toHaveValue(beforeContinuedList);
+  await expect.poll(() => textarea.evaluate(element => [element.selectionStart, element.selectionEnd])).toEqual([beforeContinuedList.length, beforeContinuedList.length]);
+
+  const shortcuts = [
+    ["Control+b", "**text**"],
+    ["Control+i", "*text*"],
+    ["Control+Shift+x", "~text~"],
+    ["Control+e", "`text`"],
+    ["Control+k", "[text](https://example.com)"]
+  ];
+  for (const [shortcut, expected] of shortcuts) {
+    await textarea.fill("text");
+    await textarea.selectText();
+    await textarea.press(shortcut);
+    await expect(textarea).toHaveValue(expected);
+  }
+  await expect(page.locator("#toggleBacklog")).toHaveAttribute("aria-pressed", "false");
+});
+
+test("dialog undo and redo include all fields and reset when the dialog reopens", async ({ page }) => {
+  await openFixture(page);
+  const task = page.locator(".card").first();
+  await task.locator(".card-header").hover();
+  await task.locator('[data-edit="task"]').click();
+  const title = page.locator("#taskEditorTitle");
+  const markdown = page.locator("#taskEditorMarkdown");
+  const originalTitle = await title.inputValue();
+  const originalMarkdown = await markdown.inputValue();
+  const undo = page.getByRole("button", { name: "Undo dialog edit" });
+  const redo = page.getByRole("button", { name: "Redo dialog edit" });
+  await expect(page.locator("#taskEditor .editor-header-history").getByRole("button")).toHaveCount(2);
+  expect(await undo.evaluate(element => element.closest("header")?.className)).toContain("task-editor-header");
+  await expect(undo).toBeDisabled();
+  await expect(redo).toBeDisabled();
+  await title.evaluate(element => {
+    element.setSelectionRange(2, 2);
+    element.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0, detail: 2 }));
+  });
+  await expect.poll(() => title.evaluate(element => element.selectionEnd)).toBe(originalTitle.indexOf(" "));
+
+  await title.fill("Temporary title");
+  await title.fill(originalTitle);
+  await expect(undo).toBeDisabled();
+  await expect(redo).toBeDisabled();
+  await page.keyboard.press("Control+z");
+  await expect(title).toHaveValue(originalTitle);
+
+  await title.fill("Changed title");
+  await markdown.fill("Changed Markdown");
+  await expect(undo).toBeEnabled();
+  await undo.click();
+  await expect(title).toHaveValue("Changed title");
+  await expect(markdown).toHaveValue(originalMarkdown);
+  await page.keyboard.press("Control+z");
+  await expect(title).toHaveValue(originalTitle);
+  await expect(undo).toBeDisabled();
+  await expect(redo).toBeEnabled();
+  await redo.click();
+  await expect(title).toHaveValue("Changed title");
+  await page.keyboard.press("Control+Shift+z");
+  await expect(markdown).toHaveValue("Changed Markdown");
+  await expect(page.locator("#taskEditorDirty")).toBeVisible();
+  await page.keyboard.press("Control+z");
+  await title.fill("Branched title");
+  await expect(redo).toBeDisabled();
+
+  await page.locator("#cancelTaskEditor").click();
+  await task.locator(".card-header").hover();
+  await task.locator('[data-edit="task"]').click();
+  await expect(page.getByRole("button", { name: "Undo dialog edit" })).toBeDisabled();
+  await expect(title).toHaveValue(originalTitle);
+  await expect(markdown).toHaveValue(originalMarkdown);
+});
+
+test("merged feature Markdown highlights syntax and inserts tags", async ({ page }) => {
+  await openFixture(page);
+  const feature = page.locator(".release").first();
+  await feature.locator(".release-heading").hover();
+  await feature.locator('[data-edit="feature"]').click();
+  const metadata = page.locator("#featureEditorMetadata");
+  const highlight = page.locator("#featureMarkdownHighlight");
+  await expect(page.getByText("#Version, #Date, #Info and #Warn", { exact: true })).toHaveCount(0);
+  await metadata.evaluate(element => element.setSelectionRange(element.value.length, element.value.length));
+  await page.locator("#featureEditorTitle").focus();
+  await page.locator("#featureEditorTitle").press("Tab");
+  await expect(metadata).toBeFocused();
+  await expect.poll(() => metadata.evaluate(element => [element.selectionStart, element.selectionEnd])).toEqual([0, 0]);
+  await expect(metadata).toHaveValue(/#Info/);
+  await expect(highlight.locator(".markdown-syntax-info")).toHaveText("#Info");
+  await expect(highlight.locator(".markdown-syntax-info")).toHaveCSS("color", "rgb(131, 165, 152)");
+  await expect(highlight.locator(".markdown-syntax-tag")).toHaveText(["#Version", "#Date"]);
+  await expect(highlight.locator(".markdown-syntax-tag").first()).toHaveCSS("color", "rgb(211, 134, 155)");
+  await metadata.fill("#Info\n**bold** *italic* ~done~ `code` [link](https://example.com)\n#### Label");
+  await expect(highlight.locator(".markdown-syntax-bold")).toHaveCSS("font-weight", "800");
+  await expect(highlight.locator(".markdown-syntax-italic")).toHaveCSS("font-style", "italic");
+  await expect(highlight.locator(".markdown-syntax-strike")).toHaveCSS("text-decoration-line", "line-through");
+  await expect(highlight.locator(".markdown-syntax-code")).toHaveCSS("font-family", /Cascadia Mono|Segoe UI Mono|Consolas/);
+  await expect(highlight.locator(".markdown-syntax-code")).toHaveCSS("color", "rgb(184, 187, 38)");
+  await expect(highlight.locator(".markdown-syntax-code")).not.toHaveCSS("box-shadow", "none");
+  await expect(highlight.locator(".markdown-syntax-link")).toHaveCSS("color", "rgb(211, 134, 155)");
+  await expect(highlight.locator(".markdown-syntax-label")).toHaveText("#### Label");
+  await metadata.fill("~**bold** *italic* `code` [link](https://example.com)~ **~nested strike~**");
+  const combinedStrike = highlight.locator(".markdown-syntax-strike").first();
+  await expect(combinedStrike.locator(".markdown-syntax-bold")).toHaveText("**bold**");
+  await expect(combinedStrike.locator(".markdown-syntax-italic")).toHaveText("*italic*");
+  await expect(combinedStrike.locator(".markdown-syntax-code")).toHaveText("`code`");
+  await expect(combinedStrike.locator(".markdown-syntax-link")).toHaveText("[link](https://example.com)");
+  await expect(highlight.locator(".markdown-syntax-bold .markdown-syntax-strike")).toHaveText("~nested strike~");
+  await metadata.press("End");
+  const featureToolbar = page.locator("#featureMarkdownToolbar");
+  await featureToolbar.locator(".markdown-tags > summary").click();
+  await expect(featureToolbar.getByRole("button", { name: "Insert Version tag" })).toHaveCSS("color", "rgb(211, 134, 155)");
+  await expect(featureToolbar.getByRole("button", { name: "Insert Date tag" })).toHaveCSS("color", "rgb(211, 134, 155)");
+  await featureToolbar.getByRole("button", { name: "Insert Warn tag" }).click();
+  await expect(metadata).toHaveValue(/#Warn\n$/);
+  await expect(highlight.locator(".markdown-syntax-warn")).toHaveText("#Warn");
+  await expect(highlight.locator(".markdown-syntax-warn")).toHaveCSS("color", "rgb(215, 153, 33)");
+  await featureToolbar.locator(".markdown-tags > summary").click();
+  await featureToolbar.getByRole("button", { name: "Insert Version tag" }).click();
+  await featureToolbar.locator(".markdown-tags > summary").click();
+  await featureToolbar.getByRole("button", { name: "Insert Date tag" }).click();
+  await expect(metadata).toHaveValue(/#Version\n\n#Date\n$/);
 });
 
 test("logo and feature new buttons create features and tasks through existing editors", async ({ page }) => {
@@ -257,9 +629,7 @@ test("task editor opens in the foreground and saves title and Markdown as one un
   expect(width / viewportWidth).toBeLessThan(.55);
   await expect(page.locator("#taskEditorMarkdown")).not.toHaveValue(/\n$/);
   await page.locator("#taskEditorTitle").fill("Edited Task");
-  await page.locator("#taskEditorMarkdown").fill("**Next**\n- [ ] added todo");
-  await page.locator("#taskEditorInfo").fill("Edited content");
-  await page.locator("#taskEditorWarn").fill("Review this task");
+  await page.locator("#taskEditorMarkdown").fill("**Next**\n- [ ] added todo\n\n#Info\nEdited content\n\n#Warn\nReview this task");
   await expect(page.locator("#taskEditorDirty")).toBeVisible();
   await dialog.getByRole("button", { name: "Save" }).click();
 
@@ -273,12 +643,16 @@ test("task editor opens in the foreground and saves title and Markdown as one un
   await expect(page.locator("#content .card").first().locator(".card-title")).toHaveText("Started Task");
 });
 
-test("Escape cancels feature and task edits without leaving focus or selection behind", async ({ page }) => {
+test("Escape ends field editing before cancelling feature and task dialogs", async ({ page }) => {
   await openFixture(page);
   const featureHeading = page.locator(".release-heading").first();
   await featureHeading.hover();
   await featureHeading.locator('[data-edit="feature"]').click();
   await page.locator("#featureEditorTitle").fill("Discarded feature");
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#featureEditor")).toBeVisible();
+  await expect(page.locator("#featureEditorTitle")).not.toBeFocused();
+  await expect(page.locator("#featureEditorTitle")).toHaveValue("Discarded feature");
   await page.keyboard.press("Escape");
   await expect(page.locator("#featureEditor")).not.toBeVisible();
   await expect(featureHeading.locator(".release-title")).toHaveText("Active Feature");
@@ -287,10 +661,29 @@ test("Escape cancels feature and task edits without leaving focus or selection b
   await taskHeader.hover();
   await taskHeader.locator('[data-edit="task"]').click();
   await page.locator("#taskEditorTitle").fill("Discarded task");
+  await page.locator("#taskEditorMarkdown").fill("Discarded Markdown");
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#taskEditor")).toBeVisible();
+  await expect(page.locator("#taskEditorMarkdown")).not.toBeFocused();
+  await expect(page.locator("#taskEditorTitle")).toHaveValue("Discarded task");
+  await expect(page.locator("#taskMarkdownToolbar").getByRole("button", { name: "Bold" })).toBeDisabled();
   await page.keyboard.press("Escape");
   await expect(page.locator("#taskEditor")).not.toBeVisible();
   await expect(taskHeader.locator(".card-title")).toHaveText("Started Task");
   await expect.poll(() => page.evaluate(() => ({ active: document.activeElement?.tagName, selection: window.getSelection()?.toString() }))).toEqual({ active: "BODY", selection: "" });
+});
+
+test("dragging a Markdown selection beyond the dialog does not cancel editing", async ({ page }) => {
+  await openFixture(page);
+  const task = page.locator(".card").first();
+  await task.locator(".card-header").hover();
+  await task.locator('[data-edit="task"]').click();
+  await page.locator("#taskEditorMarkdown").dispatchEvent("pointerdown", { bubbles: true, button: 0 });
+  await page.locator("#taskEditor").dispatchEvent("pointerup", { bubbles: true, button: 0 });
+  await page.locator("#taskEditor").dispatchEvent("click", { bubbles: true, button: 0 });
+  await expect(page.locator("#taskEditor")).toBeVisible();
+  await page.locator("#taskEditor").dispatchEvent("pointerdown", { bubbles: true, button: 0 });
+  await expect(page.locator("#taskEditor")).toBeHidden();
 });
 
 test("backlog opens as a separate pane and closes from its framed button", async ({ page }) => {
@@ -576,7 +969,23 @@ test("help popover documents shortcuts and Markdown and closes predictably", asy
   await expect(help).toContainText("Ctrl");
   await expect(help).toContainText("#Backlog");
   await expect(help).toContainText("#Ignore");
-  await expect(help).toContainText("**Label**");
+  const structure = help.locator(".markdown-reference").first();
+  await expect(structure).toContainText("#### Label");
+  await expect(structure).toContainText("- [ ] Todo");
+  await expect(help.getByText("Task content", { exact: true })).toHaveCount(0);
+  await expect(help).not.toContainText("Starts a");
+  await expect(help).not.toContainText("Marks the");
+  const formatting = help.locator(".help-formatting");
+  await expect(formatting.locator(".markdown-syntax-bold")).toHaveText("**Bold**");
+  await expect(formatting.locator(".markdown-syntax-bold")).toHaveCSS("font-weight", "800");
+  await expect(formatting.locator(".markdown-syntax-italic")).toHaveCSS("font-style", "italic");
+  await expect(formatting.locator(".markdown-syntax-strike")).toHaveCSS("text-decoration-line", "line-through");
+  await expect(formatting.locator(".markdown-syntax-code")).toHaveText("`Code`");
+  await expect(formatting.locator(".markdown-syntax-link")).toHaveText("[URL](url)");
+  await expect(formatting).not.toContainText("Bullet");
+  await expect(formatting).not.toContainText("Nested");
+  await expect(help.locator(".help-tag-info")).toHaveCSS("color", "rgb(131, 165, 152)");
+  await expect(help.locator(".help-tag-warn")).toHaveCSS("color", "rgb(215, 153, 33)");
   await page.keyboard.press("Escape");
   await expect(help).toBeHidden();
   await expect(helpButton).toHaveAttribute("aria-expanded", "false");

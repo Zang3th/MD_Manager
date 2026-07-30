@@ -4,7 +4,7 @@ const load = require("./load-classic");
 
 const { domain } = load("domain/project.js");
 const project = () => ({ features: [
-  { title: "A", tasks: [{ title: "A1", lines: ["- [ ] one", "**Next**", "- [ ] two"] }] },
+  { title: "A", tasks: [{ title: "A1", lines: ["- [ ] one", "#### Next", "- [ ] two"] }] },
   { title: "B", tasks: [{ title: "B1", lines: ["- [ ] three"] }] },
   { title: "Backlog", isBacklog: true, tasks: [] }
 ] });
@@ -31,8 +31,8 @@ test("copied features and tasks reset completed todos and insert at requested po
   const featureCopy = domain.copyFeature(value.features[0]);
   domain.insertTask(value, 1, 0, taskCopy);
   domain.insertFeature(value, 1, featureCopy);
-  assert.deepEqual(taskCopy.lines, ["- [ ] one", "**Next**", "- [ ] two"]);
-  assert.deepEqual(featureCopy.tasks[0].lines, ["- [ ] one", "**Next**", "- [ ] two"]);
+  assert.deepEqual(taskCopy.lines, ["- [ ] one", "#### Next", "- [ ] two"]);
+  assert.deepEqual(featureCopy.tasks[0].lines, ["- [ ] one", "#### Next", "- [ ] two"]);
   assert.deepEqual(value.features.map(feature => feature.title), ["A", "A", "B", "Backlog"]);
   assert.deepEqual(value.features[2].tasks.map(task => task.title), ["A1", "B1"]);
 });
@@ -56,7 +56,7 @@ test("tasks move within and between features", () => {
 test("delete operations remove only their target", () => {
   const value = project();
   domain.deleteTodo(value.features[0].tasks[0], 0);
-  assert.deepEqual(value.features[0].tasks[0].lines, ["**Next**", "- [ ] two"]);
+  assert.deepEqual(value.features[0].tasks[0].lines, ["#### Next", "- [ ] two"]);
   domain.deleteTask(value, 1, 0); domain.deleteFeature(value, 1);
   assert.deepEqual(value.features.map(x => x.title), ["A", "Backlog"]);
 });
@@ -64,11 +64,11 @@ test("delete operations remove only their target", () => {
 test("setTodo normalizes checked and unchecked Markdown", () => {
   const task = { lines: ["- item", "* [x] ~done~"] };
   domain.setTodo(task, 0, true); domain.setTodo(task, 1, false);
-  assert.deepEqual(task.lines, ["- [x] ~item~", "* [ ] done"]);
+  assert.deepEqual(task.lines, ["- [x] ~item~", "- [ ] done"]);
 });
 
 test("todos move into the requested group without crossing boundaries", () => {
   const value = project();
   domain.moveTodo(value, 1, 0, 0, 0, 0, 1, 0);
-  assert.deepEqual(value.features[0].tasks[0].lines, ["- [ ] one", "**Next**", "- [ ] three", "- [ ] two"]);
+  assert.deepEqual(value.features[0].tasks[0].lines, ["- [ ] one", "#### Next", "- [ ] three", "- [ ] two"]);
 });

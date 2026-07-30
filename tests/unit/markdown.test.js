@@ -32,7 +32,7 @@ test("parses project, metadata, notes, tasks, todos, and backlog", () => {
 });
 
 test("taskContent separates groups, notes, paragraphs, indentation, and todo syntax", () => {
-  const content = markdown.taskContent({ lines: ["intro", "#Warn", "  - nested", "paragraph", "**Phase**", "description", "+ [X] done"] });
+  const content = markdown.taskContent({ lines: ["intro", "#Warn", "  - nested", "paragraph", "#### Phase", "description", "+ [X] done"] });
   assert.deepEqual(Array.from(content.blocks, x => x.type), ["group", "paragraph", "note", "group"]);
   assert.equal(content.blocks[2].items[0].indent, 2);
   assert.equal(content.blocks[2].items[1].paragraph, true);
@@ -41,7 +41,7 @@ test("taskContent separates groups, notes, paragraphs, indentation, and todo syn
 });
 
 test("taskContent preserves repeated descriptions and todo lists within a label", () => {
-  const content = markdown.taskContent({ lines: ["**AA**", "Geometry.", "- [ ] segments", "Shader AA.", "- [ ] smoothstep", "- [ ] distance", "MSAA.", "- [ ] samples"] });
+  const content = markdown.taskContent({ lines: ["#### AA", "Geometry.", "- [ ] segments", "Shader AA.", "- [ ] smoothstep", "- [ ] distance", "MSAA.", "- [ ] samples"] });
   const group = content.blocks[1];
   assert.deepEqual(Array.from(group.sections, section => ({
     descriptions: Array.from(section.descriptions, description => description.text),
@@ -52,6 +52,13 @@ test("taskContent preserves repeated descriptions and todo lists within a label"
     { descriptions: ["MSAA."], todos: ["samples"] }
   ]);
   assert.deepEqual(Array.from(content.todos, todo => todo.text), ["segments", "smoothstep", "distance", "samples"]);
+});
+
+test("task labels use level-four headings while standalone bold text stays a paragraph", () => {
+  const content = markdown.taskContent({ lines: ["**Bold text**", "#### Section", "description", "- [ ] item"] });
+  assert.deepEqual(Array.from(content.blocks, block => block.type), ["group", "paragraph", "group"]);
+  assert.equal(content.blocks[1].text, "**Bold text**");
+  assert.equal(content.blocks[2].title, "Section");
 });
 
 test("task editor separates Markdown, info, and warn without trailing blank lines", () => {
@@ -98,12 +105,16 @@ test("Ignore preserves but hides the following feature or task", () => {
 });
 
 test("serialization preserves newline style, orders backlog last, and normalizes todos", () => {
-  const value = markdown.parse("# P\r\n\r\n#Backlog\r\n## Later\r\n### T\r\n- old\r\n\r\n## Now\r\n### Work\r\n- [x] done");
+  const value = markdown.parse("# P\r\n\r\n#Backlog\r\n## Later\r\n### T\r\n  + old\r\n* [x] done\r\n- open\r\n#Info\r\n- parent\r\n  + nested\r\n\r\n## Now\r\n### Work\r\n- [x] complete");
   const output = markdown.serialize(value);
   assert.ok(output.includes("\r\n"));
   assert.ok(output.indexOf("## Now") < output.indexOf("#Backlog"));
-  assert.match(output, /- \[ \] old/);
-  assert.match(output, /- \[x\] ~done~/);
+  assert.match(output, /^- \[ \] old$/m);
+  assert.match(output, /^- \[x\] ~done~$/m);
+  assert.match(output, /^- \[ \] open$/m);
+  assert.match(output, /^[ ]{2}\+ nested$/m);
+  assert.doesNotMatch(output, /^[ \t]+[+*-] \[[ x]\]/m);
+  assert.match(output, /^- \[x\] ~complete~$/m);
 });
 
 test("Layout.md is the parsing golden file and round-trips without losing information", () => {
@@ -112,6 +123,18 @@ test("Layout.md is the parsing golden file and round-trips without losing inform
   const serialized = markdown.serialize(first);
   const second = markdown.parse(serialized);
 
+  const regularFeatures = first.features.filter(feature => !feature.isBacklog);
+  const backlog = first.features.find(feature => feature.isBacklog);
+  assert.equal(regularFeatures.length, 3);
+  assert.equal(backlog.tasks.length, 3);
+  assert.equal(regularFeatures[1].tasks.find(task => task.title === "Internal migration fixture").ignored, true);
+  assert.match(source, /^#### Formatting toolbar$/m);
+  assert.match(source, /\*\*bold context\*\*/);
+  assert.match(source, /\*italic nuance\*/);
+  assert.match(source, /`inline code`/);
+  assert.match(source, /\[reference URL\]\(https:\/\/example\.com\/bootstrap\)/);
+  assert.match(source, /- \[x\] ~Create the canonical local folders~/);
+  assert.match(source, /#Info[\s\S]+#Warn/);
   assert.deepEqual(second, first);
   assert.equal(markdown.serialize(second), serialized);
 });

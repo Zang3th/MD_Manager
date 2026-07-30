@@ -284,28 +284,44 @@
 - [x] ~Anzeige von gefülltem Zwischenspeicher~
 - [x] ~Entsprechende Notification~
 
-## Editieren und Hinzufügen
+## Markdown besser editieren
 
 #Version
 - 0.3.0
 
 #Date
-- TBD
+- 30.07.2026
+
+### Markdown-Features
+
+- [x] ~Bold~
+- [x] ~Kursiv~
+- [x] ~Strikethrough~
+- [x] ~URLs~
+- [x] ~Quellcode~
+- [x] ~####~
+- [x] ~Einfach eingerückte Stichpunkte unterstützen~
 
 ### Edit-Dialog
 
-- [ ] Clunkyness verbessern
-- [ ] Fokus, Navigation, Tastatursteuerung verbessern
-- [ ] Erweiterte Editierfunktion wie Autovervollständigung
+- [x] ~Clunkyness verbessern~
+- [x] ~Fokus, Navigation, Tastatursteuerung verbessern~
+- [x] ~Editierfunktion ausbauen und komfortabler machen~
+- [x] ~Tags in den normalen Markdown-Body integrieren~
+
+### Tests
+
+- [x] ~Ausbau von Layout.md mit Pseudodaten und alles unterstützten Features~
+
+### Help
+
+- [x] ~Im Edit-Dialog ergänzen~
+- [x] ~Quick-Reference an die neuen Features anpassen~
 
 ### New-Dialog
 
 - [ ] Neben "Empty" auch Vorlagen anbieten
-- [ ] Templates für Tasks und Features
-
-### Tests
-
-- [ ] Roadmap.md kann wieder als Roadtrip-Test verwendet werden
+- [ ] Templates für Tasks und Features lokal ablegen
 
 ## Dateisystem
 
@@ -348,15 +364,10 @@
 
 ### Markdown-Features
 
-- [ ] URLs unterstützen
 - [ ] Referenzen herstellen + hervorheben können
-- [ ] Quellcode unterstützen können
 - [ ] Bilder unterstützen können
 - [ ] Auch einen Umgang mit anderen Markdown-Features + inline-HTML finden
-
-### Help
-
-- [ ] An die neuen Features anpassen
+- [ ] Live-Parsing mit Fehlermeldungen
 
 ## Archivierung und Suche
 

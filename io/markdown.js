@@ -31,7 +31,7 @@ window.MDManager = window.MDManager || {};
     let projectHeading = 0;
     let hasFeature = false;
     lines.forEach((line, index) => {
-      if (/^#{1,3}\s*$/.test(line)) formatError("Heading has no title.", index + 1);
+      if (/^#{1,4}\s*$/.test(line)) formatError("Heading has no title.", index + 1);
       const heading = line.match(/^(#{1,3})\s+(.+?)\s*#*\s*$/);
       if (!heading) return;
       const level = heading[1].length;
@@ -75,7 +75,7 @@ window.MDManager = window.MDManager || {};
         section = null;
         return;
       }
-      const separator = line.match(/^\s*\*\*(.+)\*\*\s*$/);
+      const separator = line.match(/^####\s+(.+?)\s*#*\s*$/);
       if (separator) {
         note = null;
         section = { lineIndex, descriptions: [], todos: [] };
@@ -120,7 +120,7 @@ window.MDManager = window.MDManager || {};
     for (const line of lines) {
       if (/^\s*#Info\s*$/i.test(line)) { section = "info"; continue; }
       if (/^\s*#Warn\s*$/i.test(line)) { section = "warn"; continue; }
-      if (/^\s*\*\*.+\*\*\s*$/.test(line)) section = "markdown";
+      if (/^####\s+.+?\s*#*\s*$/.test(line)) section = "markdown";
       sections[section].push(line);
     }
     const clean = (/** @type {string[]} */ values) => values.join("\n").replace(/^(?:[ \t]*\n)+|(?:\n[ \t]*)+$/g, "");
@@ -272,17 +272,17 @@ window.MDManager = window.MDManager || {};
         note = true;
         return line;
       }
-      if (/^\s*\*\*.+\*\*\s*$/.test(line)) {
+      if (/^####\s+.+?\s*#*\s*$/.test(line)) {
         note = false;
         return line;
       }
       if (note) return line;
 
-      const todo = line.match(/^(\s*[-*+]\s+)(?:\[([ xX])\]\s+)?(.*)$/);
+      const todo = line.match(/^\s*[-*+]\s+(?:\[([ xX])\]\s+)?(.*)$/);
       if (!todo) return line;
-      const checked = todo[2]?.toLowerCase() === "x" || /^~.*~$/.test(todo[3]);
-      const text = checked && !/^~.*~$/.test(todo[3]) ? `~${todo[3]}~` : todo[3];
-      return `${todo[1]}[${checked ? "x" : " "}] ${text}`;
+      const checked = todo[1]?.toLowerCase() === "x" || /^~.*~$/.test(todo[2]);
+      const text = checked && !/^~.*~$/.test(todo[2]) ? `~${todo[2]}~` : todo[2];
+      return `- [${checked ? "x" : " "}] ${text}`;
     });
   }
 
@@ -306,7 +306,7 @@ window.MDManager = window.MDManager || {};
     for (let index = 0; index < cleaned.length; index++) {
       const line = cleaned[index];
       const heading = /^#{1,3}\s+/.test(line);
-      const label = /^\s*\*\*.+\*\*\s*$/.test(line);
+      const label = /^####\s+.+?\s*#*\s*$/.test(line);
       const backlogMarker = /^\s*#Backlog\s*$/i.test(line);
       if (backlogMarker) {
         while (normalized.at(-1)?.trim() === "") normalized.pop();
@@ -320,7 +320,7 @@ window.MDManager = window.MDManager || {};
       }
 
       while (normalized.at(-1)?.trim() === "") normalized.pop();
-      if (normalized.length && normalized.at(-1)?.trim().toLowerCase() !== "#backlog") normalized.push("");
+      if (normalized.length && !/^#(?:Backlog|Ignore)$/i.test(normalized.at(-1)?.trim() || "")) normalized.push("");
       normalized.push(line);
 
       while (cleaned[index + 1]?.trim() === "") index++;

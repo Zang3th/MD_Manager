@@ -96,7 +96,7 @@ window.MDManager = window.MDManager || {};
       const target = project.features[toFeature].tasks[toTask];
       const todo = source.lines.splice(fromLine, 1)[0];
       if (source === target && fromLine < toAnchorLine) toAnchorLine--;
-      const nextBoundary = target.lines.findIndex((line, index) => index > toAnchorLine && /^\s*(?:#(?:Info|Warn)|\*\*.+\*\*)\s*$/i.test(line));
+      const nextBoundary = target.lines.findIndex((line, index) => index > toAnchorLine && /^(?:\s*#(?:Info|Warn)\s*|####\s+.+?\s*#*\s*)$/i.test(line));
       const groupEnd = nextBoundary >= 0 ? nextBoundary : target.lines.length;
       const targetLines = target.lines.map((line, index) => index > toAnchorLine && index < groupEnd && /^\s*[-*+]\s+/.test(line) ? index : -1)
         .filter(index => index >= 0);
@@ -108,10 +108,10 @@ window.MDManager = window.MDManager || {};
     },
     /** @param {MDTask} task @param {number} lineIndex @param {boolean} checked */
     setTodo(task, lineIndex, checked) {
-      const match = task.lines[lineIndex].match(/^(\s*[-*+]\s+)(?:\[[ xX]\]\s+)?(.*)$/);
+      const match = task.lines[lineIndex].match(/^\s*[-*+]\s+(?:\[[ xX]\]\s+)?(.*)$/);
       if (!match) return;
-      const text = match[2].replace(/^~(.*)~$/, "$1");
-      task.lines[lineIndex] = `${match[1]}[${checked ? "x" : " "}] ${checked ? `~${text}~` : text}`;
+      const text = match[1].replace(/^~(.*)~$/, "$1");
+      task.lines[lineIndex] = `- [${checked ? "x" : " "}] ${checked ? `~${text}~` : text}`;
     }
   };
 })(window.MDManager);

@@ -17,11 +17,36 @@ window.MDManager = window.MDManager || {};
 
   /** @param {string} value */
   function inlineMarkdown(value) {
-    return escapeHtml(value)
-      .replace(/`([^`]+)`/g, "<code>$1</code>")
-      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-      .replace(/\*([^*]+)\*/g, "<em>$1</em>")
-      .replace(/\[([^\]]+)]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+    const tokens = /(`([^`\n]+)`|\[([^\]\n]+)]\((https?:\/\/[^\s)]+)\)|\*\*([^*\n]+)\*\*|~([^~\n]+)~|\*([^*\n]+)\*)/g;
+    let markup = "";
+    let offset = 0;
+    for (const match of value.matchAll(tokens)) {
+      markup += escapeHtml(value.slice(offset, match.index));
+      if (match[2] !== undefined) markup += `<code>${escapeHtml(match[2])}</code>`;
+      else if (match[3] !== undefined) markup += `<a href="${escapeHtml(match[4])}" target="_blank" rel="noopener noreferrer">${escapeHtml(match[3])}</a>`;
+      else if (match[5] !== undefined) markup += `<strong>${escapeHtml(match[5])}</strong>`;
+      else if (match[6] !== undefined) markup += `<s>${escapeHtml(match[6])}</s>`;
+      else markup += `<em>${escapeHtml(match[7])}</em>`;
+      offset = (match.index || 0) + match[0].length;
+    }
+    return markup + escapeHtml(value.slice(offset));
+  }
+
+  /** @param {{text: string, indent: number, children: Array<*>}[]} items */
+  function nestedNoteList(items) {
+    /** @type {{text: string, indent: number, children: Array<*>}[]} */
+    const roots = [];
+    /** @type {{text: string, indent: number, children: Array<*>}[]} */
+    const stack = [];
+    for (const item of items) {
+      while (stack.length && item.indent <= stack[stack.length - 1].indent) stack.pop();
+      const node = { ...item, children: [] };
+      (stack.length ? stack[stack.length - 1].children : roots).push(node);
+      stack.push(node);
+    }
+    /** @param {typeof roots} nodes @returns {string} */
+    const render = nodes => `<ul>${nodes.map(node => `<li><span>${inlineMarkdown(node.text)}</span>${node.children.length ? render(node.children) : ""}</li>`).join("")}</ul>`;
+    return render(roots);
   }
 
   /** @param {MDTask} task @returns {MDTaskContent} */
@@ -40,20 +65,22 @@ window.MDManager = window.MDManager || {};
     return notes.map(note => {
       const noteType = note.noteType || note.type;
       const title = noteType === "warn" ? "Warn" : "Info";
-      let listOpen = false;
-      const content = note.items.map(item => {
-        const text = typeof item === "string" ? item : item.text;
-        const indent = typeof item === "string" ? 0 : item.indent;
+      let content = "";
+      /** @type {{text: string, indent: number, children: Array<*>}[]} */
+      let listItems = [];
+      const flushList = () => {
+        if (!listItems.length) return;
+        content += nestedNoteList(listItems);
+        listItems = [];
+      };
+      for (const item of note.items) {
         if (item.paragraph) {
-          const markup = `${listOpen ? "</ul>" : ""}<p>${inlineMarkdown(text)}</p>`;
-          listOpen = false;
-          return markup;
-        }
-        const markup = `${listOpen ? "" : "<ul>"}<li${indent ? ` style="margin-left:${indent}ch"` : ""}>${inlineMarkdown(text)}</li>`;
-        listOpen = true;
-        return markup;
-      }).join("");
-      return `<section class="task-note task-${noteType}${collapsible ? " feature-note collapsed" : ""}"${collapsible ? ' aria-expanded="false"' : ""}>${collapsible ? `<button class="note-toggle" type="button">${title}</button>` : `<h4>${title}</h4>`}${content}${listOpen ? "</ul>" : ""}</section>`;
+          flushList();
+          content += `<p>${inlineMarkdown(item.text)}</p>`;
+        } else listItems.push({ text: item.text, indent: item.indent || 0, children: [] });
+      }
+      flushList();
+      return `<section class="task-note task-${noteType}${collapsible ? " feature-note collapsed" : ""}"${collapsible ? ' aria-expanded="false"' : ""}>${collapsible ? `<button class="note-toggle" type="button">${title}</button>` : `<h4>${title}</h4>`}${content}</section>`;
     }).join("");
   }
 

@@ -68,27 +68,32 @@
                     <div><dt><code># Project</code></dt><dd>Project title</dd></div>
                     <div><dt><code>## Feature</code></dt><dd>Feature column</dd></div>
                     <div><dt><code>### Task</code></dt><dd>Task card</dd></div>
+                    <div><dt><code>#### Label</code></dt><dd>Labeled todo group</dd></div>
+                    <div><dt><code>- [ ] Todo</code></dt><dd>Open; <code>[x]</code> completed</dd></div>
                   </dl>
                   <h4>Feature tags</h4>
                   <dl class="markdown-reference">
-                    <div><dt><code class="help-tag">#Backlog</code></dt><dd>Marks the start of the backlog task section</dd></div>
+                    <div><dt><code class="help-tag">#Backlog</code></dt><dd>Backlog task section</dd></div>
                   </dl>
                   <h5 class="help-subcategory">Metadata</h5>
                   <dl class="markdown-reference markdown-reference-nested">
-                    <div><dt><code class="help-tag">#Version</code></dt><dd>One list item containing the version</dd></div>
-                    <div><dt><code class="help-tag">#Date</code></dt><dd>List items formatted as <code>from - to</code></dd></div>
+                    <div><dt><code class="help-tag">#Version</code></dt><dd>Version list item</dd></div>
+                    <div><dt><code class="help-tag">#Date</code></dt><dd>Date range: <code>from - to</code></dd></div>
                   </dl>
                   <h4>Shared tags</h4>
                   <dl class="markdown-reference">
-                    <div><dt><code class="help-tag">#Info</code></dt><dd>One info block per feature or task</dd></div>
-                    <div><dt><code class="help-tag">#Warn</code></dt><dd>One warn block per feature or task</dd></div>
-                    <div><dt><code class="help-tag">#Ignore</code></dt><dd>Hides the following feature or task</dd></div>
+                    <div><dt><code class="help-tag help-tag-info">#Info</code></dt><dd>One per feature or task</dd></div>
+                    <div><dt><code class="help-tag help-tag-warn">#Warn</code></dt><dd>One per feature or task</dd></div>
+                    <div><dt><code class="help-tag">#Ignore</code></dt><dd>Hides next feature or task</dd></div>
                   </dl>
-                  <h4>Task content</h4>
-                  <dl class="markdown-reference">
-                    <div><dt><code>**Label**</code></dt><dd>Starts a labeled todo group inside a task</dd></div>
-                    <div><dt><code>- [ ] Todo</code></dt><dd>Open todo; use <code>[x]</code> for completed</dd></div>
-                  </dl>
+                  <h4>Supported formatting</h4>
+                  <p class="help-formatting">
+                    <span class="markdown-syntax-bold">**Bold**</span>
+                    <span class="markdown-syntax-italic">*Italic*</span>
+                    <span class="markdown-syntax-strike">~Strikethrough~</span>
+                    <span class="markdown-syntax-code">`Code`</span>
+                    <span class="markdown-syntax-link">[URL](url)</span>
+                  </p>
                 </section>
               </div>
             </aside>
@@ -124,24 +129,64 @@
   </div>
   <template id="clipboardIndicatorTemplate"><span class="clipboard-indicator" role="status" aria-label="Copied to clipboard" title="Copied to clipboard"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M9 5h6M9 3h6v4H9z"/><path d="M7 5H5v16h14V5h-2"/></svg></span></template>
   <section class="notifications" id="notifications" aria-label="Notifications" aria-live="polite"></section>
-  <dialog class="task-editor-dialog" id="taskEditor" aria-labelledby="taskEditorLocation">
+  <dialog class="task-editor-dialog" id="taskEditor" aria-labelledby="taskEditorLocation" tabindex="-1">
     <form class="task-editor" id="taskEditorForm" method="dialog">
       <header class="task-editor-header">
         <nav class="task-editor-breadcrumb" aria-label="Task location"><span id="taskEditorProject"></span><span aria-hidden="true">/</span><span id="taskEditorFeature"></span><span aria-hidden="true">/</span><strong id="taskEditorLocation"></strong></nav>
-        <button class="task-editor-close" id="closeTaskEditor" type="button" aria-label="Cancel editing" title="Cancel">✕</button>
+        <div class="editor-header-actions">
+          <div class="editor-header-history" aria-label="Dialog edit history">
+            <button class="editor-header-tool" type="button" data-editor-history="undo" aria-label="Undo dialog edit" title="Undo dialog edit (Ctrl+Z)" disabled><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
+            <button class="editor-header-tool" type="button" data-editor-history="redo" aria-label="Redo dialog edit" title="Redo dialog edit (Ctrl+Shift+Z)" disabled><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m15 14 5-5-5-5m5 5H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>
+          </div>
+          <button class="task-editor-close" id="closeTaskEditor" type="button" aria-label="Cancel editing" title="Cancel">✕</button>
+        </div>
       </header>
       <div class="task-editor-content">
         <label class="editor-field">
           <span class="editor-label">Title</span>
           <input id="taskEditorTitle" name="title" type="text" required autocomplete="off">
         </label>
-        <label class="editor-field editor-field-grow">
-          <span class="editor-label-row"><span class="editor-label">Markdown</span><span class="editor-hint">Todos and labels</span></span>
-          <textarea id="taskEditorMarkdown" name="markdown" spellcheck="true"></textarea>
-        </label>
-        <div class="feature-note-fields task-note-editor-fields">
-          <label class="metadata-editor-field"><span class="editor-label">Info</span><textarea id="taskEditorInfo" name="info" spellcheck="true"></textarea></label>
-          <label class="metadata-editor-field"><span class="editor-label">Warn</span><textarea id="taskEditorWarn" name="warn" spellcheck="true"></textarea></label>
+        <div class="editor-field editor-field-grow editor-field-toolbar">
+          <span class="editor-label-row"><label class="editor-label" for="taskEditorMarkdown">Markdown</label></span>
+          <div class="markdown-editor-shell">
+            <div class="markdown-toolbar" id="taskMarkdownToolbar" role="toolbar" aria-label="Markdown formatting">
+              <div class="markdown-tool-group" aria-label="Text formatting">
+                <button class="markdown-tool" type="button" data-markdown-action="bold" aria-label="Bold" title="Bold (Ctrl+B)" disabled><strong aria-hidden="true">B</strong></button>
+                <button class="markdown-tool markdown-tool-italic" type="button" data-markdown-action="italic" aria-label="Italic" title="Italic (Ctrl+I)" disabled><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M10 4h8M6 20h8M14 4l-4 16"/></svg></button>
+                <button class="markdown-tool markdown-tool-strike" type="button" data-markdown-action="strikethrough" aria-label="Strikethrough" title="Strikethrough (Ctrl+Shift+X)" disabled><span aria-hidden="true">S</span></button>
+                <button class="markdown-tool markdown-tool-code" type="button" data-markdown-action="code" aria-label="Code" title="Code (Ctrl+E)" disabled><span aria-hidden="true">&lt;/&gt;</span></button>
+              </div>
+              <div class="markdown-tool-group" aria-label="Insert formatting">
+                <button class="markdown-tool markdown-tool-list" type="button" data-markdown-action="list" aria-label="Todo list" title="Todo list" disabled><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="4" width="5" height="5" rx="1"/><path d="M11 6.5h10M3 15h5v5H3zM11 17.5h10"/></svg></button>
+                <button class="markdown-tool markdown-tool-url" type="button" data-markdown-action="url" aria-label="URL" title="URL (Ctrl+K)" disabled><span aria-hidden="true">URL</span></button>
+              </div>
+              <details class="markdown-tags"><summary>Tags</summary><div class="markdown-tags-menu">
+                <button class="markdown-tool markdown-tool-info" type="button" data-markdown-action="info" aria-label="Insert Info tag" title="Insert #Info" disabled><span aria-hidden="true">#Info</span></button>
+                <button class="markdown-tool markdown-tool-warn" type="button" data-markdown-action="warn" aria-label="Insert Warn tag" title="Insert #Warn" disabled><span aria-hidden="true">#Warn</span></button>
+              </div></details>
+              <div class="markdown-tool-spacer"></div>
+              <div class="markdown-help-menu">
+                <button class="markdown-tool markdown-help-button" type="button" data-editor-help="toggle" aria-label="Formatting help" title="Formatting help" aria-expanded="false" aria-controls="taskFormattingHelp">?</button>
+                <aside class="help-popover" id="taskFormattingHelp" aria-label="Formatting help" hidden>
+                  <header class="help-header"><h2>Shortcut reference</h2><button class="help-close" type="button" data-editor-help="close" aria-label="Close formatting help" title="Close help">✕</button></header>
+                  <div class="help-content">
+                    <section class="help-section"><h3>Shortcuts</h3><dl class="shortcut-list">
+                      <div><dt>Bold</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>B</kbd><small>or ⌘ B</small></dd></div>
+                      <div><dt>Italic</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>I</kbd><small>or ⌘ I</small></dd></div>
+                      <div><dt>Strikethrough</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>Shift</kbd><span>+</span><kbd>X</kbd><small>or ⌘ Shift X</small></dd></div>
+                      <div><dt>Code</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>E</kbd><small>or ⌘ E</small></dd></div>
+                      <div><dt>URL</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>K</kbd><small>or ⌘ K</small></dd></div>
+                      <div><dt>Undo</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>Z</kbd><small>or ⌘ Z</small></dd></div>
+                      <div><dt>Redo</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>Shift</kbd><span>+</span><kbd>Z</kbd><small>or Ctrl Y / ⌘ Shift Z</small></dd></div>
+                      <div><dt>Save dialog</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>Enter</kbd><small>or ⌘ Enter</small></dd></div>
+                      <div><dt>End edit / close</dt><dd><kbd>Esc</kbd></dd></div>
+                    </dl></section>
+                  </div>
+                </aside>
+              </div>
+            </div>
+            <div class="markdown-editor-stack"><pre class="markdown-highlight" id="taskMarkdownHighlight" aria-hidden="true"></pre><textarea id="taskEditorMarkdown" name="markdown" spellcheck="true"></textarea></div>
+          </div>
         </div>
       </div>
       <footer class="task-editor-footer">
@@ -153,18 +198,63 @@
       </footer>
     </form>
   </dialog>
-  <dialog class="feature-editor-dialog" id="featureEditor" aria-labelledby="featureEditorFeature">
+  <dialog class="feature-editor-dialog" id="featureEditor" aria-labelledby="featureEditorFeature" tabindex="-1">
     <form class="feature-editor" id="featureEditorForm" method="dialog">
       <header class="feature-editor-header">
         <nav class="task-editor-breadcrumb" aria-label="Feature location"><span id="featureEditorProject"></span><span aria-hidden="true">/</span><strong id="featureEditorFeature"></strong></nav>
-        <button class="task-editor-close" id="closeFeatureEditor" type="button" aria-label="Cancel editing" title="Cancel">✕</button>
+        <div class="editor-header-actions">
+          <div class="editor-header-history" aria-label="Dialog edit history">
+            <button class="editor-header-tool" type="button" data-editor-history="undo" aria-label="Undo dialog edit" title="Undo dialog edit (Ctrl+Z)" disabled><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
+            <button class="editor-header-tool" type="button" data-editor-history="redo" aria-label="Redo dialog edit" title="Redo dialog edit (Ctrl+Shift+Z)" disabled><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m15 14 5-5-5-5m5 5H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>
+          </div>
+          <button class="task-editor-close" id="closeFeatureEditor" type="button" aria-label="Cancel editing" title="Cancel">✕</button>
+        </div>
       </header>
       <div class="feature-editor-content">
         <label class="editor-field"><span class="editor-label">Title</span><input id="featureEditorTitle" name="title" type="text" required autocomplete="off"></label>
-        <label class="metadata-editor-field"><span class="editor-label-row"><span class="editor-label">Metadata</span><span class="editor-hint">#Version and #Date</span></span><textarea id="featureEditorMetadata" name="metadata" spellcheck="true"></textarea></label>
-        <div class="feature-note-fields">
-          <label class="metadata-editor-field"><span class="editor-label">Info</span><textarea id="featureEditorInfo" name="info" spellcheck="true"></textarea></label>
-          <label class="metadata-editor-field"><span class="editor-label">Warn</span><textarea id="featureEditorWarn" name="warn" spellcheck="true"></textarea></label>
+        <div class="metadata-editor-field editor-field-toolbar">
+          <span class="editor-label-row"><label class="editor-label" for="featureEditorMetadata">Markdown</label></span>
+          <div class="markdown-editor-shell">
+            <div class="markdown-toolbar" id="featureMarkdownToolbar" role="toolbar" aria-label="Markdown formatting">
+              <div class="markdown-tool-group" aria-label="Text formatting">
+                <button class="markdown-tool" type="button" data-markdown-action="bold" aria-label="Bold" title="Bold (Ctrl+B)" disabled><strong aria-hidden="true">B</strong></button>
+                <button class="markdown-tool markdown-tool-italic" type="button" data-markdown-action="italic" aria-label="Italic" title="Italic (Ctrl+I)" disabled><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M10 4h8M6 20h8M14 4l-4 16"/></svg></button>
+                <button class="markdown-tool markdown-tool-strike" type="button" data-markdown-action="strikethrough" aria-label="Strikethrough" title="Strikethrough (Ctrl+Shift+X)" disabled><span aria-hidden="true">S</span></button>
+                <button class="markdown-tool markdown-tool-code" type="button" data-markdown-action="code" aria-label="Code" title="Code (Ctrl+E)" disabled><span aria-hidden="true">&lt;/&gt;</span></button>
+              </div>
+              <div class="markdown-tool-group" aria-label="Insert formatting">
+                <button class="markdown-tool markdown-tool-list" type="button" data-markdown-action="list" aria-label="Todo list" title="Todo list" disabled><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="4" width="5" height="5" rx="1"/><path d="M11 6.5h10M3 15h5v5H3zM11 17.5h10"/></svg></button>
+                <button class="markdown-tool markdown-tool-url" type="button" data-markdown-action="url" aria-label="URL" title="URL (Ctrl+K)" disabled><span aria-hidden="true">URL</span></button>
+              </div>
+              <details class="markdown-tags"><summary>Tags</summary><div class="markdown-tags-menu">
+                <button class="markdown-tool markdown-tool-version" type="button" data-markdown-action="version" aria-label="Insert Version tag" title="Insert #Version" disabled><span aria-hidden="true">#Version</span></button>
+                <button class="markdown-tool markdown-tool-date" type="button" data-markdown-action="date" aria-label="Insert Date tag" title="Insert #Date" disabled><span aria-hidden="true">#Date</span></button>
+                <button class="markdown-tool markdown-tool-info" type="button" data-markdown-action="info" aria-label="Insert Info tag" title="Insert #Info" disabled><span aria-hidden="true">#Info</span></button>
+                <button class="markdown-tool markdown-tool-warn" type="button" data-markdown-action="warn" aria-label="Insert Warn tag" title="Insert #Warn" disabled><span aria-hidden="true">#Warn</span></button>
+              </div></details>
+              <div class="markdown-tool-spacer"></div>
+              <div class="markdown-help-menu">
+                <button class="markdown-tool markdown-help-button" type="button" data-editor-help="toggle" aria-label="Formatting help" title="Formatting help" aria-expanded="false" aria-controls="featureFormattingHelp">?</button>
+                <aside class="help-popover" id="featureFormattingHelp" aria-label="Formatting help" hidden>
+                  <header class="help-header"><h2>Shortcut reference</h2><button class="help-close" type="button" data-editor-help="close" aria-label="Close formatting help" title="Close help">✕</button></header>
+                  <div class="help-content">
+                    <section class="help-section"><h3>Shortcuts</h3><dl class="shortcut-list">
+                      <div><dt>Bold</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>B</kbd><small>or ⌘ B</small></dd></div>
+                      <div><dt>Italic</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>I</kbd><small>or ⌘ I</small></dd></div>
+                      <div><dt>Strikethrough</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>Shift</kbd><span>+</span><kbd>X</kbd><small>or ⌘ Shift X</small></dd></div>
+                      <div><dt>Code</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>E</kbd><small>or ⌘ E</small></dd></div>
+                      <div><dt>URL</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>K</kbd><small>or ⌘ K</small></dd></div>
+                      <div><dt>Undo</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>Z</kbd><small>or ⌘ Z</small></dd></div>
+                      <div><dt>Redo</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>Shift</kbd><span>+</span><kbd>Z</kbd><small>or Ctrl Y / ⌘ Shift Z</small></dd></div>
+                      <div><dt>Save dialog</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>Enter</kbd><small>or ⌘ Enter</small></dd></div>
+                      <div><dt>End edit / close</dt><dd><kbd>Esc</kbd></dd></div>
+                    </dl></section>
+                  </div>
+                </aside>
+              </div>
+            </div>
+            <div class="markdown-editor-stack"><pre class="markdown-highlight" id="featureMarkdownHighlight" aria-hidden="true"></pre><textarea id="featureEditorMetadata" name="metadata" spellcheck="true"></textarea></div>
+          </div>
         </div>
       </div>
       <footer class="task-editor-footer">
