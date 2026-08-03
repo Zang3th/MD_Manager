@@ -2,6 +2,7 @@ window.MDManager = window.MDManager || {};
 
 (function (app) {
   const duration = 4000;
+  const maxTextLength = 180;
   let resizeFrame = 0;
   const dismissTimers = new WeakMap();
 
@@ -42,6 +43,14 @@ window.MDManager = window.MDManager || {};
     confetti: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m4 16 3.2-8 4.8 4.8L4 16Z"/><path d="m7.2 8 4.8 4.8M11 5l.8-2.2M14 8l2.6-.8M8 4.2 6.8 2.4"/><circle cx="15.2" cy="3.7" r=".8"/><circle cx="16.1" cy="11.2" r=".7"/></svg>'
   };
 
+  /** @param {string} value */
+  function readableText(value) {
+    const leading = /^\s/.test(value) ? " " : "";
+    const trailing = /\s$/.test(value) ? " " : "";
+    const compact = `${leading}${value.trim().replace(/\s+/g, " ")}${trailing}`;
+    return compact.length <= maxTextLength ? compact : `${compact.slice(0, maxTextLength - 1).trimEnd()}…`;
+  }
+
   /** @param {"info" | "warning" | "error"} severity @param {string} title @param {string | Array<string | {value: string}>} body @param {"rocket" | "confetti"} [symbol] */
   function show(severity, title, body, symbol) {
     const notification = document.createElement("article");
@@ -70,13 +79,13 @@ window.MDManager = window.MDManager || {};
 
     const notificationBody = document.createElement("div");
     notificationBody.className = "notification-body";
-    if (typeof body === "string") notificationBody.textContent = body;
+    if (typeof body === "string") notificationBody.textContent = readableText(body);
     else body.forEach(part => {
-      if (typeof part === "string") notificationBody.append(part);
+      if (typeof part === "string") notificationBody.append(readableText(part));
       else {
         const value = document.createElement("span");
         value.className = "notification-value";
-        value.textContent = part.value;
+        value.textContent = readableText(part.value);
         notificationBody.append(value);
       }
     });

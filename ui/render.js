@@ -230,12 +230,13 @@ window.MDManager = window.MDManager || {};
     }).join("");
     const backlog = document.getElementById("backlog");
     const backlogButton = document.getElementById("toggleBacklog");
+    const backlogOpen = viewState ? viewState.backlogOpen : false;
     backlogButton.disabled = !backlogFeature;
-    backlogButton.setAttribute("aria-pressed", String(Boolean(backlogFeature && viewState?.backlogOpen)));
+    backlogButton.setAttribute("aria-pressed", String(Boolean(backlogFeature && backlogOpen)));
     if (backlogFeature) {
       backlog.dataset.feature = String(project.features.indexOf(backlogFeature));
       backlog.innerHTML = backlogContents(backlogFeature);
-      backlog.hidden = !viewState?.backlogOpen;
+      backlog.hidden = !backlogOpen;
     } else {
       backlog.removeAttribute("data-feature");
       backlog.innerHTML = "";
@@ -296,6 +297,7 @@ window.MDManager = window.MDManager || {};
     document.getElementById("content").innerHTML = `<div class="empty start-screen">
       <section class="recent-files" aria-labelledby="recentFilesTitle"><h2 id="recentFilesTitle">Recent files</h2>
         <div class="recent-files-list">${entries.length ? entries.map((entry, index) => `<div class="recent-file"><button class="recent-file-open" data-recent="${index}" type="button"><span class="recent-file-details"><span class="recent-project-name">${escapeHtml(entry.projectTitle || entry.name)}</span>${entry.projectTitle ? `<span class="recent-file-name">${escapeHtml(entry.name)}</span>` : ""}</span><time class="recent-file-time" datetime="${new Date(entry.openedAt).toISOString()}">${new Date(entry.openedAt).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" })}</time></button><div class="recent-file-actions"><button class="recent-delete" data-remove-recent="${index}" type="button" aria-label="Remove ${escapeHtml(entry.name)} from recent files" title="Remove from recent files">${deleteIcon}</button></div></div>`).join("") : '<p class="recent-files-empty">No recent files</p>'}</div>
+        <div class="start-actions"><button class="btn start-file-action start-open-file" id="openFile" type="button">Open File</button><button class="btn start-file-action start-new-project" id="newProject" type="button"><img class="start-new-logo" src="res/Logo.svg" alt="">Create File</button></div>
       </section></div>`;
   }
 

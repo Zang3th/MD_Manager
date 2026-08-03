@@ -13,6 +13,7 @@ window.MDManager = window.MDManager || {};
   let diskMarkdown = "";
   let diskStamp = "";
   let serializedMarkdown = "";
+  let savedMarkdown = "";
   /** @type {{markdown: string, stamp: string} | null} */
   let externalChange = null;
   let checkingExternal = false;
@@ -34,7 +35,7 @@ window.MDManager = window.MDManager || {};
 
   function updateUndoSystemControls() {
     app.interactions.setUndoSystemState({
-      dirty: Boolean(undoSystem) && app.undoSystem.isDirty(undoSystem),
+      dirty: Boolean(undoSystem) && serializedMarkdown !== savedMarkdown,
       canUndo: Boolean(undoSystem) && app.undoSystem.canUndo(undoSystem),
       canRedo: Boolean(undoSystem) && app.undoSystem.canRedo(undoSystem),
       undoLabel: undoSystem ? app.undoSystem.undoLabel(undoSystem) : "",
@@ -47,6 +48,11 @@ window.MDManager = window.MDManager || {};
   function formatErrorBody(error) {
     const lineNumber = /** @type {Error & {lineNumber?: number}} */ (error).lineNumber || 1;
     return `Line ${lineNumber}: ${error.message}`;
+  }
+
+  /** @param {unknown} error */
+  function isMissingFile(error) {
+    return typeof error === "object" && error !== null && /** @type {{name?: unknown}} */ (error).name === "NotFoundError";
   }
 
   /** @param {MDUndoAction} action @param {{render?: boolean}} [options] @returns {boolean} */
@@ -70,7 +76,7 @@ window.MDManager = window.MDManager || {};
       app.notifications.show("warning", "File changed externally", "Choose Reload or Overwrite before saving.");
       return;
     }
-    if (!force && !app.undoSystem.isDirty(undoSystem)) return;
+    if (!force && serializedMarkdown === savedMarkdown) return;
     const markdown = serializedMarkdown;
     await app.files.save(fileHandle, markdown);
     diskMarkdown = markdown;
@@ -80,6 +86,7 @@ window.MDManager = window.MDManager || {};
     } else diskStamp = "";
     externalChange = null;
     app.undoSystem.markSaved(undoSystem);
+    savedMarkdown = markdown;
     updateUndoSystemControls();
     app.notifications.show("info", "File saved", [{ value: fileHandle.name }, " saved."]);
   }
@@ -91,6 +98,7 @@ window.MDManager = window.MDManager || {};
     fileHandle = opened.handle;
     project = openedProject;
     serializedMarkdown = app.markdown.serialize(openedProject);
+    savedMarkdown = serializedMarkdown;
     diskMarkdown = opened.markdown;
     diskStamp = opened.stamp || "";
     externalChange = null;
@@ -127,6 +135,16 @@ window.MDManager = window.MDManager || {};
       updateUndoSystemControls();
       app.notifications.show("warning", "File changed externally", [{ value: fileHandle.name }, " changed on disk. Choose Reload or Overwrite."]);
     } catch (error) {
+      if (isMissingFile(error)) {
+        const errorKey = `deleted:${fileHandle.name}`;
+        if (errorKey !== lastExternalCheckError) {
+          lastExternalCheckError = errorKey;
+          externalChange = null;
+          updateUndoSystemControls();
+          app.notifications.show("error", "File deleted", [{ value: fileHandle.name }, " was deleted from disk. Your work remains open."]);
+        }
+        return;
+      }
       if (error instanceof Error && error.message !== lastExternalCheckError) {
         lastExternalCheckError = error.message;
         app.notifications.show("error", "File check", `External changes could not be checked: ${error.message}`);
@@ -143,6 +161,7 @@ window.MDManager = window.MDManager || {};
       const reloadedProject = app.markdown.parse(externalChange.markdown);
       project = reloadedProject;
       serializedMarkdown = app.markdown.serialize(reloadedProject);
+      savedMarkdown = serializedMarkdown;
       diskMarkdown = externalChange.markdown;
       diskStamp = externalChange.stamp;
       externalChange = null;
@@ -163,7 +182,7 @@ window.MDManager = window.MDManager || {};
     return true;
   }
 
-  document.getElementById("openFile").addEventListener("click", async () => {
+  app.interactions.setOpenFile(async () => {
     /** @type {MDOpenedFile | null} */
     let opened = null;
     try {
@@ -200,6 +219,16 @@ window.MDManager = window.MDManager || {};
       if (!(error instanceof Error)) throw error;
       app.render.start(recentFiles);
       app.notifications.show("error", "Recent files", `File could not be removed from recent-files list: ${error.message}`);
+    }
+  });
+
+  app.interactions.setCreateProject(async () => {
+    try {
+      await useOpenedFile(await app.files.createProject());
+    } catch (error) {
+      if (!(error instanceof Error)) throw error;
+      if (error.name === "AbortError") return;
+      app.notifications.show("error", "Project creation", `Project could not be created: ${error.message}`);
     }
   });
 

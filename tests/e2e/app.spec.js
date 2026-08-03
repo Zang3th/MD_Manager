@@ -36,7 +36,7 @@ async function openFixture(page, markdown = fixture) {
     window.MDManager.files.remember = async () => {};
     window.MDManager.files.save = async (_handle, value) => { window.__savedMarkdown = value; };
   }, markdown);
-  await page.getByRole("button", { name: "Open", exact: true }).click();
+  await page.getByRole("button", { name: "Open File", exact: true }).click();
   await expect(page.locator("#projectTitle")).toHaveText(markdown.match(/^#\s+(.+)$/m)[1]);
 }
 
@@ -49,11 +49,16 @@ async function toggleBacklogFromView(page) {
 test("start screen exposes the application identity and open action", async ({ page }) => {
   await page.goto(appUrl);
   await expect(page).toHaveTitle("MD_Manager");
-  await expect(page.locator("#appVersion")).toHaveText("v0.3.0");
+  await expect(page.locator("#appVersion")).toHaveText("v0.4.0");
   expect(await page.locator("#appVersion").evaluate(element => getComputedStyle(element, "::before").height)).toBe("2px");
-  await expect(page.getByRole("button", { name: "Open", exact: true })).toBeVisible();
+  const startActions = page.locator(".start-actions");
+  const openFile = startActions.getByRole("button", { name: "Open File", exact: true });
+  const createFile = startActions.getByRole("button", { name: "Create File", exact: true });
+  await expect(openFile).toBeVisible();
+  expect(await openFile.evaluate(element => element.getBoundingClientRect().x)).toBeLessThan(await createFile.evaluate(element => element.getBoundingClientRect().x));
+  await expect(page.locator(".header").getByRole("button", { name: /Open/ })).toHaveCount(0);
   await expect(page.locator("#watermark")).toBeVisible();
-  await expect(page.locator("#watermark")).toContainText("MD_Manager v0.3.0");
+  await expect(page.locator("#watermark")).toContainText("MD_Manager v0.4.0");
   const help = page.getByRole("button", { name: "Help", exact: true });
   const sound = page.locator("#toggleSounds");
   const theme = page.locator("#toggleTheme");
@@ -96,7 +101,7 @@ test("theme toggle switches Gruvbox themes on the start screen and in the app", 
     window.MDManager.files.open = async () => ({ handle, markdown });
     window.MDManager.files.remember = async () => {};
   }, fixture);
-  await page.getByRole("button", { name: "Open", exact: true }).click();
+  await page.getByRole("button", { name: "Open File", exact: true }).click();
   await expect(toggle).toBeVisible();
   await expect(page.locator("body")).toHaveAttribute("data-theme", "gruvbox-light");
   await expect(page.locator(".task-in-progress")).toHaveCSS("color", "rgb(204, 36, 29)");
@@ -116,6 +121,8 @@ test("Markdown import renders features, tasks, progress states, and filename tit
   await expect(page.locator(".task-in-progress")).toHaveText("◐");
   await expect(page.locator(".task-check")).toHaveText("✓");
   await expect(page.locator("#toggleBacklog")).toBeEnabled();
+  await expect(page.locator("#redoChange")).toHaveCSS("border-top-right-radius", "6px");
+  await expect(page.locator("#redoChange")).toHaveCSS("border-bottom-right-radius", "6px");
   await expect(page.locator(".notification-title").last()).toHaveText("File loaded");
   await expect(page.locator(".notification-body").last()).toHaveText("Fixture.md is ready.");
   await expect(page.locator(".notification").last().locator(".notification-value")).toHaveText("Fixture.md");
@@ -208,8 +215,7 @@ test("tag content renders nested lists, code, and URLs while task todos stay fla
 
 test("metadata uses natural board header heights while keeping title rows aligned", async ({ page }) => {
   await openFixture(page);
-  await page.locator("#toggleViewMenu").click();
-  await page.locator("#toggleMetadata").click();
+  await expect(page.locator("#toggleMetadata")).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".release-version")).toHaveText("v1.2.3");
   await expect(page.locator(".release-dates")).toContainText("2026-01-01");
   const titleHeights = await page.locator("#content > .release .release-title").evaluateAll(nodes => nodes.map(node => node.getBoundingClientRect().height));
@@ -221,6 +227,8 @@ test("metadata uses natural board header heights while keeping title rows aligne
 test("metadata recalculates grid row height when cards wrap onto another row", async ({ page }) => {
   const features = Array.from({ length: 6 }, (_, index) => `## Feature ${index + 1}\n#Version\n- 1.0.${index}\n#Date\n- 2026-01-01 - 2026-12-31\n### Task ${index + 1}\n- [ ] pending`).join("\n\n");
   await openFixture(page, `# Grid Metadata\n\n${features}`);
+  await page.locator("#toggleViewMenu").click();
+  await page.locator("#toggleMetadata").click();
   await page.locator("#toggleGridView").click();
   const heightBefore = await page.locator("#content").evaluate(node => parseFloat(getComputedStyle(node).getPropertyValue("--grid-feature-height")));
 
@@ -249,8 +257,7 @@ test("feature editor saves title, metadata, info, and warn as one undo step", as
   await expect(page.locator("#saveFeatureEditor")).toHaveClass(/dirty/);
   await page.locator("#saveFeatureEditor").click();
   await expect(dialog).toBeHidden();
-  await page.locator("#toggleViewMenu").click();
-  await page.locator("#toggleMetadata").click();
+  await expect(page.locator("#toggleMetadata")).toHaveAttribute("aria-pressed", "true");
   await expect(feature.locator(".release-title")).toHaveText("Renamed Feature");
   await expect(feature.locator(".release-version")).toHaveText("v2.0.0");
   await expect(feature.locator(".release-dates")).toContainText("2027-06-30");
@@ -623,12 +630,75 @@ test("logo and feature new buttons create features and tasks through existing ed
   await expect(addTask).toHaveAttribute("title", "New task");
   await addTask.click();
   await expect(page.locator("#taskEditorTitle")).toHaveValue("New Task");
+  await expect(page.locator("#taskEditorMarkdown")).toHaveValue(/#### Definition of Done/);
   await page.locator("#saveTaskEditor").click();
   await expect(firstFeature.locator(".card")).toHaveCount(tasksBefore + 1);
   await expect(firstFeature.locator(".card-title").last()).toHaveText("New Task");
   await expect(page.locator(".notification-title").last()).toHaveText("Task added");
   await expect(page.locator(".notification-body").last()).toHaveText("New Task added to Active Feature.");
   await expect(page.locator(".notification").last().locator(".notification-value")).toHaveText(["New Task", "Active Feature"]);
+});
+
+test("feature and task creation can start from their bundled templates", async ({ page }) => {
+  await openFixture(page);
+  await page.getByRole("button", { name: "New feature" }).click();
+  await expect(page.locator("#featureEditorTitle")).toHaveValue("New Feature");
+  await expect(page.locator("#featureEditorMetadata")).toHaveValue(/#Version/);
+  await page.locator("#saveFeatureEditor").click();
+  const feature = page.locator("#content > .release").last();
+  await expect(feature.locator(".release-title")).toHaveText("New Feature");
+  await expect(feature.locator(".feature-note.task-warn")).toContainText("Describe where to be careful.");
+  await expect(feature.locator(".card-title")).toHaveText("New Task");
+
+  const firstFeature = page.locator("#content > .release").first();
+  await firstFeature.getByRole("button", { name: /New task in Active Feature/ }).click();
+  await expect(page.locator("#taskEditorTitle")).toHaveValue("New Task");
+  await expect(page.locator("#taskEditorMarkdown")).toHaveValue(/#### Checklist/);
+  await page.locator("#saveTaskEditor").click();
+  await expect(firstFeature.locator(".card-title").last()).toHaveText("New Task");
+});
+
+test("adding a feature scrolls its column into view", async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 720 });
+  const features = Array.from({ length: 5 }, (_, index) => `## Feature ${index + 1}\n\n### Task\n- [ ] Todo`).join("\n\n");
+  await openFixture(page, `# Scroll Project\n\n${features}`);
+  const content = page.locator("#content");
+  await content.evaluate(element => { element.scrollLeft = 0; });
+  await page.getByRole("button", { name: "New feature" }).click();
+  await page.locator("#saveFeatureEditor").click();
+  const addedFeature = page.locator("#content > .release").last();
+  await expect(addedFeature.locator(".release-title")).toHaveText("New Feature");
+  await expect.poll(async () => content.evaluate((element, feature) => {
+    const contentBounds = element.getBoundingClientRect();
+    const featureBounds = feature.getBoundingClientRect();
+    return featureBounds.left >= contentBounds.left && featureBounds.right <= contentBounds.right + 1;
+  }, await addedFeature.elementHandle())).toBe(true);
+  expect(await content.evaluate(element => element.scrollLeft)).toBeGreaterThan(0);
+});
+
+test("start screen Create File creates and opens a filesystem Markdown and help names the template folder", async ({ page }) => {
+  await page.goto(appUrl);
+  const newProject = page.getByRole("button", { name: "Create File", exact: true });
+  const recentFiles = page.locator(".recent-files-list");
+  const [newBounds, recentBounds] = await Promise.all([newProject.boundingBox(), recentFiles.boundingBox()]);
+  expect(newBounds.y).toBeGreaterThan(recentBounds.y + recentBounds.height);
+  expect(newBounds.width).toBeGreaterThanOrEqual(160);
+  await expect(newProject.locator('img[src="res/Logo.svg"]')).toBeVisible();
+  const recentOffset = await page.locator(".recent-files").evaluate(element => new DOMMatrix(getComputedStyle(element).transform).m42);
+  expect(recentOffset).toBeCloseTo(-page.viewportSize().height * 0.05, 0);
+  await page.evaluate(() => {
+    window.MDManager.files.createProject = async () => ({ handle: { name: "Project.md" }, markdown: "# New Project\n", stamp: "1:14" });
+    window.MDManager.files.remember = async () => {};
+  });
+  await newProject.click();
+  await expect(page.locator("#projectTitle")).toHaveText("New Project");
+  await expect(page.locator("#content .empty")).toContainText("No features found");
+
+  await page.locator("#toggleHelp").click();
+  const templateHelp = page.locator('.help-section[aria-labelledby="templateHelpTitle"]');
+  await expect(templateHelp.getByRole("heading", { name: "Templates", exact: true })).toBeVisible();
+  await expect(templateHelp.locator("p")).toHaveCSS("color", "rgb(146, 131, 116)");
+  await expect(page.locator("#helpPopover")).toContainText("data/templates/");
 });
 
 test("task editor opens in the foreground and saves title and Markdown as one undo step", async ({ page }) => {
@@ -739,15 +809,20 @@ test("opening the backlog scrolls the board to its right edge", async ({ page })
   const content = page.locator("#content");
   await expect.poll(() => content.evaluate(node => node.scrollWidth - node.clientWidth)).toBeGreaterThan(0);
   await expect.poll(() => content.evaluate(node => node.scrollLeft)).toBe(0);
-  await toggleBacklogFromView(page);
-  await expect.poll(() => content.evaluate(node => node.scrollLeft)).toBeGreaterThan(0);
-  await expect.poll(() => content.evaluate(node => {
-    const current = node.scrollLeft;
+  await content.evaluate(node => {
+    node.dataset.scrollFinished = "false";
+    node.addEventListener("scrollend", () => { node.dataset.scrollFinished = "true"; }, { once: true });
+  });
+  await page.locator("#toggleViewMenu").click();
+  await page.locator("#toggleBacklog").click();
+  await page.waitForFunction(node => node.scrollLeft > 0 && node.scrollLeft < node.scrollWidth - node.clientWidth, await content.elementHandle());
+  await expect(content).toHaveAttribute("data-scroll-finished", "true");
+  expect(await content.evaluate(node => {
+    const animatedPosition = node.scrollLeft;
     node.scrollLeft = node.scrollWidth;
-    const rightEdge = node.scrollLeft;
-    node.scrollLeft = current;
-    return Math.abs(current - rightEdge);
+    return Math.abs(animatedPosition - node.scrollLeft);
   })).toBeLessThanOrEqual(1);
+  await page.locator("#toggleViewMenu").click();
 });
 
 test("statistics can close and reopen in board and grid", async ({ page }) => {
@@ -810,6 +885,19 @@ test("notifications stack by severity, use the board width, and disappear automa
   await expect(notifications.nth(1).locator(".notification-tag")).toHaveText("Error");
   await expect(notifications.nth(0)).toHaveCSS("width", "300px");
   await expect(notifications.nth(0)).toHaveCSS("height", "88px");
+  await page.evaluate(() => window.MDManager.notifications.show("error", "Long error", "UnbrokenDiagnostic".repeat(40)));
+  const longNotification = notifications.last();
+  await expect(longNotification.locator(".notification-body")).toContainText("…");
+  const longLayout = await longNotification.evaluate(notification => {
+    const body = notification.querySelector(".notification-body");
+    const notificationBounds = notification.getBoundingClientRect();
+    const bodyBounds = body.getBoundingClientRect();
+    return { height: notificationBounds.height, contained: bodyBounds.bottom <= notificationBounds.bottom, horizontalOverflow: body.scrollWidth > body.clientWidth };
+  });
+  expect(longLayout.height).toBeGreaterThan(88);
+  expect(longLayout.height).toBeLessThanOrEqual(144);
+  expect(longLayout.contained).toBe(true);
+  expect(longLayout.horizontalOverflow).toBe(false);
   await toggleBacklogFromView(page);
   await expect(notifications.nth(0)).toHaveCSS("transform", "none");
   await expect(page.locator("#backlog")).toHaveCSS("transform", "none");
@@ -1199,12 +1287,40 @@ test("deleting a task updates the model and undo restores it", async ({ page }) 
   await expect(page.locator("#content .card")).toHaveCount(3);
 });
 
+test("adding and immediately deleting a task or feature returns to the saved state", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await openFixture(page);
+  const save = page.locator("#saveFile");
+  const firstFeature = page.locator("#content > .release").first();
+  const initialTaskCount = await firstFeature.locator(".card").count();
+
+  await firstFeature.getByRole("button", { name: /New task in Active Feature/ }).click();
+  await page.locator("#saveTaskEditor").click();
+  await expect(save).toHaveClass(/dirty/);
+  const addedTask = firstFeature.locator(".card").last();
+  await addedTask.locator(".card-header").hover();
+  await addedTask.locator('[data-delete="task"]').click();
+  await expect(firstFeature.locator(".card")).toHaveCount(initialTaskCount);
+  await expect(save).not.toHaveClass(/dirty/);
+  await expect(page.locator("#undoChange")).toBeEnabled();
+
+  await page.getByRole("button", { name: "New feature" }).click();
+  await page.locator("#saveFeatureEditor").click();
+  await expect(save).toHaveClass(/dirty/);
+  const addedFeature = page.locator("#content > .release").last();
+  await addedFeature.locator('[data-delete="feature"]').evaluate(button => button.click());
+  await expect(page.locator("#content > .release")).toHaveCount(2);
+  await expect(save).not.toHaveClass(/dirty/);
+  await expect(page.locator("#undoChange")).toBeEnabled();
+});
+
 test("view menu, keyboard shortcut, and accessibility states stay synchronized", async ({ page }) => {
   await openFixture(page);
   await page.locator("#toggleViewMenu").click();
   await expect(page.locator("#toggleViewMenu")).toHaveAttribute("aria-expanded", "true");
   await expect(page.locator("#viewOptions > button")).toHaveText(["Backlog", "Clock", "Metadata", "Statistics"]);
   await expect(page.locator("#toggleBacklog")).toHaveCSS("color", "rgb(235, 219, 178)");
+  await expect(page.locator("#toggleBacklog")).toHaveAttribute("aria-pressed", "false");
   await page.keyboard.press("Escape");
   await expect(page.locator("#viewOptions")).toBeHidden();
   await page.keyboard.press("Control+b");

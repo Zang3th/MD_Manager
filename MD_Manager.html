@@ -11,6 +11,7 @@
   <script defer src="domain/history.js"></script>
   <script defer src="domain/status.js"></script>
   <script defer src="io/markdown.js"></script>
+  <script defer src="io/templates.js"></script>
   <script defer src="io/files.js"></script>
   <script defer src="ui/theme.js"></script>
   <script defer src="ui/layout.js"></script>
@@ -21,15 +22,14 @@
   <script defer src="ui/interactions.js"></script>
   <script defer src="app.js"></script>
 </head>
-<body>
+<body class="show-metadata">
   <header class="header">
     <div class="header-content">
       <button class="app-logo-button" id="addFeature" type="button" aria-label="New feature" title="New feature" disabled><img class="app-logo" src="res/Logo.svg" alt=""></button>
       <div class="header-left">
         <h1 class="project-title" id="projectTitle">MD_Manager</h1>
-        <span class="app-version" id="appVersion">v0.3.0</span>
+        <span class="app-version" id="appVersion">v0.4.0</span>
         <div class="file-controls">
-          <button class="btn control-btn" id="openFile" type="button">Open</button>
           <button class="btn save-btn" id="saveFile" type="button" hidden>Save</button>
         </div>
         <div class="undo-system-controls history-controls" id="undoSystemControls" hidden>
@@ -99,6 +99,10 @@
                     <span class="markdown-syntax-link">[URL](url)</span>
                   </p>
                 </section>
+                <section class="help-section" aria-labelledby="templateHelpTitle">
+                  <h3 id="templateHelpTitle">Templates</h3>
+                  <p>Bundled templates are stored in <code>data/templates/</code>.</p>
+                </section>
               </div>
             </aside>
           </div>
@@ -107,7 +111,7 @@
             <div class="view-options" id="viewOptions" hidden>
               <button class="view-option" id="toggleBacklog" type="button" aria-pressed="false" disabled>Backlog</button>
               <button class="view-option" id="toggleClock" type="button" aria-pressed="true">Clock</button>
-              <button class="view-option" id="toggleMetadata" type="button" aria-pressed="false">Metadata</button>
+              <button class="view-option" id="toggleMetadata" type="button" aria-pressed="true">Metadata</button>
               <button class="view-option" id="toggleStats" type="button" aria-pressed="true">Statistics</button>
             </div>
           </div>
@@ -270,6 +274,6 @@
       </footer>
     </form>
   </dialog>
-  <div class="watermark" id="watermark">© 2026 MD_Manager v0.3.0 · Tim Krüger (Zang3th) · <a href="https://github.com/Zang3th" target="_blank" rel="noopener noreferrer">GitHub</a></div>
+  <div class="watermark" id="watermark">© 2026 MD_Manager v0.4.0 · Tim Krüger (Zang3th) · <a href="https://github.com/Zang3th" target="_blank" rel="noopener noreferrer">GitHub</a></div>
 </body>
 </html>

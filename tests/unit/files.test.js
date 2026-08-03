@@ -84,6 +84,27 @@ test("read and open respect permissions and selected handles", async () => {
   assert.equal(opened.markdown, "# Project");
 });
 
+test("createProject writes a minimal Markdown project through the save picker", async () => {
+  const { files, window } = loadFiles();
+  let pickerOptions = null;
+  let written = "";
+  const handle = {
+    name: "Project.md",
+    async createWritable() {
+      return { async write(value) { written = value; }, async close() {} };
+    },
+    async getFile() { return { lastModified: 7, size: written.length }; }
+  };
+  window.showSaveFilePicker = async options => { pickerOptions = options; return handle; };
+  const opened = await files.createProject();
+
+  assert.equal(pickerOptions.suggestedName, "Project.md");
+  assert.equal(pickerOptions.id, "md-manager-files");
+  assert.equal(written, "# New Project\n");
+  assert.equal(opened.handle, handle);
+  assert.equal(opened.markdown, written);
+});
+
 test("recent entries are sorted, deduplicated, limited, and removable", async () => {
   const { files, records } = loadFiles();
   for (let index = 0; index < 6; index++) {

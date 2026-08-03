@@ -95,6 +95,19 @@ window.MDManager = window.MDManager || {};
     return read(handles[0]);
   }
 
+  /** @returns {Promise<MDOpenedFile>} */
+  async function createProject() {
+    const handle = await window.showSaveFilePicker({
+      id: "md-manager-files",
+      suggestedName: "Project.md",
+      types: [{ description: "Markdown", accept: { "text/markdown": [".md"] } }]
+    });
+    const markdown = "# New Project\n";
+    await save(handle, markdown);
+    const file = await handle.getFile();
+    return { handle, markdown, stamp: `${file.lastModified || 0}:${file.size || 0}` };
+  }
+
   /** @param {MDFileHandle | null} handle @param {string} markdown */
   function save(handle, markdown) {
     if (!handle) return Promise.resolve();
@@ -107,5 +120,5 @@ window.MDManager = window.MDManager || {};
     return operation;
   }
 
-  app.files = { open, read, stat, inspect, save, recent, remember, forget };
+  app.files = { open, createProject, read, stat, inspect, save, recent, remember, forget };
 })(window.MDManager);

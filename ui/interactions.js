@@ -13,6 +13,10 @@ window.MDManager = window.MDManager || {};
   /** @type {((index: number) => void) | null} */
   let removeRecent = null;
   /** @type {(() => Promise<void>) | null} */
+  let openFile = null;
+  /** @type {(() => Promise<void>) | null} */
+  let createProject = null;
+  /** @type {(() => Promise<void>) | null} */
   let save = null;
   /** @type {(() => void) | null} */
   let undo = null;
@@ -96,13 +100,20 @@ window.MDManager = window.MDManager || {};
     clockInterval = window.setInterval(updateClock, 1000);
   }
 
+  /** @param {unknown} error */
+  function showSaveFailure(error) {
+    const missing = typeof error === "object" && error !== null && /** @type {{name?: unknown}} */ (error).name === "NotFoundError";
+    const detail = error instanceof Error ? error.message : "Unknown error occurred.";
+    const message = missing ? "The open file no longer exists on disk. Your work remains open." : `File could not be saved: ${detail}`;
+    app.render.saveError(missing ? message : detail);
+    app.notifications.show("error", missing ? "File deleted" : "File save", message);
+  }
+
   async function saveFile() {
     try {
       await save?.();
     } catch (error) {
-      if (!(error instanceof Error)) throw error;
-      app.render.saveError(error.message);
-      app.notifications.show("error", "File save", `File could not be saved: ${error.message}`);
+      showSaveFailure(error);
     }
   }
 
@@ -120,9 +131,7 @@ window.MDManager = window.MDManager || {};
       if (selection === "reload") await reloadExternal?.();
       else await overwriteExternal?.();
     } catch (error) {
-      if (!(error instanceof Error)) throw error;
-      app.render.saveError(error.message);
-      app.notifications.show("error", "File save", `File could not be saved: ${error.message}`);
+      showSaveFailure(error);
     } finally {
       resolvingExternal = false;
       reloadButton.disabled = false;
@@ -526,7 +535,7 @@ window.MDManager = window.MDManager || {};
     if (open && !document.body.classList.contains("toggle-grid-view")) {
       const content = document.getElementById("content");
       requestAnimationFrame(() => {
-        if (!backlog.hidden) content.scrollLeft = content.scrollWidth;
+        if (!backlog.hidden) content.scrollTo({ left: content.scrollWidth, behavior: reducedMotion.matches ? "auto" : "smooth" });
       });
     }
   }
@@ -666,6 +675,14 @@ window.MDManager = window.MDManager || {};
 
   /** @param {MouseEvent} event */
   async function handleContentClick(event) {
+    if (eventElement(event).closest("#openFile")) {
+      await openFile?.();
+      return;
+    }
+    if (eventElement(event).closest("#newProject")) {
+      await createProject?.();
+      return;
+    }
     if (!project && !eventElement(event).closest(".recent-file")) return;
     if (eventElement(event).closest(".backlog-close")) {
       toggleBacklog();
@@ -691,18 +708,20 @@ window.MDManager = window.MDManager || {};
     const addTaskButton = eventElement(event).closest("[data-add-task]");
     if (addTaskButton) {
       event.stopPropagation();
+      const activeProject = project;
       const featureElement = requiredClosest(addTaskButton, ".release");
       const featureIndex = Number(featureElement.dataset.feature);
-      const feature = project.features[featureIndex];
+      const feature = activeProject.features[featureIndex];
       const beforeViewState = captureViewState();
-      app.editor.open({ title: "New Task", lines: [] }, { project: project.title, feature: feature.title }, (/** @type {{title: string, lines: string[]}} */ draft) => {
+      const seed = app.templates.task();
+      app.editor.open(seed, { project: activeProject.title, feature: feature.title }, (/** @type {{title: string, lines: string[]}} */ draft) => {
         const task = { title: draft.title, lines: draft.lines.slice() };
         const taskIndex = feature.tasks.length;
         const afterViewState = copyViewState(beforeViewState);
         const featureCards = [...featureElement.querySelectorAll(".card")];
         const viewIndex = featureCards.length ? [...document.querySelectorAll(".card")].indexOf(/** @type {Element} */ (featureCards.at(-1))) + 1 : taskViewIndex(featureElement, null);
         afterViewState.tasks.splice(viewIndex, 0, false);
-        perform("Task added", () => app.domain.insertTask(project, featureIndex, taskIndex, task), () => { app.domain.deleteTask(project, featureIndex, taskIndex); }, beforeViewState, afterViewState, undefined, task.title.length + task.lines.join("\n").length);
+        perform("Task added", () => app.domain.insertTask(activeProject, featureIndex, taskIndex, task), () => { app.domain.deleteTask(activeProject, featureIndex, taskIndex); }, beforeViewState, afterViewState, undefined, task.title.length + task.lines.join("\n").length);
         app.notifications.show("info", "Task added", [{ value: draft.title }, " added to ", { value: feature.title }, "."]);
       }, true);
       return;
@@ -893,17 +912,24 @@ window.MDManager = window.MDManager || {};
     const activeProject = project;
     const projectTitle = activeProject.title;
     const beforeViewState = captureViewState();
-    const draftFeature = { title: "New Feature", headerLines: [], version: "", dates: [], notes: [], tasks: [], isBacklog: false };
-    app.editor.openFeature(activeProject, draftFeature, (/** @type {{title: string, metadata: string, info: string, warn: string}} */ draft) => {
+    const seed = app.templates.feature();
+    app.editor.openFeature(activeProject, seed, (/** @type {{title: string, metadata: string, info: string, warn: string}} */ draft) => {
       const metadata = app.markdown.composeFeatureMetadata(draft);
-      const feature = { ...metadata, title: draft.title, tasks: [], isBacklog: false };
+      const tasks = seed.tasks.map((/** @type {MDTask} */ task) => app.domain.copyTask(task));
+      const feature = { ...metadata, title: draft.title, tasks, isBacklog: false };
       const backlogIndex = activeProject.features.findIndex(item => item.isBacklog);
       const featureIndex = backlogIndex < 0 ? activeProject.features.length : backlogIndex;
       const afterViewState = copyViewState(beforeViewState);
+      const taskIndex = document.querySelectorAll("#content .card").length;
+      afterViewState.tasks.splice(taskIndex, 0, ...tasks.map(() => false));
       const noteIndex = document.querySelectorAll("#content .feature-note").length;
       afterViewState.featureNotes.splice(noteIndex, 0, ...feature.notes.map(() => false));
       afterViewState.featureScrolls.push({ left: 0, top: 0 });
-      perform("Feature added", () => app.domain.insertFeature(activeProject, featureIndex, feature), () => { app.domain.deleteFeature(activeProject, featureIndex); }, beforeViewState, afterViewState, undefined, feature.title.length + feature.headerLines.join("\n").length);
+      const size = feature.title.length + feature.headerLines.join("\n").length + tasks.reduce((/** @type {number} */ total, /** @type {MDTask} */ task) => total + task.title.length + task.lines.join("\n").length, 0);
+      const added = perform("Feature added", () => app.domain.insertFeature(activeProject, featureIndex, feature), () => { app.domain.deleteFeature(activeProject, featureIndex); }, beforeViewState, afterViewState, undefined, size);
+      if (added) requestAnimationFrame(() => {
+        document.querySelector(`#content > .release[data-feature="${featureIndex}"]`)?.scrollIntoView({ behavior: reducedMotion.matches ? "auto" : "smooth", block: "nearest", inline: "nearest" });
+      });
       app.notifications.show("info", "Feature added", [{ value: draft.title }, " added to \"", { value: projectTitle }, "\"."]);
     }, true);
   });
@@ -944,7 +970,7 @@ window.MDManager = window.MDManager || {};
     }
     if (shortcut && !event.shiftKey && key === "o") {
       event.preventDefault();
-      document.getElementById("openFile").click();
+      void openFile?.();
     }
     if (shortcut && !editsText && !event.shiftKey && key === "c" && window.getSelection()?.isCollapsed !== false) {
       if (copyHovered()) event.preventDefault();
@@ -1016,6 +1042,10 @@ window.MDManager = window.MDManager || {};
     setOpenRecent(callback) { openRecent = callback; },
     /** @param {(index: number) => void} callback */
     setRemoveRecent(callback) { removeRecent = callback; },
+    /** @param {() => Promise<void>} callback */
+    setOpenFile(callback) { openFile = callback; },
+    /** @param {() => Promise<void>} callback */
+    setCreateProject(callback) { createProject = callback; },
     /** @param {{save: () => Promise<void>, undo: () => void, redo: () => void, reloadExternal: () => Promise<boolean>, overwriteExternal: () => Promise<boolean>}} actions */
     setUndoSystemActions(actions) {
       save = actions.save;

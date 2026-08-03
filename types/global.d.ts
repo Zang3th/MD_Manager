@@ -1,6 +1,7 @@
 interface Window {
   MDManager: any;
   showOpenFilePicker(options?: any): Promise<any[]>;
+  showSaveFilePicker(options?: any): Promise<any>;
 }
 
 interface Element {

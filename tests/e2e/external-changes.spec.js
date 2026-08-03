@@ -9,9 +9,11 @@ async function openMutableFile(page) {
   await page.evaluate(markdown => {
     window.__diskMarkdown = markdown;
     window.__diskRevision = 1;
+    window.__diskDeleted = false;
     const handle = {
       name: "Project.md",
       async getFile() {
+        if (window.__diskDeleted) throw new DOMException(`Missing file ${"details".repeat(300)}`, "NotFoundError");
         return {
           lastModified: window.__diskRevision,
           size: window.__diskMarkdown.length,
@@ -61,7 +63,7 @@ test("external changes show warning actions and Reload starts a clean undo syste
     return { width: style.width, color: style.color, background: style.backgroundColor, border: style.borderColor };
   }));
   expect(buttonStyles.map(style => style.width)).toEqual(["88px", "88px"]);
-  expect(buttonStyles[0].background).toBe("rgb(184, 187, 38)");
+  expect(buttonStyles[0].background).toBe("rgb(215, 153, 33)");
   expect(buttonStyles[1].background).toBe("rgb(254, 128, 25)");
   expect(buttonStyles.map(style => style.color)).toEqual(["rgb(29, 32, 33)", "rgb(29, 32, 33)"]);
   const buttonBounds = await page.locator("#externalActions .btn").evaluateAll(buttons => buttons.map(button => button.getBoundingClientRect().toJSON()));
@@ -69,10 +71,16 @@ test("external changes show warning actions and Reload starts a clean undo syste
   expect(buttonBounds[1].left - buttonBounds[0].right).toBeLessThan(4);
   await reload.hover();
   await expect(reload).toHaveCSS("opacity", "1");
+  await expect(reload).toHaveCSS("background-color", "rgb(60, 56, 54)");
+  await expect(reload).toHaveCSS("border-color", "rgb(215, 153, 33)");
+  await expect(reload).toHaveCSS("color", "rgb(215, 153, 33)");
   await expect(overwrite).toHaveCSS("opacity", "0.45");
   await overwrite.hover();
   await expect(reload).toHaveCSS("opacity", "0.45");
   await expect(overwrite).toHaveCSS("opacity", "1");
+  await expect(overwrite).toHaveCSS("background-color", "rgb(60, 56, 54)");
+  await expect(overwrite).toHaveCSS("border-color", "rgb(254, 128, 25)");
+  await expect(overwrite).toHaveCSS("color", "rgb(254, 128, 25)");
   const warning = page.locator(".notification-warning").last();
   await expect(warning.locator(".notification-title")).toHaveText("File changed externally");
   await expect(warning.locator(".notification-body")).toContainText("Choose Reload or Overwrite");
@@ -111,4 +119,30 @@ test("Overwrite resolves an external conflict with the current local revision", 
   await expect(page.locator("#saveFile")).not.toHaveClass(/dirty/);
   await expect(overwrite).toBeHidden();
   await expect(reload).toBeHidden();
+});
+
+test("deleting the open file shows one concise and readable notification", async ({ page }) => {
+  await openMutableFile(page);
+  await page.evaluate(() => {
+    window.__diskDeleted = true;
+    window.dispatchEvent(new Event("focus"));
+  });
+
+  const deleted = page.locator(".notification-error").filter({ hasText: "File deleted" });
+  await expect(deleted).toHaveCount(1);
+  await expect(deleted.locator(".notification-title")).toHaveText("File deleted");
+  await expect(deleted.locator(".notification-body")).toHaveText("Project.md was deleted from disk. Your work remains open.");
+  await expect(page.getByRole("button", { name: "Reload" })).toBeHidden();
+  await expect(page.getByRole("button", { name: "Overwrite" })).toBeHidden();
+
+  const layout = await deleted.evaluate(notification => {
+    const body = notification.querySelector(".notification-body");
+    const notificationBounds = notification.getBoundingClientRect();
+    const bodyBounds = body.getBoundingClientRect();
+    return { contained: bodyBounds.bottom <= notificationBounds.bottom, horizontalOverflow: body.scrollWidth > body.clientWidth };
+  });
+  expect(layout).toEqual({ contained: true, horizontalOverflow: false });
+
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(deleted).toHaveCount(1);
 });

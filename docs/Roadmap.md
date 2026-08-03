@@ -339,10 +339,10 @@
 - [x] ~Reload~
 - [x] ~Overwrite~
 
-### New-Dialog
+### Vorlagen
 
-- [ ] Neben "Empty" auch Vorlagen anbieten
-- [ ] Templates für Tasks und Features lokal ablegen
+- [x] ~"Create File"-Button auf der Startseite~
+- [x] ~Lokale Templates für Tasks anbieten~
 
 ## Markdown-Erweiterungen
 
@@ -351,6 +351,13 @@
 
 #Date
 - TBD
+
+### Cross-Platform
+
+- [ ] Plattformabhängige Unicode-Symbole durch lokale SVG- oder CSS-Symbole ersetzen
+- [ ] Lokale Monospace-Schrift ergänzen
+- [ ] Schriftmetriken, Icons und Steuerelemente auf Windows, Linux und macOS testen
+- [ ] Layouttests für Windows, Linux und macOS
 
 ### Markdown-Features
 
@@ -363,13 +370,6 @@
 
 - [ ] Nach Linting-Regeln importieren/exportieren
 - [ ] Schalter im UI (Default = False)
-
-### Cross-Platform
-
-- [ ] Plattformabhängige Unicode-Symbole durch lokale SVG- oder CSS-Symbole ersetzen
-- [ ] Lokale Monospace-Schrift ergänzen
-- [ ] Schriftmetriken, Icons und Steuerelemente auf Windows, Linux und macOS testen
-- [ ] Layouttests für Windows, Linux und macOS
 
 ## Archivierung und Suche
 
