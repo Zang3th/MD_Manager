@@ -26,7 +26,7 @@
 
 - [x] ~Grundlagenarchitektur überlegen~
 - [x] ~Domain, UI, IO und Anwendungsverdrahtung trennen~
-- [x] ~SortableJS lokal als in vendor/ ablegen~
+- [x] ~SortableJS lokal in `vendor/` ablegen~
 
 ### Board-Interaktion
 
@@ -344,20 +344,42 @@
 - [x] ~"Create File"-Button auf der Startseite~
 - [x] ~Lokale Templates für Tasks anbieten~
 
-## Markdown-Erweiterungen
+## Plattformunabhängigkeit
 
 #Version
 - 0.5.0
 
 #Date
+- 03.08.2026
+
+### Vereinheitlichung
+
+- [x] ~Plattformabhängige Stellen rausarbeiten und vereinheitlichen~
+- [x] ~Lokale Monospace-Schrift ergänzen~
+- [x] ~Normalisierung von Controls, Fokus, Selektion und Dialogen~
+- [x] ~Stabilisierung von Scrollbars und Layoutmessungen~
+
+### Tests
+
+- [x] ~Windows-/Linux-/macOS-Testmatrix inklusive Geometrie- und Screenshottests~
+
+### Symbole
+
+- [x] ~Deterministische, rasterbasierte Symbole definieren~
+- [x] ~Symbole lokal ablegen und Optik finalisieren~
+
+### Logo
+
+- [x] ~Neues Logo erstellen~
+- [x] ~Überall einpflegen~
+
+## Markdown-Erweiterungen
+
+#Version
+- 0.6.0
+
+#Date
 - TBD
-
-### Cross-Platform
-
-- [ ] Plattformabhängige Unicode-Symbole durch lokale SVG- oder CSS-Symbole ersetzen
-- [ ] Lokale Monospace-Schrift ergänzen
-- [ ] Schriftmetriken, Icons und Steuerelemente auf Windows, Linux und macOS testen
-- [ ] Layouttests für Windows, Linux und macOS
 
 ### Markdown-Features
 
@@ -374,7 +396,7 @@
 ## Archivierung und Suche
 
 #Version
-- 0.6.0
+- 0.7.0
 
 #Date
 - TBD
@@ -392,7 +414,7 @@
 ## Mehr Dateiformate
 
 #Version
-- 0.7.0
+- 0.8.0
 
 #Date
 - TBD
@@ -401,6 +423,23 @@
 
 - [ ] PDF-Report
 - [ ] json
+
+## Polishing
+
+#Version
+- 0.9.0
+
+#Date
+- TBD
+
+### UI
+
+- [ ] Auf finales, modernes UI festlegen
+- [ ] Headerbar in der App + Startseite anpassen
+- [ ] Startseite selbst anpassen
+- [ ] Hochkantmodus polishen ('More' für Buttons)
+- [ ] Sidebar-Alignments
+- [ ] UI-Details ergänzen (Bspw. Rahmen von Haken)
 
 ### README.md
 

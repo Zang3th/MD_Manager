@@ -4,7 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>MD_Manager</title>
-  <link rel="icon" href="res/Logo.svg" type="image/svg+xml">
+  <link rel="icon" href="res/logo/Logo.svg" type="image/svg+xml">
+  <link rel="preload" href="res/fonts/InterVariable.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="res/fonts/JetBrainsMonoVariable.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="styles.css">
   <script defer src="vendor/Sortable.min.js"></script>
   <script defer src="domain/project.js"></script>
@@ -13,6 +15,7 @@
   <script defer src="io/markdown.js"></script>
   <script defer src="io/templates.js"></script>
   <script defer src="io/files.js"></script>
+  <script defer src="ui/tooltips.js"></script>
   <script defer src="ui/theme.js"></script>
   <script defer src="ui/layout.js"></script>
   <script defer src="ui/render.js"></script>
@@ -23,18 +26,255 @@
   <script defer src="app.js"></script>
 </head>
 <body class="show-metadata">
+  <svg class="icon-sprite" aria-hidden="true" focusable="false">
+    <symbol id="icon-plus" viewBox="0 0 32 32"
+     fill="none">
+    <path d="M16 8V24M8 16H24"
+          stroke="currentColor"
+          stroke-width="4"
+          stroke-linecap="round"/>
+</symbol>
+    <symbol id="icon-close" viewBox="0 0 32 32"
+     fill="none">
+    <path d="M8 8L24 24M24 8L8 24"
+          stroke="currentColor"
+          stroke-width="4"
+          stroke-linecap="round"/>
+</symbol>
+    <symbol id="icon-check" viewBox="0 0 32 32"
+     fill="none">
+    <path d="M8 16L14 22L24 8"
+          stroke="currentColor"
+          stroke-width="4"
+          stroke-linecap="round"
+          stroke-linejoin="round"/>
+</symbol>
+    <symbol id="icon-undo" viewBox="0 0 32 32"
+     fill="none">
+    <g transform="translate(-.5 .5)">
+    <path d="M12 9L7 14L12 19
+             M7 14H18C22.5 14 26 17.5 26 22"
+          stroke="currentColor"
+          stroke-width="4"
+          stroke-linecap="round"
+          stroke-linejoin="round"/>
+    </g>
+</symbol>
+    <symbol id="icon-redo" viewBox="0 0 32 32"
+     fill="none">
+    <g transform="translate(.5 .5)">
+    <path d="M20 9L25 14L20 19
+             M25 14H14C9.5 14 6 17.5 6 22"
+          stroke="currentColor"
+          stroke-width="4"
+          stroke-linecap="round"
+          stroke-linejoin="round"/>
+    </g>
+</symbol>
+    <symbol id="icon-chevron" viewBox="0 0 32 32"
+     fill="none">
+    <path d="M8 11L16 19L24 11"
+          stroke="currentColor"
+          stroke-width="4"
+          stroke-linecap="round"
+          stroke-linejoin="round"/>
+</symbol>
+    <symbol id="icon-volume" viewBox="0 0 32 32"
+     fill="none">
+    <g transform="translate(-.625 0)">
+    <path d="M7 12H10.5L16.5 7.5Q18 6.4 18 8.25V23.75Q18 25.6 16.5 24.5L10.5 20H7Q5 20 5 18V14Q5 12 7 12Z"
+          fill="currentColor"
+          stroke="currentColor"
+          stroke-width="1"
+          stroke-linejoin="round"/>
+
+    <path d="M21 12.5C22.5 13.4 23.25 14.5 23.25 16C23.25 17.5 22.5 18.6 21 19.5
+             M24.5 9.5C27 11.25 28.25 13.25 28.25 16C28.25 18.75 27 20.75 24.5 22.5"
+          stroke="currentColor"
+          stroke-width="3"
+          stroke-linecap="round"/>
+    </g>
+</symbol>
+    <symbol id="icon-muted" viewBox="0 0 32 32"
+     fill="none">
+    <g transform="translate(-.5 0)">
+    <path d="M7 12H10.5L16.5 7.5Q18 6.4 18 8.25V23.75Q18 25.6 16.5 24.5L10.5 20H7Q5 20 5 18V14Q5 12 7 12Z"
+          fill="currentColor"
+          stroke="currentColor"
+          stroke-width="1"
+          stroke-linejoin="round"/>
+
+    <path d="M22 12L28 20M28 12L22 20"
+          stroke="currentColor"
+          stroke-width="3"
+          stroke-linecap="round"/>
+    </g>
+</symbol>
+    <symbol id="icon-sun" viewBox="0 0 32 32">
+    <path fill="currentColor"
+          fill-rule="evenodd"
+          d="M16 10A6 6 0 1 0 16 22A6 6 0 1 0 16 10Z
+             M16 12A4 4 0 1 1 16 20A4 4 0 1 1 16 12Z"/>
+
+    <path d="M16 5V7
+             M16 25V27
+             M5 16H7
+             M25 16H27
+             M8 7L11 10
+             M22 22L25 25
+             M22 10L25 7
+             M7 25L10 22"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"/>
+</symbol>
+    <symbol id="icon-moon" viewBox="0 0 32 32">
+    <path d="M22 4A12 12 0 0 0 22 28C19 24 18 20 18 16C18 12 19 8 22 4Z"
+          fill="currentColor"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linejoin="round"/>
+</symbol>
+    <symbol id="icon-clipboard" viewBox="0 0 32 32">
+    <path fill="currentColor"
+          fill-rule="evenodd"
+          d="M8 6H24Q26 6 26 8V28Q26 30 24 30H8Q6 30 6 28V8Q6 6 8 6Z
+             M11 10H21Q22 10 22 11V25Q22 26 21 26H11Q10 26 10 25V11Q10 10 11 10Z"/>
+
+    <path fill="currentColor"
+          fill-rule="evenodd"
+          d="M12 2H20Q22 2 22 4V8Q22 10 20 10H12Q10 10 10 8V4Q10 2 12 2Z
+             M14 5H18Q19 5 19 6V8Q19 9 18 9H14Q13 9 13 8V6Q13 5 14 5Z"/>
+</symbol>
+    <symbol id="icon-edit" viewBox="0 0 32 32">
+    <path fill="currentColor"
+          fill-rule="evenodd"
+          d="M4 24
+             Q4 23.4 4.4 23
+             L22.3 4.7
+             Q23 4 23.7 4.7
+             L27.3 8.3
+             Q28 9 27.3 9.7
+             L9.7 27.3
+             Q9 28 8 28
+             H5
+             Q4 28 4 27
+             V24Z
+
+             M8 22.6
+             Q8 22.2 8.3 21.9
+             L21.3 8.7
+             Q22 8 22.7 8.7
+             L23.3 9.3
+             Q24 10 23.3 10.7
+             L10.7 23.3
+             Q10 24 9.3 24
+             H8.8
+             Q8 24 8 23.2Z"/>
+</symbol>
+    <symbol id="icon-progress" viewBox="0 0 32 32"><path fill="currentColor" fill-rule="evenodd" d="M16 2a14 14 0 1 0 0 28 14 14 0 0 0 0-28Zm0 5v18a9 9 0 0 1 0-18Z"/></symbol>
+    <symbol id="icon-help" viewBox="0 0 32 32"
+     fill="none">
+    <g transform="translate(0 .5)">
+    <path d="M10 11C10.5 7.5 13 6 16 6C19.75 6 22 8 22 11C22 14 20.25 15.25 18.25 16.5C16.75 17.5 16 18.5 16 20
+             M16 25H16.01"
+          stroke="currentColor"
+          stroke-width="4"
+          stroke-linecap="round"
+          stroke-linejoin="round"/>
+    </g>
+</symbol>
+    <symbol id="icon-bold" viewBox="0 0 32 32"
+     fill="none">
+    <path d="M9 8V24
+             M9 8H16.5C20.5 8 22.5 9.25 22.5 12C22.5 14.75 20.5 16 16.5 16H9
+             M9 16H17C21.25 16 23.5 17.25 23.5 20C23.5 22.75 21.25 24 17 24H9"
+          stroke="currentColor"
+          stroke-width="4"
+          stroke-linecap="round"
+          stroke-linejoin="round"/>
+</symbol>
+    <symbol id="icon-italic" viewBox="0 0 32 32"
+     fill="none">
+    <path d="M14 8H24
+             M19 8L13 24
+             M8 24H18"
+          stroke="currentColor"
+          stroke-width="2.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"/>
+</symbol>
+    <symbol id="icon-strike" viewBox="0 0 32 32"
+     fill="none">
+    <path d="M22.5 9.5C20.75 8 18.5 7.25 16 7.25C12 7.25 9.5 9 9.5 11.75C9.5 14.5 11.75 15.5 16 16
+             M16 16C20.25 16.5 22.5 17.5 22.5 20.25C22.5 23 20 24.75 16 24.75C13.25 24.75 10.75 23.875 9 22.25"
+          stroke="currentColor"
+          stroke-width="2.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"/>
+    <path d="M6 16H26"
+          stroke="currentColor"
+          stroke-width="4"
+          stroke-linecap="round"/>
+</symbol>
+    <symbol id="icon-code" viewBox="0 0 32 32"
+     fill="none">
+    <path d="M12 9L7 16L12 23
+             M20 9L25 16L20 23"
+          stroke="currentColor"
+          stroke-width="4"
+          stroke-linecap="round"
+          stroke-linejoin="round"/>
+</symbol>
+    <symbol id="icon-list" viewBox="0 0 32 32"><path fill="currentColor" d="M6 4a2 2 0 1 1 0 4 2 2 0 0 1 0-4zm6 1h16v2H12zM6 14a2 2 0 1 1 0 4 2 2 0 0 1 0-4zm6 1h16v2H12zM6 24a2 2 0 1 1 0 4 2 2 0 0 1 0-4zm6 1h16v2H12z"/></symbol>
+    <symbol id="icon-rocket" viewBox="0 0 32 32">
+    <g fill="currentColor"
+       stroke="currentColor"
+       stroke-width="1.25"
+       stroke-linecap="round"
+       stroke-linejoin="round">
+
+        <path d="M10 16L4 22V28L13 23Z"/>
+        <path d="M22 16L28 22V28L19 23Z"/>
+        <path d="M13 25H19L16 28Z"/>
+
+        <path fill-rule="evenodd"
+              d="M16 4C22 8 25 14 24 21L18 26H14L8 21C7 14 10 8 16 4Z
+                 M16 10A4 4 0 1 0 16 18A4 4 0 1 0 16 10Z"/>
+    </g>
+</symbol>
+    <symbol id="icon-confetti" viewBox="0 0 32 32"
+     fill="none">
+    <g transform="translate(-1 0)">
+    <path d="M8 25L11 14L19 22Z"
+          fill="currentColor"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linejoin="round"/>
+
+    <path d="M12.294 9.170L12.941 6.756
+             M16.535 12.571L17.969 10.523
+             M20.429 16.465L22.477 15.031
+             M23.830 20.706L26.244 20.059"
+          stroke="currentColor"
+          stroke-width="2.5"
+          stroke-linecap="round"/>
+    </g>
+</symbol>
+  </svg>
   <header class="header">
     <div class="header-content">
-      <button class="app-logo-button" id="addFeature" type="button" aria-label="New feature" title="New feature" disabled><img class="app-logo" src="res/Logo.svg" alt=""></button>
+      <div class="app-logo-mark" aria-hidden="true"><img class="app-logo" src="res/logo/Logo.svg" alt=""></div>
       <div class="header-left">
         <h1 class="project-title" id="projectTitle">MD_Manager</h1>
-        <span class="app-version" id="appVersion">v0.4.0</span>
+        <span class="app-version" id="appVersion">v0.5.0</span>
         <div class="file-controls">
+          <button class="btn control-btn" id="addFeature" type="button" hidden>New</button>
           <button class="btn save-btn" id="saveFile" type="button" hidden>Save</button>
         </div>
         <div class="undo-system-controls history-controls" id="undoSystemControls" hidden>
-          <button class="btn control-btn icon-btn" id="undoChange" type="button" aria-label="Undo" title="Undo" disabled><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
-          <button class="btn control-btn icon-btn" id="redoChange" type="button" aria-label="Redo" title="Redo" disabled><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m15 14 5-5-5-5m5 5H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>
+          <button class="btn control-btn icon-btn" id="undoChange" type="button" aria-label="Undo" data-tooltip="Undo" disabled><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-undo"></use></svg></button>
+          <button class="btn control-btn icon-btn" id="redoChange" type="button" aria-label="Redo" data-tooltip="Redo" disabled><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-redo"></use></svg></button>
           <div class="external-actions" id="externalActions" role="group" aria-label="External file change" hidden>
             <button class="btn control-btn" id="reloadExternal" type="button" aria-pressed="false">Reload</button>
             <button class="btn control-btn" id="overwriteExternal" type="button" aria-pressed="false">Overwrite</button>
@@ -47,21 +287,21 @@
       <div class="header-actions">
         <nav class="control-bar" id="viewerControls" aria-label="Viewer controls" hidden>
           <div class="help-menu">
-            <button class="btn control-btn help-button" id="toggleHelp" type="button" aria-label="Help" title="Help" aria-expanded="false" aria-controls="helpPopover">?</button>
+            <button class="btn control-btn icon-btn help-button" id="toggleHelp" type="button" aria-label="Help" data-tooltip="Help" aria-expanded="false" aria-controls="helpPopover"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-help"></use></svg></button>
             <aside class="help-popover" id="helpPopover" aria-label="Application help" hidden>
-              <header class="help-header"><h2>Quick reference</h2><button class="help-close" id="closeHelp" type="button" aria-label="Close help" title="Close help">✕</button></header>
+              <header class="help-header"><h2>Quick reference</h2><button class="help-close" id="closeHelp" type="button" aria-label="Close help" data-tooltip="Close help"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-close"></use></svg></button></header>
               <div class="help-content">
                 <section class="help-section" aria-labelledby="shortcutHelpTitle">
                   <h3 id="shortcutHelpTitle">Shortcuts</h3>
                   <dl class="shortcut-list">
-                    <div><dt>Open file</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>O</kbd><small>or ⌘ O</small></dd></div>
-                    <div><dt>Save file</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>S</kbd><small>or ⌘ S</small></dd></div>
-                    <div><dt>Undo</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>Z</kbd><small>or ⌘ Z</small></dd></div>
-                    <div><dt>Redo</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>Shift</kbd><span>+</span><kbd>Z</kbd><small>or Ctrl Y</small></dd></div>
-                    <div><dt>Copy card</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>C</kbd></dd></div>
-                    <div><dt>Add/remove copy</dt><dd><kbd>Ctrl</kbd><span>+</span><small>Right-click</small></dd></div>
-                    <div><dt>Paste card</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>V</kbd></dd></div>
-                    <div><dt>Toggle backlog</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>B</kbd></dd></div>
+                    <div><dt>Open file</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>O</kbd><small>or Command O</small></dd></div>
+                    <div><dt>Save file</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>S</kbd><small>or Command S</small></dd></div>
+                    <div><dt>Undo</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>Z</kbd><small>or Command Z</small></dd></div>
+                    <div><dt>Redo</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>Shift</kbd><span>+</span><kbd>Z</kbd><small>or Ctrl Y / Command Shift Z</small></dd></div>
+                    <div><dt>Copy card</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>C</kbd><small>or Command C</small></dd></div>
+                    <div><dt>Add/remove copy</dt><dd><kbd>Ctrl</kbd><span>+</span><small>Right-click</small><small>or Command Right-click</small></dd></div>
+                    <div><dt>Paste card</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>V</kbd><small>or Command V</small></dd></div>
+                    <div><dt>Toggle backlog</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>B</kbd><small>or Command B</small></dd></div>
                     <div><dt>Close or cancel</dt><dd><kbd>Esc</kbd></dd></div>
                   </dl>
                 </section>
@@ -101,18 +341,18 @@
                 </section>
                 <section class="help-section" aria-labelledby="templateHelpTitle">
                   <h3 id="templateHelpTitle">Templates</h3>
-                  <p>Bundled templates are stored in <code>data/templates/</code>.</p>
+                  <p>Bundled templates are stored in <code>'data/templates/'</code>.</p>
                 </section>
               </div>
             </aside>
           </div>
           <div class="view-menu">
-            <button class="btn control-btn" id="toggleViewMenu" type="button" aria-expanded="false" aria-controls="viewOptions">View <span aria-hidden="true">▾</span></button>
+            <button class="btn control-btn" id="toggleViewMenu" type="button" aria-expanded="false" aria-controls="viewOptions">View <svg class="ui-icon view-chevron" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-chevron"></use></svg></button>
             <div class="view-options" id="viewOptions" hidden>
-              <button class="view-option" id="toggleBacklog" type="button" aria-pressed="false" disabled>Backlog</button>
-              <button class="view-option" id="toggleClock" type="button" aria-pressed="true">Clock</button>
-              <button class="view-option" id="toggleMetadata" type="button" aria-pressed="true">Metadata</button>
-              <button class="view-option" id="toggleStats" type="button" aria-pressed="true">Statistics</button>
+              <button class="view-option" id="toggleBacklog" type="button" aria-pressed="false" disabled><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-check"></use></svg><span>Backlog</span></button>
+              <button class="view-option" id="toggleClock" type="button" aria-pressed="true"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-check"></use></svg><span>Clock</span></button>
+              <button class="view-option" id="toggleMetadata" type="button" aria-pressed="true"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-check"></use></svg><span>Metadata</span></button>
+              <button class="view-option" id="toggleStats" type="button" aria-pressed="true"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-check"></use></svg><span>Statistics</span></button>
             </div>
           </div>
           <div class="view-mode" role="group" aria-label="View mode">
@@ -121,11 +361,11 @@
           </div>
         </nav>
       </div>
-      <button class="btn control-btn icon-btn sound-toggle" id="toggleSounds" type="button" aria-label="Mute sounds" title="Mute sounds" aria-pressed="false">
-        <svg class="sound-toggle-on" aria-hidden="true" viewBox="0 0 24 24"><path d="M5 9v6h4l5 4V5L9 9H5Z"/><path d="M17 9.5a4 4 0 0 1 0 5M19.5 7a7 7 0 0 1 0 10"/></svg>
-        <svg class="sound-toggle-off" aria-hidden="true" viewBox="0 0 24 24"><path d="M5 9v6h4l5 4V5L9 9H5Z"/><path d="M17 9.5a4 4 0 0 1 0 5"/><path d="M3 3l18 18"/></svg>
+      <button class="btn control-btn icon-btn sound-toggle" id="toggleSounds" type="button" aria-label="Mute sounds" data-tooltip="Mute sounds" aria-pressed="false">
+        <svg class="ui-icon sound-toggle-on" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-volume"></use></svg>
+        <svg class="ui-icon sound-toggle-off" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-muted"></use></svg>
       </button>
-      <button class="btn control-btn icon-btn theme-toggle" id="toggleTheme" type="button" aria-label="Switch to Light Mode" title="Switch to Light Mode"><span aria-hidden="true">☀</span></button>
+      <button class="btn control-btn icon-btn theme-toggle" id="toggleTheme" type="button" aria-label="Switch to Light Mode" data-tooltip="Switch to Light Mode"><span class="theme-icon" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 32 32"><use href="#icon-sun"></use></svg></span></button>
     </div>
   </header>
   <div class="workspace">
@@ -135,18 +375,19 @@
       <section class="release backlog" id="backlog" aria-label="Backlog" hidden></section>
     </aside>
   </div>
-  <template id="clipboardIndicatorTemplate"><span class="clipboard-indicator" role="status" aria-label="Copied to clipboard" title="Copied to clipboard"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M9 5h6M9 3h6v4H9z"/><path d="M7 5H5v16h14V5h-2"/></svg></span></template>
+  <template id="clipboardIndicatorTemplate"><span class="clipboard-indicator" role="status" aria-label="Copied to clipboard"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-clipboard"></use></svg></span></template>
   <section class="notifications" id="notifications" aria-label="Notifications" aria-live="polite"></section>
+  <div class="app-tooltip" id="appTooltip" role="tooltip" hidden></div>
   <dialog class="task-editor-dialog" id="taskEditor" aria-labelledby="taskEditorLocation" tabindex="-1">
-    <form class="task-editor" id="taskEditorForm" method="dialog">
+    <form class="task-editor" id="taskEditorForm" method="dialog" spellcheck="false">
       <header class="task-editor-header">
         <nav class="task-editor-breadcrumb" aria-label="Task location"><span id="taskEditorProject"></span><span aria-hidden="true">/</span><span id="taskEditorFeature"></span><span aria-hidden="true">/</span><strong id="taskEditorLocation"></strong></nav>
         <div class="editor-header-actions">
-          <div class="editor-header-undo-system editor-header-history" aria-label="Dialog edit undo system">
-            <button class="editor-header-tool" type="button" data-editor-undo-system="undo" data-editor-history="undo" aria-label="Undo dialog edit" title="Undo dialog edit (Ctrl+Z)" disabled><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
-            <button class="editor-header-tool" type="button" data-editor-undo-system="redo" data-editor-history="redo" aria-label="Redo dialog edit" title="Redo dialog edit (Ctrl+Shift+Z)" disabled><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m15 14 5-5-5-5m5 5H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>
+          <div class="editor-header-history" aria-label="Dialog edit undo system">
+            <button class="btn control-btn editor-header-tool" type="button" data-editor-undo-system="undo" data-editor-history="undo" aria-label="Undo dialog edit" data-tooltip="Undo dialog edit (Ctrl/Command+Z)" disabled><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-undo"></use></svg></button>
+            <button class="btn control-btn editor-header-tool" type="button" data-editor-undo-system="redo" data-editor-history="redo" aria-label="Redo dialog edit" data-tooltip="Redo dialog edit (Ctrl/Command+Shift+Z)" disabled><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-redo"></use></svg></button>
           </div>
-          <button class="task-editor-close" id="closeTaskEditor" type="button" aria-label="Cancel editing" title="Cancel">✕</button>
+          <button class="task-editor-close" id="closeTaskEditor" type="button" aria-label="Cancel editing" data-tooltip="Cancel"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-close"></use></svg></button>
         </div>
       </header>
       <div class="task-editor-content">
@@ -159,41 +400,41 @@
           <div class="markdown-editor-shell">
             <div class="markdown-toolbar" id="taskMarkdownToolbar" role="toolbar" aria-label="Markdown formatting">
               <div class="markdown-tool-group" aria-label="Text formatting">
-                <button class="markdown-tool" type="button" data-markdown-action="bold" aria-label="Bold" title="Bold (Ctrl+B)" disabled><strong aria-hidden="true">B</strong></button>
-                <button class="markdown-tool markdown-tool-italic" type="button" data-markdown-action="italic" aria-label="Italic" title="Italic (Ctrl+I)" disabled><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M10 4h8M6 20h8M14 4l-4 16"/></svg></button>
-                <button class="markdown-tool markdown-tool-strike" type="button" data-markdown-action="strikethrough" aria-label="Strikethrough" title="Strikethrough (Ctrl+Shift+X)" disabled><span aria-hidden="true">S</span></button>
-                <button class="markdown-tool markdown-tool-code" type="button" data-markdown-action="code" aria-label="Code" title="Code (Ctrl+E)" disabled><span aria-hidden="true">&lt;/&gt;</span></button>
+                <button class="markdown-tool" type="button" data-markdown-action="bold" aria-label="Bold" data-tooltip="Bold (Ctrl/Command+B)" disabled><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-bold"></use></svg></button>
+                <button class="markdown-tool" type="button" data-markdown-action="italic" aria-label="Italic" data-tooltip="Italic (Ctrl/Command+I)" disabled><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-italic"></use></svg></button>
+                <button class="markdown-tool" type="button" data-markdown-action="strikethrough" aria-label="Strikethrough" data-tooltip="Strikethrough (Ctrl/Command+Shift+X)" disabled><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-strike"></use></svg></button>
+                <button class="markdown-tool" type="button" data-markdown-action="code" aria-label="Code" data-tooltip="Code (Ctrl/Command+E)" disabled><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-code"></use></svg></button>
               </div>
               <div class="markdown-tool-group" aria-label="Insert formatting">
-                <button class="markdown-tool markdown-tool-list" type="button" data-markdown-action="list" aria-label="Todo list" title="Todo list" disabled><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="4" width="5" height="5" rx="1"/><path d="M11 6.5h10M3 15h5v5H3zM11 17.5h10"/></svg></button>
-                <button class="markdown-tool markdown-tool-url" type="button" data-markdown-action="url" aria-label="URL" title="URL (Ctrl+K)" disabled><span aria-hidden="true">URL</span></button>
+                <button class="markdown-tool" type="button" data-markdown-action="list" aria-label="Todo list" data-tooltip="Todo list" disabled><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-list"></use></svg></button>
+                <button class="markdown-tool markdown-tool-url" type="button" data-markdown-action="url" aria-label="URL" data-tooltip="URL (Ctrl/Command+K)" disabled><span aria-hidden="true">URL</span></button>
               </div>
-              <details class="markdown-tags"><summary>Tags</summary><div class="markdown-tags-menu">
-                <button class="markdown-tool markdown-tool-info" type="button" data-markdown-action="info" aria-label="Insert Info tag" title="Insert #Info" disabled><span aria-hidden="true">#Info</span></button>
-                <button class="markdown-tool markdown-tool-warn" type="button" data-markdown-action="warn" aria-label="Insert Warn tag" title="Insert #Warn" disabled><span aria-hidden="true">#Warn</span></button>
+              <details class="markdown-tags"><summary>Tags <svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-chevron"></use></svg></summary><div class="markdown-tags-menu">
+                <button class="markdown-tool markdown-tool-info" type="button" data-markdown-action="info" aria-label="Insert Info tag" data-tooltip="Insert #Info" disabled><span aria-hidden="true">#Info</span></button>
+                <button class="markdown-tool markdown-tool-warn" type="button" data-markdown-action="warn" aria-label="Insert Warn tag" data-tooltip="Insert #Warn" disabled><span aria-hidden="true">#Warn</span></button>
               </div></details>
               <div class="markdown-tool-spacer"></div>
               <div class="markdown-help-menu">
-                <button class="markdown-tool markdown-help-button" type="button" data-editor-help="toggle" aria-label="Formatting help" title="Formatting help" aria-expanded="false" aria-controls="taskFormattingHelp">?</button>
+                <button class="markdown-tool markdown-help-button" type="button" data-editor-help="toggle" aria-label="Formatting help" data-tooltip="Formatting help" aria-expanded="false" aria-controls="taskFormattingHelp"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-help"></use></svg></button>
                 <aside class="help-popover" id="taskFormattingHelp" aria-label="Formatting help" hidden>
-                  <header class="help-header"><h2>Shortcut reference</h2><button class="help-close" type="button" data-editor-help="close" aria-label="Close formatting help" title="Close help">✕</button></header>
+                  <header class="help-header"><h2>Shortcut reference</h2><button class="help-close" type="button" data-editor-help="close" aria-label="Close formatting help" data-tooltip="Close help"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-close"></use></svg></button></header>
                   <div class="help-content">
                     <section class="help-section"><h3>Shortcuts</h3><dl class="shortcut-list">
-                      <div><dt>Bold</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>B</kbd><small>or ⌘ B</small></dd></div>
-                      <div><dt>Italic</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>I</kbd><small>or ⌘ I</small></dd></div>
-                      <div><dt>Strikethrough</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>Shift</kbd><span>+</span><kbd>X</kbd><small>or ⌘ Shift X</small></dd></div>
-                      <div><dt>Code</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>E</kbd><small>or ⌘ E</small></dd></div>
-                      <div><dt>URL</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>K</kbd><small>or ⌘ K</small></dd></div>
-                      <div><dt>Undo</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>Z</kbd><small>or ⌘ Z</small></dd></div>
-                      <div><dt>Redo</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>Shift</kbd><span>+</span><kbd>Z</kbd><small>or Ctrl Y / ⌘ Shift Z</small></dd></div>
-                      <div><dt>Save dialog</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>Enter</kbd><small>or ⌘ Enter</small></dd></div>
+                      <div><dt>Bold</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>B</kbd><small>or Command B</small></dd></div>
+                      <div><dt>Italic</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>I</kbd><small>or Command I</small></dd></div>
+                      <div><dt>Strikethrough</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>Shift</kbd><span>+</span><kbd>X</kbd><small>or Command Shift X</small></dd></div>
+                      <div><dt>Code</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>E</kbd><small>or Command E</small></dd></div>
+                      <div><dt>URL</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>K</kbd><small>or Command K</small></dd></div>
+                      <div><dt>Undo</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>Z</kbd><small>or Command Z</small></dd></div>
+                      <div><dt>Redo</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>Shift</kbd><span>+</span><kbd>Z</kbd><small>or Ctrl Y / Command Shift Z</small></dd></div>
+                      <div><dt>Save dialog</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>Enter</kbd><small>or Command Enter</small></dd></div>
                       <div><dt>End edit / close</dt><dd><kbd>Esc</kbd></dd></div>
                     </dl></section>
                   </div>
                 </aside>
               </div>
             </div>
-            <div class="markdown-editor-stack"><pre class="markdown-highlight" id="taskMarkdownHighlight" aria-hidden="true"></pre><textarea id="taskEditorMarkdown" name="markdown" spellcheck="true"></textarea></div>
+            <div class="markdown-editor-stack"><pre class="markdown-highlight" id="taskMarkdownHighlight" aria-hidden="true"></pre><textarea id="taskEditorMarkdown" name="markdown" spellcheck="false"></textarea></div>
           </div>
         </div>
       </div>
@@ -207,15 +448,15 @@
     </form>
   </dialog>
   <dialog class="feature-editor-dialog" id="featureEditor" aria-labelledby="featureEditorFeature" tabindex="-1">
-    <form class="feature-editor" id="featureEditorForm" method="dialog">
+    <form class="feature-editor" id="featureEditorForm" method="dialog" spellcheck="false">
       <header class="feature-editor-header">
         <nav class="task-editor-breadcrumb" aria-label="Feature location"><span id="featureEditorProject"></span><span aria-hidden="true">/</span><strong id="featureEditorFeature"></strong></nav>
         <div class="editor-header-actions">
-          <div class="editor-header-undo-system editor-header-history" aria-label="Dialog edit undo system">
-            <button class="editor-header-tool" type="button" data-editor-undo-system="undo" data-editor-history="undo" aria-label="Undo dialog edit" title="Undo dialog edit (Ctrl+Z)" disabled><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
-            <button class="editor-header-tool" type="button" data-editor-undo-system="redo" data-editor-history="redo" aria-label="Redo dialog edit" title="Redo dialog edit (Ctrl+Shift+Z)" disabled><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m15 14 5-5-5-5m5 5H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>
+          <div class="editor-header-history" aria-label="Dialog edit undo system">
+            <button class="btn control-btn editor-header-tool" type="button" data-editor-undo-system="undo" data-editor-history="undo" aria-label="Undo dialog edit" data-tooltip="Undo dialog edit (Ctrl/Command+Z)" disabled><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-undo"></use></svg></button>
+            <button class="btn control-btn editor-header-tool" type="button" data-editor-undo-system="redo" data-editor-history="redo" aria-label="Redo dialog edit" data-tooltip="Redo dialog edit (Ctrl/Command+Shift+Z)" disabled><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-redo"></use></svg></button>
           </div>
-          <button class="task-editor-close" id="closeFeatureEditor" type="button" aria-label="Cancel editing" title="Cancel">✕</button>
+          <button class="task-editor-close" id="closeFeatureEditor" type="button" aria-label="Cancel editing" data-tooltip="Cancel"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-close"></use></svg></button>
         </div>
       </header>
       <div class="feature-editor-content">
@@ -225,43 +466,43 @@
           <div class="markdown-editor-shell">
             <div class="markdown-toolbar" id="featureMarkdownToolbar" role="toolbar" aria-label="Markdown formatting">
               <div class="markdown-tool-group" aria-label="Text formatting">
-                <button class="markdown-tool" type="button" data-markdown-action="bold" aria-label="Bold" title="Bold (Ctrl+B)" disabled><strong aria-hidden="true">B</strong></button>
-                <button class="markdown-tool markdown-tool-italic" type="button" data-markdown-action="italic" aria-label="Italic" title="Italic (Ctrl+I)" disabled><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M10 4h8M6 20h8M14 4l-4 16"/></svg></button>
-                <button class="markdown-tool markdown-tool-strike" type="button" data-markdown-action="strikethrough" aria-label="Strikethrough" title="Strikethrough (Ctrl+Shift+X)" disabled><span aria-hidden="true">S</span></button>
-                <button class="markdown-tool markdown-tool-code" type="button" data-markdown-action="code" aria-label="Code" title="Code (Ctrl+E)" disabled><span aria-hidden="true">&lt;/&gt;</span></button>
+                <button class="markdown-tool" type="button" data-markdown-action="bold" aria-label="Bold" data-tooltip="Bold (Ctrl/Command+B)" disabled><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-bold"></use></svg></button>
+                <button class="markdown-tool" type="button" data-markdown-action="italic" aria-label="Italic" data-tooltip="Italic (Ctrl/Command+I)" disabled><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-italic"></use></svg></button>
+                <button class="markdown-tool" type="button" data-markdown-action="strikethrough" aria-label="Strikethrough" data-tooltip="Strikethrough (Ctrl/Command+Shift+X)" disabled><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-strike"></use></svg></button>
+                <button class="markdown-tool" type="button" data-markdown-action="code" aria-label="Code" data-tooltip="Code (Ctrl/Command+E)" disabled><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-code"></use></svg></button>
               </div>
               <div class="markdown-tool-group" aria-label="Insert formatting">
-                <button class="markdown-tool markdown-tool-list" type="button" data-markdown-action="list" aria-label="Todo list" title="Todo list" disabled><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="4" width="5" height="5" rx="1"/><path d="M11 6.5h10M3 15h5v5H3zM11 17.5h10"/></svg></button>
-                <button class="markdown-tool markdown-tool-url" type="button" data-markdown-action="url" aria-label="URL" title="URL (Ctrl+K)" disabled><span aria-hidden="true">URL</span></button>
+                <button class="markdown-tool" type="button" data-markdown-action="list" aria-label="Todo list" data-tooltip="Todo list" disabled><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-list"></use></svg></button>
+                <button class="markdown-tool markdown-tool-url" type="button" data-markdown-action="url" aria-label="URL" data-tooltip="URL (Ctrl/Command+K)" disabled><span aria-hidden="true">URL</span></button>
               </div>
-              <details class="markdown-tags"><summary>Tags</summary><div class="markdown-tags-menu">
-                <button class="markdown-tool markdown-tool-version" type="button" data-markdown-action="version" aria-label="Insert Version tag" title="Insert #Version" disabled><span aria-hidden="true">#Version</span></button>
-                <button class="markdown-tool markdown-tool-date" type="button" data-markdown-action="date" aria-label="Insert Date tag" title="Insert #Date" disabled><span aria-hidden="true">#Date</span></button>
-                <button class="markdown-tool markdown-tool-info" type="button" data-markdown-action="info" aria-label="Insert Info tag" title="Insert #Info" disabled><span aria-hidden="true">#Info</span></button>
-                <button class="markdown-tool markdown-tool-warn" type="button" data-markdown-action="warn" aria-label="Insert Warn tag" title="Insert #Warn" disabled><span aria-hidden="true">#Warn</span></button>
+              <details class="markdown-tags"><summary>Tags <svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-chevron"></use></svg></summary><div class="markdown-tags-menu">
+                <button class="markdown-tool markdown-tool-version" type="button" data-markdown-action="version" aria-label="Insert Version tag" data-tooltip="Insert #Version" disabled><span aria-hidden="true">#Version</span></button>
+                <button class="markdown-tool markdown-tool-date" type="button" data-markdown-action="date" aria-label="Insert Date tag" data-tooltip="Insert #Date" disabled><span aria-hidden="true">#Date</span></button>
+                <button class="markdown-tool markdown-tool-info" type="button" data-markdown-action="info" aria-label="Insert Info tag" data-tooltip="Insert #Info" disabled><span aria-hidden="true">#Info</span></button>
+                <button class="markdown-tool markdown-tool-warn" type="button" data-markdown-action="warn" aria-label="Insert Warn tag" data-tooltip="Insert #Warn" disabled><span aria-hidden="true">#Warn</span></button>
               </div></details>
               <div class="markdown-tool-spacer"></div>
               <div class="markdown-help-menu">
-                <button class="markdown-tool markdown-help-button" type="button" data-editor-help="toggle" aria-label="Formatting help" title="Formatting help" aria-expanded="false" aria-controls="featureFormattingHelp">?</button>
+                <button class="markdown-tool markdown-help-button" type="button" data-editor-help="toggle" aria-label="Formatting help" data-tooltip="Formatting help" aria-expanded="false" aria-controls="featureFormattingHelp"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-help"></use></svg></button>
                 <aside class="help-popover" id="featureFormattingHelp" aria-label="Formatting help" hidden>
-                  <header class="help-header"><h2>Shortcut reference</h2><button class="help-close" type="button" data-editor-help="close" aria-label="Close formatting help" title="Close help">✕</button></header>
+                  <header class="help-header"><h2>Shortcut reference</h2><button class="help-close" type="button" data-editor-help="close" aria-label="Close formatting help" data-tooltip="Close help"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-close"></use></svg></button></header>
                   <div class="help-content">
                     <section class="help-section"><h3>Shortcuts</h3><dl class="shortcut-list">
-                      <div><dt>Bold</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>B</kbd><small>or ⌘ B</small></dd></div>
-                      <div><dt>Italic</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>I</kbd><small>or ⌘ I</small></dd></div>
-                      <div><dt>Strikethrough</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>Shift</kbd><span>+</span><kbd>X</kbd><small>or ⌘ Shift X</small></dd></div>
-                      <div><dt>Code</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>E</kbd><small>or ⌘ E</small></dd></div>
-                      <div><dt>URL</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>K</kbd><small>or ⌘ K</small></dd></div>
-                      <div><dt>Undo</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>Z</kbd><small>or ⌘ Z</small></dd></div>
-                      <div><dt>Redo</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>Shift</kbd><span>+</span><kbd>Z</kbd><small>or Ctrl Y / ⌘ Shift Z</small></dd></div>
-                      <div><dt>Save dialog</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>Enter</kbd><small>or ⌘ Enter</small></dd></div>
+                      <div><dt>Bold</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>B</kbd><small>or Command B</small></dd></div>
+                      <div><dt>Italic</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>I</kbd><small>or Command I</small></dd></div>
+                      <div><dt>Strikethrough</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>Shift</kbd><span>+</span><kbd>X</kbd><small>or Command Shift X</small></dd></div>
+                      <div><dt>Code</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>E</kbd><small>or Command E</small></dd></div>
+                      <div><dt>URL</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>K</kbd><small>or Command K</small></dd></div>
+                      <div><dt>Undo</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>Z</kbd><small>or Command Z</small></dd></div>
+                      <div><dt>Redo</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>Shift</kbd><span>+</span><kbd>Z</kbd><small>or Ctrl Y / Command Shift Z</small></dd></div>
+                      <div><dt>Save dialog</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>Enter</kbd><small>or Command Enter</small></dd></div>
                       <div><dt>End edit / close</dt><dd><kbd>Esc</kbd></dd></div>
                     </dl></section>
                   </div>
                 </aside>
               </div>
             </div>
-            <div class="markdown-editor-stack"><pre class="markdown-highlight" id="featureMarkdownHighlight" aria-hidden="true"></pre><textarea id="featureEditorMetadata" name="metadata" spellcheck="true"></textarea></div>
+            <div class="markdown-editor-stack"><pre class="markdown-highlight" id="featureMarkdownHighlight" aria-hidden="true"></pre><textarea id="featureEditorMetadata" name="metadata" spellcheck="false"></textarea></div>
           </div>
         </div>
       </div>
@@ -274,6 +515,6 @@
       </footer>
     </form>
   </dialog>
-  <div class="watermark" id="watermark">© 2026 MD_Manager v0.4.0 · Tim Krüger (Zang3th) · <a href="https://github.com/Zang3th" target="_blank" rel="noopener noreferrer">GitHub</a></div>
+  <div class="watermark" id="watermark">© 2026 MD_Manager v0.5.0 · Tim Krüger (Zang3th) · <a href="https://github.com/Zang3th" target="_blank" rel="noopener noreferrer">GitHub</a></div>
 </body>
 </html>

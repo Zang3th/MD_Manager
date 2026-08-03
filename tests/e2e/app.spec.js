@@ -46,19 +46,80 @@ async function toggleBacklogFromView(page) {
   await page.locator("#toggleViewMenu").click();
 }
 
+async function expectCentered(parent, child, axes = "both") {
+  const offset = await parent.evaluate((container, childElement) => {
+    const outer = container.getBoundingClientRect();
+    const inner = childElement.getBoundingClientRect();
+    return {
+      x: inner.left + inner.width / 2 - (outer.left + outer.width / 2),
+      y: inner.top + inner.height / 2 - (outer.top + outer.height / 2)
+    };
+  }, await child.elementHandle());
+  if (axes !== "vertical") expect(Math.abs(offset.x)).toBeLessThanOrEqual(0.01);
+  if (axes !== "horizontal") expect(Math.abs(offset.y)).toBeLessThanOrEqual(0.01);
+}
+
+async function expectVisibleIconButtonsCentered(page) {
+  const offsets = await page.locator("button svg, button img").evaluateAll(graphics => graphics.flatMap(graphic => {
+    const button = graphic.closest("button");
+    const outer = button.getBoundingClientRect();
+    const inner = graphic.getBoundingClientRect();
+    if (button.innerText.trim() || !outer.width || !outer.height || !inner.width || !inner.height) return [];
+    return [{
+      label: button.getAttribute("aria-label") || button.id || button.className,
+      x: inner.left + inner.width / 2 - (outer.left + outer.width / 2),
+      y: inner.top + inner.height / 2 - (outer.top + outer.height / 2)
+    }];
+  }));
+  expect(offsets.length).toBeGreaterThan(0);
+  for (const offset of offsets) {
+    expect(Math.abs(offset.x), `${offset.label} horizontal center`).toBeLessThanOrEqual(0.01);
+    expect(Math.abs(offset.y), `${offset.label} vertical center`).toBeLessThanOrEqual(0.01);
+  }
+}
+
+async function expectSvgInkCentered(button, svg) {
+  const offset = await button.evaluate((container, graphic) => {
+    const outer = container.getBoundingClientRect();
+    const inner = graphic.getBoundingClientRect();
+    const ink = graphic.getBBox();
+    const viewBox = graphic.viewBox.baseVal;
+    return {
+      x: inner.left + (ink.x + ink.width / 2 - viewBox.x) * inner.width / viewBox.width - (outer.left + outer.width / 2),
+      y: inner.top + (ink.y + ink.height / 2 - viewBox.y) * inner.height / viewBox.height - (outer.top + outer.height / 2)
+    };
+  }, await svg.elementHandle());
+  expect(Math.abs(offset.x)).toBeLessThanOrEqual(0.05);
+  expect(Math.abs(offset.y)).toBeLessThanOrEqual(0.05);
+}
+
 test("start screen exposes the application identity and open action", async ({ page }) => {
   await page.goto(appUrl);
   await expect(page).toHaveTitle("MD_Manager");
-  await expect(page.locator("#appVersion")).toHaveText("v0.4.0");
+  await expect(page.locator("#appVersion")).toHaveText("v0.5.0");
+  await expect(page.locator("#appVersion")).toHaveCSS("font-family", '"JetBrains Mono", monospace');
   expect(await page.locator("#appVersion").evaluate(element => getComputedStyle(element, "::before").height)).toBe("2px");
   const startActions = page.locator(".start-actions");
   const openFile = startActions.getByRole("button", { name: "Open File", exact: true });
   const createFile = startActions.getByRole("button", { name: "Create File", exact: true });
   await expect(openFile).toBeVisible();
   expect(await openFile.evaluate(element => element.getBoundingClientRect().x)).toBeLessThan(await createFile.evaluate(element => element.getBoundingClientRect().x));
+  for (const action of [openFile, createFile]) {
+    await expect(action).toHaveCSS("background-color", "rgb(60, 56, 54)");
+    await expect(action).toHaveCSS("border-color", "rgb(80, 73, 69)");
+    await expect(action).toHaveCSS("color", "rgb(235, 219, 178)");
+  }
+  await openFile.hover();
+  await expect(openFile).toHaveCSS("background-color", "rgb(40, 40, 40)");
+  await expect(openFile).toHaveCSS("border-color", "rgb(235, 219, 178)");
+  await expect(openFile).toHaveCSS("color", "rgb(235, 219, 178)");
+  await createFile.hover();
+  await expect(createFile).toHaveCSS("background-color", "rgb(40, 40, 40)");
+  await expect(createFile).toHaveCSS("border-color", "rgb(235, 219, 178)");
+  await expect(createFile).toHaveCSS("color", "rgb(235, 219, 178)");
   await expect(page.locator(".header").getByRole("button", { name: /Open/ })).toHaveCount(0);
   await expect(page.locator("#watermark")).toBeVisible();
-  await expect(page.locator("#watermark")).toContainText("MD_Manager v0.4.0");
+  await expect(page.locator("#watermark")).toContainText("MD_Manager v0.5.0");
   const help = page.getByRole("button", { name: "Help", exact: true });
   const sound = page.locator("#toggleSounds");
   const theme = page.locator("#toggleTheme");
@@ -78,12 +139,196 @@ test("recent files show the Markdown project title and filename", async ({ page 
     id: "roadmap",
     name: "Roadmap.md",
     projectTitle: "MD Manager",
-    openedAt: Date.now(),
+    openedAt: new Date(2026, 7, 3, 12, 34).getTime(),
     handle: {}
   }]));
   await expect(page.locator(".recent-project-name")).toHaveText("MD Manager");
   await expect(page.locator(".recent-file-name")).toHaveText("Roadmap.md");
-  await expect(page.locator(".recent-file-time")).toBeVisible();
+  await expect(page.locator(".recent-file-time")).toHaveText("2026-08-03 12:34");
+});
+
+test("local fonts, SVG symbols, custom tooltips, and editor controls are deterministic", async ({ page }) => {
+  await page.goto(appUrl);
+  const fontState = await page.evaluate(async () => {
+    await document.fonts.ready;
+    return {
+      status: document.fonts.status,
+      inter: (await document.fonts.load('400 14px "Inter"')).length,
+      mono: (await document.fonts.load('400 14px "JetBrains Mono"')).length,
+      body: getComputedStyle(document.body).fontFamily
+    };
+  });
+  expect(fontState).toEqual({ status: "loaded", inter: 1, mono: 1, body: "Inter, sans-serif" });
+  await expect(page.locator("body [title]")).toHaveCount(0);
+  await expect(page.locator("#addFeature")).toBeHidden();
+  await expect(page.locator(".app-logo-mark")).toHaveCSS("cursor", "auto");
+  await expect(page.locator("#toggleTheme svg")).toBeVisible();
+  await expect(page.locator("#toggleViewMenu .view-chevron")).toBeAttached();
+  await expect(page.locator("#icon-volume path").nth(1)).toHaveAttribute("stroke-width", "3");
+
+  const help = page.getByRole("button", { name: "Help", exact: true });
+  await help.hover();
+  await expect(page.locator("#appTooltip")).toHaveText("Help");
+  await expect(page.locator("#appTooltip")).toBeVisible();
+  await expect(help).toHaveAttribute("aria-describedby", "appTooltip");
+
+  await openFixture(page);
+  await expect(page.locator("body [title]")).toHaveCount(0);
+  await expect(page.locator("#toggleHelp use")).toHaveAttribute("href", "#icon-help");
+  await expect(page.locator("#icon-help path")).toHaveAttribute("stroke-width", "4");
+  await expect(page.locator("#icon-help path")).toHaveAttribute("d", /M16 25H16\.01/);
+  await expect(page.locator("#addFeature")).toBeVisible();
+  await expect(page.locator("#addFeature")).not.toHaveAttribute("data-tooltip");
+  await expect(page.locator("#toggleViewMenu .view-chevron")).toBeVisible();
+  await expect(page.locator('.task-check .ui-icon use[href="#icon-check"]')).toBeVisible();
+  await expect(page.locator('.task-in-progress .ui-icon use[href="#icon-progress"]')).toBeVisible();
+  await expect(page.locator('.delete-btn .ui-icon use[href="#icon-close"]').first()).toBeAttached();
+  await page.locator("#content .card").first().dblclick();
+  await expect(page.locator("#taskEditorForm")).toHaveAttribute("spellcheck", "false");
+  await expect(page.locator("#taskEditorMarkdown")).toHaveAttribute("spellcheck", "false");
+  await expect(page.locator("#taskEditorMarkdown")).toHaveCSS("font-family", '"JetBrains Mono", monospace');
+});
+
+test("symbols, progress values, and the clock stay optically aligned in their controls", async ({ page }) => {
+  await openFixture(page);
+
+  await expectSvgInkCentered(page.locator("#toggleSounds"), page.locator("#toggleSounds .sound-toggle-on"));
+  await expectSvgInkCentered(page.locator("#toggleTheme"), page.locator("#toggleTheme svg"));
+  const viewControl = page.locator("#toggleViewMenu");
+  const viewChevron = viewControl.locator(".view-chevron");
+  await expectCentered(viewControl, viewChevron, "vertical");
+  expect(await viewControl.evaluate((button, icon) => {
+    const outer = button.getBoundingClientRect();
+    const inner = icon.getBoundingClientRect();
+    return inner.left >= outer.left && inner.top >= outer.top && inner.right <= outer.right && inner.bottom <= outer.bottom;
+  }, await viewChevron.elementHandle())).toBe(true);
+  await expectCentered(page.locator(".feature-progress").first(), page.locator(".status-value").first());
+  await expectCentered(page.locator(".task-status").first(), page.locator(".task-progress").first(), "vertical");
+  await expectCentered(page.locator("#appClock"), page.locator("#appClock .clock-current"));
+
+  const completeCard = page.locator(".card").filter({ hasText: "Complete Task" });
+  await completeCard.click();
+  await expectCentered(page.locator(".add-task-btn").first(), page.locator(".add-task-btn svg").first());
+  await expectCentered(completeCard.locator(".checkbox"), completeCard.locator(".checkbox .ui-icon"));
+  const todoDelete = completeCard.locator(".todo-item .delete-btn");
+  await expectCentered(todoDelete, todoDelete.locator(".ui-icon"));
+  await expect(todoDelete.locator(".ui-icon")).toHaveCSS("width", "16px");
+  await expect(todoDelete.locator(".ui-icon")).toHaveCSS("height", "16px");
+  await expectVisibleIconButtonsCentered(page);
+
+  await expect(page.locator(".stats-close")).toHaveCSS("width", "24px");
+  await expect(page.locator(".stats-close")).toHaveCSS("height", "24px");
+  await toggleBacklogFromView(page);
+  await expect(page.locator(".backlog-close")).toHaveCSS("width", "32px");
+  await expect(page.locator(".backlog-close")).toHaveCSS("height", "32px");
+  const featurePlus = page.locator("#content .add-task-btn").first();
+  const backlogPlus = page.locator("#backlog .add-task-btn");
+  await expect(featurePlus).toHaveCSS("width", "32px");
+  await expect(featurePlus).toHaveCSS("height", "32px");
+  await expect(featurePlus.locator("svg")).toHaveCSS("width", "16px");
+  await expect(featurePlus.locator("svg")).toHaveCSS("height", "16px");
+  await expect(backlogPlus).toHaveCSS("width", "32px");
+  await expect(backlogPlus).toHaveCSS("height", "32px");
+  await expect(backlogPlus.locator("svg")).toHaveCSS("width", "16px");
+  await expect(backlogPlus.locator("svg")).toHaveCSS("height", "16px");
+  await expectCentered(featurePlus, featurePlus.locator("svg"));
+  await expectCentered(backlogPlus, backlogPlus.locator("svg"));
+  await page.locator("#toggleGridView").click();
+  await expect(featurePlus).toHaveCSS("width", "32px");
+  await expect(featurePlus.locator("svg")).toHaveCSS("width", "16px");
+  await expect(backlogPlus).toHaveCSS("width", "32px");
+  await expect(backlogPlus.locator("svg")).toHaveCSS("width", "16px");
+  await expect(page.locator(".help-close").first()).toHaveCSS("width", "32px");
+  await expect(page.locator(".help-close").first()).toHaveCSS("height", "32px");
+  await expect(page.locator(".help-close").first()).toHaveCSS("border-radius", "4px");
+  await expect(page.locator("#showBoardView")).toHaveCSS("width", "64px");
+  await expect(page.locator("#showBoardView")).toHaveCSS("height", "32px");
+  await expect(page.locator("#toggleGridView")).toHaveCSS("width", "64px");
+  await expect(page.locator("#toggleGridView")).toHaveCSS("height", "32px");
+  const rasterContract = await page.evaluate(() => {
+    const namespace = "http://www.w3.org/2000/svg";
+    const visibleInk = (use, symbol) => {
+      const bounds = use.getBBox();
+      const strokeWidth = symbol.getAttribute("fill") === "none" ? Math.max(0, ...Array.from(symbol.children, child => parseFloat(child.getAttribute("stroke-width") || "0"))) : 0;
+      const expansion = strokeWidth / 2;
+      return { x: bounds.x - expansion, y: bounds.y - expansion, width: bounds.width + strokeWidth, height: bounds.height + strokeWidth };
+    };
+    const definitions = Array.from(document.querySelectorAll('.icon-sprite symbol[id^="icon-"]')).map(symbol => {
+      const svg = document.createElementNS(namespace, "svg");
+      svg.setAttribute("viewBox", "0 0 32 32");
+      svg.style.cssText = "position:fixed;left:-32px;top:-32px;width:16px;height:16px";
+      const use = document.createElementNS(namespace, "use");
+      use.setAttribute("href", `#${symbol.id}`);
+      svg.append(use);
+      document.body.append(svg);
+      const ink = visibleInk(use, symbol);
+      svg.remove();
+      return { id: symbol.id, ink: [ink.x, ink.y, ink.width, ink.height], center: [ink.x + ink.width / 2, ink.y + ink.height / 2] };
+    });
+    const rendered = Array.from(document.querySelectorAll("body svg:not(.icon-sprite)")).map(icon => {
+      const use = icon.querySelector(":scope > use");
+      const style = getComputedStyle(icon);
+      return {
+        classed: icon.classList.contains("ui-icon"),
+        viewBox: icon.getAttribute("viewBox"),
+        href: use?.getAttribute("href") || "",
+        childCount: icon.children.length,
+        transform: style.transform,
+        size: [style.width, style.height]
+      };
+    });
+    const framed = Array.from(document.querySelectorAll("button svg.ui-icon")).flatMap(icon => {
+      const button = icon.closest("button");
+      const use = icon.querySelector("use");
+      const bounds = icon.getBoundingClientRect();
+      if (!button || button.innerText.trim() || !use || !bounds.width || !bounds.height) return [];
+      const outer = button.getBoundingClientRect();
+      const style = getComputedStyle(button);
+      const symbol = document.querySelector(use.getAttribute("href"));
+      if (!(symbol instanceof SVGSymbolElement)) return [];
+      const ink = visibleInk(use, symbol);
+      const inner = [outer.width - parseFloat(style.borderLeftWidth) - parseFloat(style.borderRightWidth), outer.height - parseFloat(style.borderTopWidth) - parseFloat(style.borderBottomWidth)];
+      const renderedInk = [ink.width * bounds.width / 32, ink.height * bounds.height / 32];
+      return [{ href: use.getAttribute("href"), canvas: [bounds.width, bounds.height], gaps: [(inner[0] - renderedInk[0]) / 2, (inner[1] - renderedInk[1]) / 2] }];
+    });
+    return { definitions, rendered, framed };
+  });
+  expect(rasterContract.definitions.length).toBe(21);
+  for (const definition of rasterContract.definitions) {
+    const [x, y, width, height] = definition.ink;
+    expect(definition.ink.every(Number.isFinite), `${definition.id} has finite source geometry`).toBe(true);
+    expect(width, `${definition.id} has visible width`).toBeGreaterThan(0);
+    expect(height, `${definition.id} has visible height`).toBeGreaterThan(0);
+    expect(x, `${definition.id} stays inside the source canvas horizontally`).toBeGreaterThanOrEqual(0);
+    expect(y, `${definition.id} stays inside the source canvas vertically`).toBeGreaterThanOrEqual(0);
+    expect(x + width, `${definition.id} stays inside the source canvas horizontally`).toBeLessThanOrEqual(32);
+    expect(y + height, `${definition.id} stays inside the source canvas vertically`).toBeLessThanOrEqual(32);
+    const centerTolerance = definition.id === "icon-check" || definition.id === "icon-chevron" ? 1 : .25;
+    expect(definition.center.every(value => Math.abs(value - 16) <= centerTolerance), `${definition.id} stays within its source-defined center tolerance`).toBe(true);
+  }
+  for (const icon of rasterContract.rendered) {
+    expect(icon.classed).toBe(true);
+    expect(icon.viewBox).toBe("0 0 32 32");
+    expect(icon.href).toMatch(/^#icon-/);
+    expect(icon.childCount).toBe(1);
+    expect(icon.transform).toBe("none");
+    expect(icon.size).toEqual(["16px", "16px"]);
+  }
+  expect(rasterContract.framed.length).toBeGreaterThan(0);
+  for (const icon of rasterContract.framed) {
+    expect(icon.canvas).toEqual([16, 16]);
+    expect(icon.gaps.every(value => Number.isFinite(value) && value >= 0), `${icon.href} fits its framed control`).toBe(true);
+  }
+  const checkReferences = await page.locator('.view-option use[href="#icon-check"],.checkbox use[href="#icon-check"],.task-check use[href="#icon-check"]').evaluateAll(nodes => nodes.map(node => node.getAttribute("href")));
+  expect(new Set(checkReferences)).toEqual(new Set(["#icon-check"]));
+});
+
+test("cross-platform start and board surfaces match the shared visual baseline", async ({ page }) => {
+  await page.goto(appUrl);
+  await expect(page).toHaveScreenshot("cross-platform-start.png", { animations: "disabled", maxDiffPixelRatio: 0.01 });
+  await openFixture(page);
+  await page.addStyleTag({ content: ".notifications,.app-clock{visibility:hidden!important}" });
+  await expect(page).toHaveScreenshot("cross-platform-board.png", { animations: "disabled", maxDiffPixelRatio: 0.01 });
 });
 
 test("theme toggle switches Gruvbox themes on the start screen and in the app", async ({ page }) => {
@@ -118,8 +363,8 @@ test("Markdown import renders features, tasks, progress states, and filename tit
   await expect(page).toHaveTitle("MD_Manager - Fixture.md");
   await expect(page.locator("#content > .release")).toHaveCount(2);
   await expect(page.locator("#content .card")).toHaveCount(3);
-  await expect(page.locator(".task-in-progress")).toHaveText("◐");
-  await expect(page.locator(".task-check")).toHaveText("✓");
+  await expect(page.locator('.task-in-progress .ui-icon use[href="#icon-progress"]')).toBeVisible();
+  await expect(page.locator('.task-check .ui-icon use[href="#icon-check"]')).toBeVisible();
   await expect(page.locator("#toggleBacklog")).toBeEnabled();
   await expect(page.locator("#redoChange")).toHaveCSS("border-top-right-radius", "6px");
   await expect(page.locator("#redoChange")).toHaveCSS("border-bottom-right-radius", "6px");
@@ -245,7 +490,7 @@ test("feature editor saves title, metadata, info, and warn as one undo step", as
   const heading = feature.locator(".release-heading");
   await heading.hover();
   const editFeature = heading.locator('[data-edit="feature"]');
-  await expect(editFeature).toHaveAttribute("title", "Edit feature");
+  await expect(editFeature).toHaveAttribute("data-tooltip", "Edit feature");
   await expect(editFeature).toHaveAccessibleName("Edit feature");
   await editFeature.click();
   const dialog = page.locator("#featureEditor");
@@ -339,10 +584,44 @@ test("Markdown toolbars format defaults and selected text in the active field", 
   const textarea = page.locator("#taskEditorMarkdown");
   const title = page.locator("#taskEditorTitle");
   const toolbar = page.locator("#taskMarkdownToolbar");
+  await expect(page.locator("#taskEditor")).toHaveCSS("transform", "none");
+  await expect(toolbar).toHaveCSS("height", "44px");
+  const toolMetrics = await toolbar.locator(":scope > .markdown-tool-group > .markdown-tool, :scope > .markdown-help-menu > .markdown-tool").evaluateAll(buttons => buttons.flatMap(button => {
+    const bounds = button.getBoundingClientRect();
+    if (!bounds.width || !bounds.height) return [];
+    const icon = button.querySelector(":scope > .ui-icon");
+    const iconBounds = icon?.getBoundingClientRect();
+    return [{
+      size: [bounds.width, bounds.height],
+      iconOffset: iconBounds ? [iconBounds.left + iconBounds.width / 2 - (bounds.left + bounds.width / 2), iconBounds.top + iconBounds.height / 2 - (bounds.top + bounds.height / 2)] : null
+    }];
+  }));
+  expect(toolMetrics.length).toBe(7);
+  for (const metric of toolMetrics) {
+    expect(metric.size).toEqual([32, 32]);
+    if (metric.iconOffset) expect(metric.iconOffset).toEqual([0, 0]);
+  }
+  const formattingGaps = await toolbar.locator(":scope > .markdown-tool-group > .markdown-tool").evaluateAll(buttons => buttons.slice(1).map((button, index) => {
+    const previous = buttons[index].getBoundingClientRect();
+    return button.getBoundingClientRect().left - previous.right;
+  }));
+  expect(formattingGaps).toEqual([4, 4, 4, 4, 4]);
+  await expect(toolbar.locator(".markdown-tool-group").first()).toHaveCSS("border-right-width", "0px");
   await expect(page.getByText("Content, todos, #Info and #Warn", { exact: true })).toHaveCount(0);
   await expect(toolbar.locator(".markdown-tool-group")).toHaveCount(2);
   await expect(toolbar.locator("[data-editor-history]")).toHaveCount(0);
   await expect(toolbar.locator(".markdown-tags > summary")).toHaveText("Tags");
+  await expect(toolbar.locator(".markdown-tags > summary")).toHaveCSS("height", "32px");
+  await expect(page.locator("#taskEditorForm .editor-header-tool").first()).toHaveCSS("width", "32px");
+  await expect(page.locator("#taskEditorForm .editor-header-tool").first()).toHaveCSS("height", "32px");
+  await expect(page.locator("#closeTaskEditor")).toHaveCSS("width", "32px");
+  await expect(page.locator("#closeTaskEditor")).toHaveCSS("height", "32px");
+  await expect(page.locator("#cancelTaskEditor")).toHaveCSS("width", "64px");
+  await expect(page.locator("#cancelTaskEditor")).toHaveCSS("height", "32px");
+  await expect(page.locator("#saveTaskEditor")).toHaveCSS("width", "64px");
+  await expect(page.locator("#saveTaskEditor")).toHaveCSS("height", "32px");
+  await expect(toolbar.getByRole("button", { name: "URL" })).toHaveText("URL");
+  await expect(toolbar.getByRole("button", { name: "URL" }).locator("svg")).toHaveCount(0);
   await expect(toolbar.getByRole("button", { name: "Bold" })).toBeDisabled();
   await textarea.evaluate(element => element.setSelectionRange(element.value.length, element.value.length));
   await title.focus();
@@ -362,7 +641,13 @@ test("Markdown toolbars format defaults and selected text in the active field", 
   expect(editorHeightRatio).toBeGreaterThan(.55);
   await expect(toolbar.getByRole("button", { name: "Bold" })).toBeEnabled();
   await expect(toolbar).toHaveCSS("border-top-color", "rgb(235, 219, 178)");
-  await expect(page.locator("#taskMarkdownHighlight").locator("..")).toHaveCSS("border-bottom-color", "rgb(235, 219, 178)");
+  await expect(toolbar).toHaveCSS("border-right-color", "rgb(235, 219, 178)");
+  await expect(toolbar).toHaveCSS("border-bottom-color", "rgb(235, 219, 178)");
+  await expect(toolbar).toHaveCSS("border-left-color", "rgb(235, 219, 178)");
+  const editorStack = page.locator("#taskMarkdownHighlight").locator("..");
+  await expect(editorStack).toHaveCSS("border-right-color", "rgb(235, 219, 178)");
+  await expect(editorStack).toHaveCSS("border-bottom-color", "rgb(235, 219, 178)");
+  await expect(editorStack).toHaveCSS("border-left-color", "rgb(235, 219, 178)");
   await textarea.fill("word next");
   await textarea.evaluate(element => {
     element.setSelectionRange(2, 2);
@@ -377,8 +662,8 @@ test("Markdown toolbars format defaults and selected text in the active field", 
   await expect(formattingHelp).toContainText("Bold");
   await expect(formattingHelp).toContainText("Ctrl");
   await expect(formattingHelp).not.toContainText("press twice");
-  await expect(formattingHelp).toContainText("or ⌘ B");
-  await expect(formattingHelp).toContainText("⌘ Shift Z");
+  await expect(formattingHelp).toContainText("or Command B");
+  await expect(formattingHelp).toContainText("Command Shift Z");
   await expect(formattingHelp.locator(".shortcut-list > div").filter({ hasText: "Redo" }).locator("kbd")).toHaveText(["Ctrl", "Shift", "Z"]);
   await formattingHelp.getByRole("button", { name: "Close formatting help" }).click();
   await expect(formattingHelp).toBeHidden();
@@ -413,7 +698,9 @@ test("Markdown toolbars format defaults and selected text in the active field", 
     await button.click();
     await expect(textarea).toHaveValue(expected);
     await expect(button).toHaveClass(/active/);
-    await expect(button).toHaveCSS("border-color", "rgb(131, 165, 152)");
+    await page.mouse.move(0, 0);
+    await expect(button).toHaveCSS("border-color", "rgb(80, 73, 69)");
+    await expect(button).toHaveCSS("background-color", "rgb(29, 32, 33)");
     await button.click();
     await expect(textarea).toHaveValue(selected);
     await expect(button).not.toHaveClass(/active/);
@@ -507,6 +794,15 @@ test("dialog undo and redo include all fields and reset when the dialog reopens"
   const redo = page.getByRole("button", { name: "Redo dialog edit" });
   await expect(page.locator("#taskEditor .editor-header-history").getByRole("button")).toHaveCount(2);
   expect(await undo.evaluate(element => element.closest("header")?.className)).toContain("task-editor-header");
+  /** @param {import("@playwright/test").Locator} locator */
+  const historyStyle = locator => locator.evaluate(element => {
+    const style = getComputedStyle(element);
+    return [style.width, style.height, style.backgroundColor, style.borderColor, style.borderRadius, style.color, style.boxShadow, style.opacity, style.cursor, style.lineHeight];
+  });
+  expect(await historyStyle(undo)).toEqual(await historyStyle(page.locator("#undoChange")));
+  expect(await historyStyle(redo)).toEqual(await historyStyle(page.locator("#redoChange")));
+  await expect(undo).toHaveCSS("border-left-width", "1px");
+  await expect(redo).toHaveCSS("border-left-width", "1px");
   await expect(undo).toBeDisabled();
   await expect(redo).toBeDisabled();
   await title.evaluate(element => {
@@ -569,9 +865,9 @@ test("merged feature Markdown highlights syntax and inserts tags", async ({ page
   await expect(highlight.locator(".markdown-syntax-tag").first()).toHaveCSS("color", "rgb(211, 134, 155)");
   await metadata.fill("#Info\n**bold** *italic* ~done~ `code` [link](https://example.com)\n#### Label");
   await expect(highlight.locator(".markdown-syntax-bold")).toHaveCSS("font-weight", "800");
-  await expect(highlight.locator(".markdown-syntax-italic")).toHaveCSS("font-style", "italic");
+  await expect(highlight.locator(".markdown-syntax-italic")).toHaveCSS("font-style", "oblique 12deg");
   await expect(highlight.locator(".markdown-syntax-strike")).toHaveCSS("text-decoration-line", "line-through");
-  await expect(highlight.locator(".markdown-syntax-code")).toHaveCSS("font-family", /Cascadia Mono|Segoe UI Mono|Consolas/);
+  await expect(highlight.locator(".markdown-syntax-code")).toHaveCSS("font-family", '"JetBrains Mono", monospace');
   await expect(highlight.locator(".markdown-syntax-code")).toHaveCSS("color", "rgb(184, 187, 38)");
   await expect(highlight.locator(".markdown-syntax-code")).not.toHaveCSS("box-shadow", "none");
   await expect(highlight.locator(".markdown-syntax-link")).toHaveCSS("color", "rgb(211, 134, 155)");
@@ -580,9 +876,17 @@ test("merged feature Markdown highlights syntax and inserts tags", async ({ page
   const combinedStrike = highlight.locator(".markdown-syntax-strike").first();
   await expect(combinedStrike.locator(".markdown-syntax-bold")).toHaveText("**bold**");
   await expect(combinedStrike.locator(".markdown-syntax-italic")).toHaveText("*italic*");
+  await expect(combinedStrike.locator(".markdown-syntax-italic")).toHaveCSS("font-style", "oblique 12deg");
   await expect(combinedStrike.locator(".markdown-syntax-code")).toHaveText("`code`");
+  await expect(combinedStrike.locator(".markdown-syntax-code")).toHaveCSS("color", "rgb(184, 187, 38)");
   await expect(combinedStrike.locator(".markdown-syntax-link")).toHaveText("[link](https://example.com)");
+  await expect(combinedStrike.locator(".markdown-syntax-link")).toHaveCSS("color", "rgb(211, 134, 155)");
   await expect(highlight.locator(".markdown-syntax-bold .markdown-syntax-strike")).toHaveText("~nested strike~");
+  await metadata.fill("**bold with *nested italic*** __strong__ _underscore italic_ \\*plain*");
+  await expect(highlight.locator(".markdown-syntax-bold .markdown-syntax-italic")).toHaveText("*nested italic*");
+  await expect(highlight.locator(".markdown-syntax-bold")).toHaveCount(2);
+  await expect(highlight.locator(".markdown-syntax-italic")).toHaveCount(2);
+  await expect(highlight.locator(".markdown-syntax-italic").last()).toHaveText("_underscore italic_");
   await metadata.press("End");
   const featureToolbar = page.locator("#featureMarkdownToolbar");
   await featureToolbar.locator(".markdown-tags > summary").click();
@@ -599,10 +903,13 @@ test("merged feature Markdown highlights syntax and inserts tags", async ({ page
   await expect(metadata).toHaveValue(/#Version\n\n#Date\n$/);
 });
 
-test("logo and feature new buttons create features and tasks through existing editors", async ({ page }) => {
+test("New button and task buttons create features and tasks through existing editors", async ({ page }) => {
   await openFixture(page);
-  const addFeature = page.getByRole("button", { name: "New feature" });
+  const addFeature = page.getByRole("button", { name: "New", exact: true });
   await expect(addFeature).toBeEnabled();
+  expect(await addFeature.evaluate(button => button.nextElementSibling?.id)).toBe("saveFile");
+  await page.locator(".app-logo-mark").click();
+  await expect(page.locator("#featureEditor")).not.toBeVisible();
   await addFeature.click();
   await expect(page.locator("#featureEditorTitle")).toHaveValue("New Feature");
   await page.locator("#cancelFeatureEditor").click();
@@ -627,7 +934,7 @@ test("logo and feature new buttons create features and tasks through existing ed
   const firstFeature = page.locator("#content > .release").first();
   const tasksBefore = await firstFeature.locator(".card").count();
   const addTask = firstFeature.getByRole("button", { name: /New task in Active Feature/ });
-  await expect(addTask).toHaveAttribute("title", "New task");
+  await expect(addTask).toHaveAttribute("data-tooltip", "New task");
   await addTask.click();
   await expect(page.locator("#taskEditorTitle")).toHaveValue("New Task");
   await expect(page.locator("#taskEditorMarkdown")).toHaveValue(/#### Definition of Done/);
@@ -641,7 +948,7 @@ test("logo and feature new buttons create features and tasks through existing ed
 
 test("feature and task creation can start from their bundled templates", async ({ page }) => {
   await openFixture(page);
-  await page.getByRole("button", { name: "New feature" }).click();
+  await page.getByRole("button", { name: "New", exact: true }).click();
   await expect(page.locator("#featureEditorTitle")).toHaveValue("New Feature");
   await expect(page.locator("#featureEditorMetadata")).toHaveValue(/#Version/);
   await page.locator("#saveFeatureEditor").click();
@@ -664,7 +971,7 @@ test("adding a feature scrolls its column into view", async ({ page }) => {
   await openFixture(page, `# Scroll Project\n\n${features}`);
   const content = page.locator("#content");
   await content.evaluate(element => { element.scrollLeft = 0; });
-  await page.getByRole("button", { name: "New feature" }).click();
+  await page.getByRole("button", { name: "New", exact: true }).click();
   await page.locator("#saveFeatureEditor").click();
   const addedFeature = page.locator("#content > .release").last();
   await expect(addedFeature.locator(".release-title")).toHaveText("New Feature");
@@ -683,7 +990,7 @@ test("start screen Create File creates and opens a filesystem Markdown and help 
   const [newBounds, recentBounds] = await Promise.all([newProject.boundingBox(), recentFiles.boundingBox()]);
   expect(newBounds.y).toBeGreaterThan(recentBounds.y + recentBounds.height);
   expect(newBounds.width).toBeGreaterThanOrEqual(160);
-  await expect(newProject.locator('img[src="res/Logo.svg"]')).toBeVisible();
+  await expect(newProject.locator("img")).toHaveCount(0);
   const recentOffset = await page.locator(".recent-files").evaluate(element => new DOMMatrix(getComputedStyle(element).transform).m42);
   expect(recentOffset).toBeCloseTo(-page.viewportSize().height * 0.05, 0);
   await page.evaluate(() => {
@@ -698,7 +1005,7 @@ test("start screen Create File creates and opens a filesystem Markdown and help 
   const templateHelp = page.locator('.help-section[aria-labelledby="templateHelpTitle"]');
   await expect(templateHelp.getByRole("heading", { name: "Templates", exact: true })).toBeVisible();
   await expect(templateHelp.locator("p")).toHaveCSS("color", "rgb(146, 131, 116)");
-  await expect(page.locator("#helpPopover")).toContainText("data/templates/");
+  await expect(page.locator("#helpPopover")).toContainText("'data/templates/'");
 });
 
 test("task editor opens in the foreground and saves title and Markdown as one undo step", async ({ page }) => {
@@ -1090,6 +1397,12 @@ test("help popover documents shortcuts and Markdown and closes predictably", asy
   await expect(help).toContainText("Quick reference");
   await expect(help).toContainText("Shortcuts");
   await expect(help).toContainText("Ctrl");
+  const keySurfaces = await help.locator("kbd").evaluateAll(keys => keys.map(key => {
+    const style = getComputedStyle(key);
+    return { minWidth: style.minWidth, height: style.height, display: style.display, overflow: style.overflow };
+  }));
+  expect(keySurfaces.length).toBeGreaterThan(0);
+  expect(keySurfaces.every(key => key.minWidth === "22px" && key.height === "22px" && key.display === "grid" && key.overflow === "hidden")).toBe(true);
   await expect(help).toContainText("#Backlog");
   await expect(help).toContainText("#Ignore");
   const structure = help.locator(".markdown-reference").first();
@@ -1101,7 +1414,7 @@ test("help popover documents shortcuts and Markdown and closes predictably", asy
   const formatting = help.locator(".help-formatting");
   await expect(formatting.locator(".markdown-syntax-bold")).toHaveText("**Bold**");
   await expect(formatting.locator(".markdown-syntax-bold")).toHaveCSS("font-weight", "800");
-  await expect(formatting.locator(".markdown-syntax-italic")).toHaveCSS("font-style", "italic");
+  await expect(formatting.locator(".markdown-syntax-italic")).toHaveCSS("font-style", "oblique 12deg");
   await expect(formatting.locator(".markdown-syntax-strike")).toHaveCSS("text-decoration-line", "line-through");
   await expect(formatting.locator(".markdown-syntax-code")).toHaveText("`Code`");
   await expect(formatting.locator(".markdown-syntax-link")).toHaveText("[URL](url)");
@@ -1304,7 +1617,7 @@ test("adding and immediately deleting a task or feature returns to the saved sta
   await expect(save).not.toHaveClass(/dirty/);
   await expect(page.locator("#undoChange")).toBeEnabled();
 
-  await page.getByRole("button", { name: "New feature" }).click();
+  await page.getByRole("button", { name: "New", exact: true }).click();
   await page.locator("#saveFeatureEditor").click();
   await expect(save).toHaveClass(/dirty/);
   const addedFeature = page.locator("#content > .release").last();
@@ -1325,6 +1638,8 @@ test("view menu, keyboard shortcut, and accessibility states stay synchronized",
   await expect(page.locator("#viewOptions")).toBeHidden();
   await page.keyboard.press("Control+b");
   await expect(page.locator("#toggleBacklog")).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.press("Meta+b");
+  await expect(page.locator("#toggleBacklog")).toHaveAttribute("aria-pressed", "false");
 });
 
 test("long titles remain clipped to their headers and scroll only on hover", async ({ page }) => {

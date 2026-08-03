@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 32 32">
+    <path fill="currentColor"
+          fill-rule="evenodd"
+          d="M8 6H24Q26 6 26 8V28Q26 30 24 30H8Q6 30 6 28V8Q6 6 8 6Z
+             M11 10H21Q22 10 22 11V25Q22 26 21 26H11Q10 26 10 25V11Q10 10 11 10Z"/>
+
+    <path fill="currentColor"
+          fill-rule="evenodd"
+          d="M12 2H20Q22 2 22 4V8Q22 10 20 10H12Q10 10 10 8V4Q10 2 12 2Z
+             M14 5H18Q19 5 19 6V8Q19 9 18 9H14Q13 9 13 8V6Q13 5 14 5Z"/>
+</svg>

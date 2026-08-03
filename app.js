@@ -2,6 +2,8 @@ window.MDManager = window.MDManager || {};
 
 /** @param {any} app */
 (function (app) {
+  document.fonts.ready.then(() => document.body.classList.add("fonts-ready"));
+
   /** @type {MDProject | null} */
   let project = null;
   /** @type {MDFileHandle | null} */

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 32 32"
+     fill="none">
+    <g transform="translate(-1 0)">
+    <path d="M8 25L11 14L19 22Z"
+          fill="currentColor"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linejoin="round"/>
+
+    <path d="M12.294 9.170L12.941 6.756
+             M16.535 12.571L17.969 10.523
+             M20.429 16.465L22.477 15.031
+             M23.830 20.706L26.244 20.059"
+          stroke="currentColor"
+          stroke-width="2.5"
+          stroke-linecap="round"/>
+    </g>
+</svg>

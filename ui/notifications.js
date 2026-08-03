@@ -39,8 +39,8 @@ window.MDManager = window.MDManager || {};
   }
 
   const symbols = {
-    rocket: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8.2 11.8 5.7 14.3l-.3-2.2-2.2-.3 2.5-2.5m3.1 4.2-1.1 3.1 2.7-.9 1.2-2.2M6.5 8.4C8.3 4.3 11.4 2.5 16 2c-.4 4.6-2.2 7.7-6.4 9.5L6.5 8.4Z"/><circle cx="12.4" cy="5.6" r="1.3"/></svg>',
-    confetti: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m4 16 3.2-8 4.8 4.8L4 16Z"/><path d="m7.2 8 4.8 4.8M11 5l.8-2.2M14 8l2.6-.8M8 4.2 6.8 2.4"/><circle cx="15.2" cy="3.7" r=".8"/><circle cx="16.1" cy="11.2" r=".7"/></svg>'
+    rocket: '<svg class="ui-icon" viewBox="0 0 32 32" aria-hidden="true"><use href="#icon-rocket"></use></svg>',
+    confetti: '<svg class="ui-icon" viewBox="0 0 32 32" aria-hidden="true"><use href="#icon-confetti"></use></svg>'
   };
 
   /** @param {string} value */

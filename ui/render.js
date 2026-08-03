@@ -1,9 +1,10 @@
 window.MDManager = window.MDManager || {};
 
 (function (app) {
-  const deleteIcon = '<span aria-hidden="true">✕</span>';
-  const editIcon = '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg>';
-  const addIcon = '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>';
+  const deleteIcon = '<svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-close"></use></svg>';
+  const checkIcon = '<svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-check"></use></svg>';
+  const editIcon = '<svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-edit"></use></svg>';
+  const addIcon = '<svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-plus"></use></svg>';
   let taskContentCache = new WeakMap();
 
   /** @param {string} value */
@@ -119,9 +120,9 @@ window.MDManager = window.MDManager || {};
       return `<section class="todo-group">${block.title ? `<div class="todo-separator">${inlineMarkdown(block.title)}</div>` : ""}
         ${block.sections.map(section => `${section.descriptions.map(description => `<p class="todo-description">${inlineMarkdown(description.text)}</p>`).join("")}
         <div class="todo-list" data-anchor-line="${section.lineIndex}">${section.todos.map(todo => `<div class="todo-item" data-line="${todo.lineIndex}">
-          <button class="checkbox${todo.checked ? " checked" : ""}" data-checked="${todo.checked}" type="button" aria-label="Toggle todo" aria-pressed="${todo.checked}">${todo.checked ? '<span aria-hidden="true">✓</span>' : ""}</button>
+          <button class="checkbox${todo.checked ? " checked" : ""}" data-checked="${todo.checked}" type="button" aria-label="Toggle todo" aria-pressed="${todo.checked}">${todo.checked ? checkIcon : ""}</button>
           <span class="todo-text${todo.checked ? " completed" : ""}">${inlineMarkdown(todo.text)}</span>
-          <button class="delete-btn" data-delete="todo" type="button" aria-label="Delete todo" title="Delete todo">${deleteIcon}</button>
+          <button class="delete-btn" data-delete="todo" type="button" aria-label="Delete todo" data-tooltip="Delete todo">${deleteIcon}</button>
         </div>`).join("")}</div>`).join("")}</section>`;
     }).join("")}</div>`;
   }
@@ -145,7 +146,7 @@ window.MDManager = window.MDManager || {};
   function taskMarkup(task, taskIndex) {
     const { entries: taskTodos, complete: taskComplete, inProgress: taskInProgress } = taskProgress(task);
     return `<section class="card${taskComplete ? " complete" : ""}${taskInProgress ? " in-progress" : ""}${taskTodos.length ? "" : " empty-task"}" data-task="${taskIndex}" tabindex="0" aria-expanded="false">
-      <header class="card-header"><h3 class="card-title" data-full-title="${escapeHtml(task.title)}"><span class="title-text">${escapeHtml(task.title)}</span></h3><span class="task-status">${taskStatusMarkup(task)}</span><button class="edit-btn action-btn" data-edit="task" type="button" aria-label="Edit task" title="Edit task">${editIcon}</button><button class="delete-btn action-btn" data-delete="task" type="button" aria-label="Delete task" title="Delete task">${deleteIcon}</button></header>
+      <header class="card-header"><h3 class="card-title" data-full-title="${escapeHtml(task.title)}"><span class="title-text">${escapeHtml(task.title)}</span></h3><span class="task-status">${taskStatusMarkup(task)}</span><button class="edit-btn action-btn" data-edit="task" type="button" aria-label="Edit task" data-tooltip="Edit task">${editIcon}</button><button class="delete-btn action-btn" data-delete="task" type="button" aria-label="Delete task" data-tooltip="Delete task">${deleteIcon}</button></header>
       <div class="card-body" hidden>${taskBody(task)}</div>
     </section>`;
   }
@@ -158,7 +159,7 @@ window.MDManager = window.MDManager || {};
   /** @param {MDTask} task */
   function taskStatusMarkup(task) {
     const { entries, done, complete, inProgress } = taskProgress(task);
-    const icon = complete ? '<span class="task-check" title="Complete" aria-label="Complete">✓</span>' : inProgress ? '<span class="task-in-progress" title="In progress" aria-label="In progress">◐</span>' : "";
+    const icon = complete ? `<span class="task-check" data-tooltip="Complete" aria-label="Complete">${checkIcon}</span>` : inProgress ? '<span class="task-in-progress" data-tooltip="In progress" aria-label="In progress"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-progress"></use></svg></span>' : "";
     return `${icon}<span class="task-progress">${done}/${entries.length}</span>`;
   }
 
@@ -166,10 +167,10 @@ window.MDManager = window.MDManager || {};
   function backlogContents(feature) {
     const visibleTasks = feature.tasks.filter(task => !task.ignored);
     const taskCount = visibleTasks.length;
-    return `<header class="backlog-header"><div class="backlog-heading"><h2 class="backlog-title" data-full-title="${escapeHtml(feature.title)}"><span class="title-text">${escapeHtml(feature.title)}</span></h2><span class="backlog-count">${taskCount} ${taskCount === 1 ? "Task" : "Tasks"}</span></div><button class="backlog-close" type="button" aria-label="Close backlog" title="Close backlog">${deleteIcon}</button></header>
+    return `<header class="backlog-header"><div class="backlog-heading"><h2 class="backlog-title" data-full-title="${escapeHtml(feature.title)}"><span class="title-text">${escapeHtml(feature.title)}</span></h2><span class="backlog-count">${taskCount} ${taskCount === 1 ? "Task" : "Tasks"}</span></div><button class="backlog-close" type="button" aria-label="Close backlog" data-tooltip="Close backlog">${deleteIcon}</button></header>
       <div class="backlog-content">${feature.notes.length ? `<div class="feature-notes task-notes">${notesMarkup(feature.notes, true)}</div>` : ""}
         <div class="board">${visibleTasks.map(task => taskMarkup(task, feature.tasks.indexOf(task))).join("")}</div>
-        <div class="add-task-footer"><button class="add-task-btn backlog-add-task action-btn" data-add-task type="button" aria-label="New task in ${escapeHtml(feature.title)}" title="New task">${addIcon}</button></div>
+        <div class="add-task-footer"><button class="add-task-btn backlog-add-task action-btn" data-add-task type="button" aria-label="New task in ${escapeHtml(feature.title)}" data-tooltip="New task">${addIcon}</button></div>
       </div>`;
   }
 
@@ -183,7 +184,7 @@ window.MDManager = window.MDManager || {};
     const counts = app.status.statistics(project.features, todos);
     /** @param {string} label @param {{done: number, active: number, open: number, backlog: number}} counts */
     const row = (label, counts) => `<tr><th scope="row">${label}</th><td class="done">${counts.done}</td><td class="active">${counts.active}</td><td class="open">${counts.open}</td><td class="backlog-stat">${counts.backlog}</td></tr>`;
-    return `<div class="stats-header"><span class="stats-title">Statistics</span><button class="stats-close" type="button" aria-label="Close statistics" title="Close statistics">${deleteIcon}</button></div><table><thead><tr><th></th><th class="done" scope="col">Done</th><th class="active" scope="col">Active</th><th class="open" scope="col">Open</th><th class="backlog-stat" scope="col">Backlog</th></tr></thead><tbody>${row("Features", counts.features)}${row("Tasks", counts.tasks)}${row("Todos", counts.entries)}</tbody></table>`;
+    return `<div class="stats-header"><span class="stats-title">Statistics</span><button class="stats-close" type="button" aria-label="Close statistics" data-tooltip="Close statistics">${deleteIcon}</button></div><table><thead><tr><th></th><th class="done" scope="col">Done</th><th class="active" scope="col">Active</th><th class="open" scope="col">Open</th><th class="backlog-stat" scope="col">Backlog</th></tr></thead><tbody>${row("Features", counts.features)}${row("Tasks", counts.tasks)}${row("Todos", counts.entries)}</tbody></table>`;
   }
 
   /** @param {MDProject} project @param {MDViewState | undefined} viewState @param {string} fileName */
@@ -194,7 +195,7 @@ window.MDManager = window.MDManager || {};
     document.getElementById("viewerControls").hidden = false;
     document.getElementById("undoSystemControls").hidden = false;
     document.getElementById("saveFile").hidden = false;
-    document.getElementById("addFeature").disabled = false;
+    document.getElementById("addFeature").hidden = false;
     document.getElementById("appVersion").hidden = true;
     document.getElementById("watermark").hidden = true;
     document.getElementById("projectTitle").textContent = project.title;
@@ -218,13 +219,13 @@ window.MDManager = window.MDManager || {};
       const featureIndex = project.features.indexOf(feature);
       const { complete, inProgress, percentage } = featureProgress(feature);
       return `<section class="release${complete ? " complete" : ""}${inProgress ? " in-progress" : ""}" data-feature="${featureIndex}">
-        <header class="release-header" tabindex="0"><div class="release-heading"><button class="edit-btn action-btn" data-edit="feature" type="button" aria-label="Edit feature" title="Edit feature">${editIcon}</button><button class="delete-btn action-btn" data-delete="feature" type="button" aria-label="Delete feature" title="Delete feature">${deleteIcon}</button>
+        <header class="release-header" tabindex="0"><div class="release-heading"><button class="edit-btn action-btn" data-edit="feature" type="button" aria-label="Edit feature" data-tooltip="Edit feature">${editIcon}</button><button class="delete-btn action-btn" data-delete="feature" type="button" aria-label="Delete feature" data-tooltip="Delete feature">${deleteIcon}</button>
           <span class="feature-progress"><span class="status-value">${percentage}%</span></span>
           <h2 class="release-title" data-full-title="${escapeHtml(feature.title)}"><span class="title-text">${escapeHtml(feature.title)}</span></h2>
         </div>${feature.dates.length || feature.version ? `<div class="release-meta">${feature.dates.length ? `<ul class="release-dates">${feature.dates.map(date => `<li>${escapeHtml(date.from)}${date.to ? ` – ${escapeHtml(date.to)}` : ""}</li>`).join("")}</ul>` : ""}${feature.version ? `<p class="release-version">v${escapeHtml(feature.version)}</p>` : ""}</div>` : ""}</header>
         <div class="release-content">${feature.notes.length ? `<div class="feature-notes task-notes">${notesMarkup(feature.notes, true)}</div>` : ""}
           <div class="board">${feature.tasks.filter(task => !task.ignored).map(task => taskMarkup(task, feature.tasks.indexOf(task))).join("")}</div>
-          <div class="add-task-footer"><button class="add-task-btn action-btn" data-add-task type="button" aria-label="New task in ${escapeHtml(feature.title)}" title="New task">${addIcon}</button></div>
+          <div class="add-task-footer"><button class="add-task-btn action-btn" data-add-task type="button" aria-label="New task in ${escapeHtml(feature.title)}" data-tooltip="New task">${addIcon}</button></div>
         </div>
       </section>`;
     }).join("");
@@ -261,7 +262,7 @@ window.MDManager = window.MDManager || {};
     checkbox.dataset.checked = String(todo.checked);
     checkbox.setAttribute("aria-pressed", String(todo.checked));
     checkbox.classList.toggle("checked", todo.checked);
-    checkbox.innerHTML = todo.checked ? '<span aria-hidden="true">✓</span>' : "";
+    checkbox.innerHTML = todo.checked ? checkIcon : "";
     item.querySelector(".todo-text").classList.toggle("completed", todo.checked);
 
     const taskState = taskProgress(task);
@@ -280,13 +281,20 @@ window.MDManager = window.MDManager || {};
     app.layout.statusChanged();
   }
 
+  /** @param {number} timestamp */
+  function formatRecentTime(timestamp) {
+    const date = new Date(timestamp);
+    const part = (/** @type {number} */ value) => String(value).padStart(2, "0");
+    return `${date.getFullYear()}-${part(date.getMonth() + 1)}-${part(date.getDate())} ${part(date.getHours())}:${part(date.getMinutes())}`;
+  }
+
   /** @param {MDRecentFile[]} entries */
   function showStart(entries) {
     document.body.classList.add("start-view");
     document.getElementById("viewerControls").hidden = false;
     document.getElementById("undoSystemControls").hidden = true;
     document.getElementById("saveFile").hidden = true;
-    document.getElementById("addFeature").disabled = true;
+    document.getElementById("addFeature").hidden = true;
     document.getElementById("appVersion").hidden = false;
     document.getElementById("appClock").hidden = true;
     document.getElementById("projectStats").hidden = true;
@@ -296,8 +304,8 @@ window.MDManager = window.MDManager || {};
     document.getElementById("watermark").hidden = false;
     document.getElementById("content").innerHTML = `<div class="empty start-screen">
       <section class="recent-files" aria-labelledby="recentFilesTitle"><h2 id="recentFilesTitle">Recent files</h2>
-        <div class="recent-files-list">${entries.length ? entries.map((entry, index) => `<div class="recent-file"><button class="recent-file-open" data-recent="${index}" type="button"><span class="recent-file-details"><span class="recent-project-name">${escapeHtml(entry.projectTitle || entry.name)}</span>${entry.projectTitle ? `<span class="recent-file-name">${escapeHtml(entry.name)}</span>` : ""}</span><time class="recent-file-time" datetime="${new Date(entry.openedAt).toISOString()}">${new Date(entry.openedAt).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" })}</time></button><div class="recent-file-actions"><button class="recent-delete" data-remove-recent="${index}" type="button" aria-label="Remove ${escapeHtml(entry.name)} from recent files" title="Remove from recent files">${deleteIcon}</button></div></div>`).join("") : '<p class="recent-files-empty">No recent files</p>'}</div>
-        <div class="start-actions"><button class="btn start-file-action start-open-file" id="openFile" type="button">Open File</button><button class="btn start-file-action start-new-project" id="newProject" type="button"><img class="start-new-logo" src="res/Logo.svg" alt="">Create File</button></div>
+        <div class="recent-files-list">${entries.length ? entries.map((entry, index) => `<div class="recent-file"><button class="recent-file-open" data-recent="${index}" type="button"><span class="recent-file-details"><span class="recent-project-name">${escapeHtml(entry.projectTitle || entry.name)}</span>${entry.projectTitle ? `<span class="recent-file-name">${escapeHtml(entry.name)}</span>` : ""}</span><time class="recent-file-time" datetime="${new Date(entry.openedAt).toISOString()}">${formatRecentTime(entry.openedAt)}</time></button><div class="recent-file-actions"><button class="recent-delete" data-remove-recent="${index}" type="button" aria-label="Remove ${escapeHtml(entry.name)} from recent files" data-tooltip="Remove from recent files">${deleteIcon}</button></div></div>`).join("") : '<p class="recent-files-empty">No recent files</p>'}</div>
+        <div class="start-actions"><button class="btn start-file-action" id="openFile" type="button">Open File</button><button class="btn start-file-action" id="newProject" type="button">Create File</button></div>
       </section></div>`;
   }
 
@@ -316,7 +324,7 @@ window.MDManager = window.MDManager || {};
   function showSaveError(message) {
     const button = document.getElementById("saveFile");
     button.textContent = "Save failed";
-    button.title = message;
+    button.dataset.tooltip = message;
   }
 
   app.render = {

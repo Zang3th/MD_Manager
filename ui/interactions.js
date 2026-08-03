@@ -944,7 +944,7 @@ window.MDManager = window.MDManager || {};
     const muted = button.getAttribute("aria-pressed") !== "true";
     button.setAttribute("aria-pressed", String(muted));
     button.setAttribute("aria-label", muted ? "Unmute sounds" : "Mute sounds");
-    button.title = muted ? "Unmute sounds" : "Mute sounds";
+    button.dataset.tooltip = muted ? "Unmute sounds" : "Mute sounds";
     app.sounds.setMuted(muted);
   });
   document.getElementById("toggleHelp").addEventListener("click", event => {
@@ -986,7 +986,7 @@ window.MDManager = window.MDManager || {};
       event.preventDefault();
       redo?.();
     }
-    if (event.ctrlKey && !event.altKey && !event.shiftKey && !editsText && event.key.toLowerCase() === "b" && !document.getElementById("toggleBacklog").disabled) {
+    if (shortcut && !event.shiftKey && !editsText && key === "b" && !document.getElementById("toggleBacklog").disabled) {
       event.preventDefault();
       toggleBacklog();
     }
@@ -1058,14 +1058,14 @@ window.MDManager = window.MDManager || {};
     setUndoSystemState(state) {
       const saveButton = document.getElementById("saveFile");
       saveButton.textContent = "Save";
-      saveButton.removeAttribute("title");
+      delete saveButton.dataset.tooltip;
       saveButton.classList.toggle("dirty", state.dirty);
       const undoButton = document.getElementById("undoChange");
       const redoButton = document.getElementById("redoChange");
       undoButton.disabled = !state.canUndo;
       redoButton.disabled = !state.canRedo;
-      undoButton.setAttribute("title", state.undoLabel ? `Undo: ${state.undoLabel}` : "Undo");
-      redoButton.setAttribute("title", state.redoLabel ? `Redo: ${state.redoLabel}` : "Redo");
+      undoButton.dataset.tooltip = state.undoLabel ? `Undo: ${state.undoLabel}` : "Undo";
+      redoButton.dataset.tooltip = state.redoLabel ? `Redo: ${state.redoLabel}` : "Redo";
       document.getElementById("externalActions").hidden = !state.externalChange;
     }
   };

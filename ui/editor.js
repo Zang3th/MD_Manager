@@ -130,14 +130,14 @@ window.MDManager = window.MDManager || {};
 
   /** @param {string} line */
   function highlightInline(line) {
-    const tokens = /(`[^`\n]+`|\[[^\]\n]+\]\([^)\n]+\)|\*\*[^*\n]+\*\*|~[^~\n]+~|\*[^*\n]+\*)/g;
+    const tokens = /(?<!\\)(`[^`\n]+`|\[[^\]\n]+\]\([^)\n]+\)|\*\*(?=\S)[^\n]*?\S\*\*(?!\*)|__(?=\S)[^\n]*?\S__(?!_)|~~(?=\S)[^~\n]*?\S~~|~(?=\S)[^~\n]*?\S~|(?<!\*)\*(?!\*)(?=\S)[^\n]*?\S\*(?!\*)|(?<![\w_])_(?!_)(?=\S)[^_\n]*?\S_(?![\w_]))/g;
     let result = "";
     let offset = 0;
     for (const match of line.matchAll(tokens)) {
       result += escapeHtml(line.slice(offset, match.index));
       const token = match[0];
-      const className = token.startsWith("`") ? "markdown-syntax-code" : token.startsWith("[") ? "markdown-syntax-link" : token.startsWith("**") ? "markdown-syntax-bold" : token.startsWith("~") ? "markdown-syntax-strike" : "markdown-syntax-italic";
-      const markerLength = token.startsWith("**") ? 2 : token.startsWith("~") || token.startsWith("*") ? 1 : 0;
+      const className = token.startsWith("`") ? "markdown-syntax-code" : token.startsWith("[") ? "markdown-syntax-link" : token.startsWith("**") || token.startsWith("__") ? "markdown-syntax-bold" : token.startsWith("~") ? "markdown-syntax-strike" : "markdown-syntax-italic";
+      const markerLength = token.startsWith("**") || token.startsWith("__") || token.startsWith("~~") ? 2 : /^[~*_]/.test(token) ? 1 : 0;
       const content = markerLength ? `${escapeHtml(token.slice(0, markerLength))}${highlightInline(token.slice(markerLength, -markerLength))}${escapeHtml(token.slice(-markerLength))}` : escapeHtml(token);
       result += `<span class="${className}">${content}</span>`;
       offset = (match.index || 0) + token.length;
@@ -168,8 +168,8 @@ window.MDManager = window.MDManager || {};
     const end = textarea.selectionEnd;
     const selection = textarea.value.slice(start, end);
     const patterns = /** @type {Record<string, RegExp>} */ ({
-      bold: /\*\*[^*\n]+\*\*/g,
-      italic: /(^|[^*])\*[^*\n]+\*(?!\*)/g,
+      bold: /\*\*[^\n]+?\*\*|__[^\n]+?__/g,
+      italic: /(^|[^\w*_])(?:\*[^*\n]+\*(?!\*)|_[^_\n]+_(?!_))/g,
       strikethrough: /~[^~\n]+~/g,
       code: /`[^`\n]+`|```[\s\S]*?```/g,
       url: /\[[^\]\n]+\]\([^)\n]+\)/g

@@ -62,7 +62,8 @@ test("external changes show warning actions and Reload starts a clean undo syste
     const style = getComputedStyle(button);
     return { width: style.width, color: style.color, background: style.backgroundColor, border: style.borderColor };
   }));
-  expect(buttonStyles.map(style => style.width)).toEqual(["88px", "88px"]);
+  expect(buttonStyles.map(style => style.width)).toEqual(["64px", "64px"]);
+  expect(await page.locator("#externalActions .btn").evaluateAll(buttons => buttons.every(button => button.scrollWidth <= button.clientWidth))).toBe(true);
   expect(buttonStyles[0].background).toBe("rgb(215, 153, 33)");
   expect(buttonStyles[1].background).toBe("rgb(254, 128, 25)");
   expect(buttonStyles.map(style => style.color)).toEqual(["rgb(29, 32, 33)", "rgb(29, 32, 33)"]);
