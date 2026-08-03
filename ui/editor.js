@@ -259,13 +259,17 @@ window.MDManager = window.MDManager || {};
     const formatButtons = toolbar.querySelectorAll("button[data-markdown-action]");
     const markdownTextarea = /** @type {HTMLTextAreaElement} */ (toolbar.closest(".markdown-editor-shell")?.querySelector("textarea"));
     const highlight = /** @type {HTMLElement} */ (toolbar.closest(".markdown-editor-shell")?.querySelector(".markdown-highlight"));
-    const undoButton = /** @type {HTMLButtonElement} */ (editorForm.querySelector('[data-editor-history="undo"]'));
-    const redoButton = /** @type {HTMLButtonElement} */ (editorForm.querySelector('[data-editor-history="redo"]'));
+    const undoButton = /** @type {HTMLButtonElement} */ (editorForm.querySelector('[data-editor-undo-system="undo"]'));
+    const redoButton = /** @type {HTMLButtonElement} */ (editorForm.querySelector('[data-editor-undo-system="redo"]'));
     const helpButton = /** @type {HTMLButtonElement} */ (toolbar.querySelector('[data-editor-help="toggle"]'));
     const help = /** @type {HTMLElement} */ (toolbar.querySelector(".help-popover"));
-    /** @type {{values: string[], activeIndex: number, selectionStart: number, selectionEnd: number}[]} */
-    let history = [];
-    let historyIndex = -1;
+    /** @type {MDUndoSystem} */
+    let dialogUndoSystem = app.undoSystem.create();
+    /** @type {{values: string[], activeIndex: number, selectionStart: number, selectionEnd: number}} */
+    let initialSnapshot;
+    /** @type {{values: string[], activeIndex: number, selectionStart: number, selectionEnd: number}} */
+    let currentSnapshot;
+    let restoringUndoSystem = false;
     let lastInputType = "";
     let lastInputField = -1;
     /** @type {HTMLTextAreaElement | null} */
@@ -310,9 +314,9 @@ window.MDManager = window.MDManager || {};
       };
     }
 
-    function updateHistoryButtons() {
-      undoButton.disabled = historyIndex <= 0;
-      redoButton.disabled = historyIndex < 0 || historyIndex >= history.length - 1;
+    function updateUndoSystemButtons() {
+      undoButton.disabled = !app.undoSystem.canUndo(dialogUndoSystem);
+      redoButton.disabled = !app.undoSystem.canRedo(dialogUndoSystem);
     }
 
     function closeHelp() {
@@ -322,15 +326,15 @@ window.MDManager = window.MDManager || {};
 
     /** @param {HTMLInputElement | HTMLTextAreaElement} control */
     function rememberSelection(control) {
-      const current = history[historyIndex];
-      if (!current || !current.values.every((value, index) => value === fields[index].value)) return;
-      current.activeIndex = fields.indexOf(control);
-      current.selectionStart = control.selectionStart || 0;
-      current.selectionEnd = control.selectionEnd || 0;
+      if (!currentSnapshot || !currentSnapshot.values.every((value, index) => value === fields[index].value)) return;
+      currentSnapshot.activeIndex = fields.indexOf(control);
+      currentSnapshot.selectionStart = control.selectionStart || 0;
+      currentSnapshot.selectionEnd = control.selectionEnd || 0;
     }
 
     /** @param {{values: string[], activeIndex: number, selectionStart: number, selectionEnd: number}} snapshot */
     function restore(snapshot) {
+      restoringUndoSystem = true;
       fields.forEach((field, index) => { field.value = snapshot.values[index]; });
       const control = fields[snapshot.activeIndex] || activeControl;
       if (control) {
@@ -340,74 +344,77 @@ window.MDManager = window.MDManager || {};
         control.setSelectionRange(start, end);
       }
       editorForm.dispatchEvent(new Event("input", { bubbles: true }));
+      currentSnapshot = snapshot;
+      restoringUndoSystem = false;
       lastInputType = "";
       lastInputField = -1;
       formattedTextarea = null;
       formattedValue = "";
       formattedStart = -2;
       formattedEnd = -1;
-      updateHistoryButtons();
+      updateUndoSystemButtons();
     }
 
     function undo() {
-      if (historyIndex <= 0) return;
-      historyIndex -= 1;
-      restore(history[historyIndex]);
+      app.undoSystem.undo(dialogUndoSystem);
+      updateUndoSystemButtons();
     }
 
     function redo() {
-      if (historyIndex >= history.length - 1) return;
-      historyIndex += 1;
-      restore(history[historyIndex]);
+      app.undoSystem.redo(dialogUndoSystem);
+      updateUndoSystemButtons();
     }
 
     /** @param {Event} event */
     function record(event) {
+      if (restoringUndoSystem) return;
       if (!(event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement)) return;
       const fieldIndex = fields.indexOf(event.target);
       const snapshot = capture(event.target);
-      const current = history[historyIndex];
-      if (!current || current.values.every((value, index) => value === snapshot.values[index])) return;
-      if (history[0].values.every((value, index) => value === snapshot.values[index])) {
-        history = [history[0]];
-        historyIndex = 0;
+      const previous = currentSnapshot;
+      if (!previous || previous.values.every((value, index) => value === snapshot.values[index])) return;
+      if (initialSnapshot.values.every((value, index) => value === snapshot.values[index])) {
+        app.undoSystem.clear(dialogUndoSystem);
+        currentSnapshot = initialSnapshot;
         lastInputType = "";
         lastInputField = -1;
-        updateHistoryButtons();
+        updateUndoSystemButtons();
         return;
       }
-      if (current.activeIndex < 0) {
-        current.activeIndex = fieldIndex;
-        current.selectionStart = snapshot.selectionStart;
-        current.selectionEnd = snapshot.selectionEnd;
+      if (previous.activeIndex < 0) {
+        previous.activeIndex = fieldIndex;
+        previous.selectionStart = snapshot.selectionStart;
+        previous.selectionEnd = snapshot.selectionEnd;
       }
-      if (historyIndex < history.length - 1) history.splice(historyIndex + 1);
       const inputType = event instanceof InputEvent ? event.inputType : "";
       const coalesces = inputType === "insertText" || inputType === "deleteContentBackward" || inputType === "deleteContentForward";
-      if (coalesces && inputType === lastInputType && fieldIndex === lastInputField && historyIndex > 0) {
-        history[historyIndex] = snapshot;
+      const action = {
+        label: "Dialog edited",
+        undo: () => restore(previous),
+        redo: () => restore(snapshot),
+        size: previous.values.reduce((size, value) => size + value.length, 0) + snapshot.values.reduce((size, value) => size + value.length, 0)
+      };
+      if (coalesces && inputType === lastInputType && fieldIndex === lastInputField && app.undoSystem.canUndo(dialogUndoSystem) && !app.undoSystem.canRedo(dialogUndoSystem)) {
+        app.undoSystem.replaceCurrent(dialogUndoSystem, action);
       } else {
-        history.push(snapshot);
-        historyIndex += 1;
-        if (history.length > 100) {
-          history.splice(1, 1);
-          historyIndex -= 1;
-        }
+        app.undoSystem.commit(dialogUndoSystem, action);
       }
+      currentSnapshot = snapshot;
       lastInputType = coalesces ? inputType : "";
       lastInputField = coalesces ? fieldIndex : -1;
-      updateHistoryButtons();
+      updateUndoSystemButtons();
     }
 
     function reset() {
       activeTextarea = null;
       activeControl = null;
       formatButtons.forEach(button => { button.disabled = true; });
-      history = [capture(null)];
-      historyIndex = 0;
+      dialogUndoSystem = app.undoSystem.create();
+      initialSnapshot = capture(null);
+      currentSnapshot = initialSnapshot;
       lastInputType = "";
       lastInputField = -1;
-      updateHistoryButtons();
+      updateUndoSystemButtons();
       updateFormatButtons();
       renderHighlight();
       closeHelp();
@@ -451,13 +458,13 @@ window.MDManager = window.MDManager || {};
       updateFormatButtons();
     });
     editorForm.addEventListener("pointerdown", event => {
-      const button = event.target instanceof Element ? event.target.closest("button[data-editor-history]") : null;
+      const button = event.target instanceof Element ? event.target.closest("button[data-editor-undo-system]") : null;
       if (button instanceof HTMLButtonElement && !button.disabled) event.preventDefault();
     });
     editorForm.addEventListener("click", event => {
-      const button = event.target instanceof Element ? event.target.closest("button[data-editor-history]") : null;
+      const button = event.target instanceof Element ? event.target.closest("button[data-editor-undo-system]") : null;
       if (!(button instanceof HTMLButtonElement) || button.disabled) return;
-      if (button.dataset.editorHistory === "undo") undo();
+      if (button.dataset.editorUndoSystem === "undo") undo();
       else redo();
       updateFormatButtons();
     });

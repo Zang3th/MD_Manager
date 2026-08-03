@@ -32,9 +32,13 @@
           <button class="btn control-btn" id="openFile" type="button">Open</button>
           <button class="btn save-btn" id="saveFile" type="button" hidden>Save</button>
         </div>
-        <div class="history-controls" id="historyControls" hidden>
+        <div class="undo-system-controls history-controls" id="undoSystemControls" hidden>
           <button class="btn control-btn icon-btn" id="undoChange" type="button" aria-label="Undo" title="Undo" disabled><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
           <button class="btn control-btn icon-btn" id="redoChange" type="button" aria-label="Redo" title="Redo" disabled><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m15 14 5-5-5-5m5 5H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>
+          <div class="external-actions" id="externalActions" role="group" aria-label="External file change" hidden>
+            <button class="btn control-btn" id="reloadExternal" type="button" aria-pressed="false">Reload</button>
+            <button class="btn control-btn" id="overwriteExternal" type="button" aria-pressed="false">Overwrite</button>
+          </div>
         </div>
       </div>
       <div class="app-clock" id="appClock" role="timer" aria-label="Current time" hidden>
@@ -134,9 +138,9 @@
       <header class="task-editor-header">
         <nav class="task-editor-breadcrumb" aria-label="Task location"><span id="taskEditorProject"></span><span aria-hidden="true">/</span><span id="taskEditorFeature"></span><span aria-hidden="true">/</span><strong id="taskEditorLocation"></strong></nav>
         <div class="editor-header-actions">
-          <div class="editor-header-history" aria-label="Dialog edit history">
-            <button class="editor-header-tool" type="button" data-editor-history="undo" aria-label="Undo dialog edit" title="Undo dialog edit (Ctrl+Z)" disabled><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
-            <button class="editor-header-tool" type="button" data-editor-history="redo" aria-label="Redo dialog edit" title="Redo dialog edit (Ctrl+Shift+Z)" disabled><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m15 14 5-5-5-5m5 5H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>
+          <div class="editor-header-undo-system editor-header-history" aria-label="Dialog edit undo system">
+            <button class="editor-header-tool" type="button" data-editor-undo-system="undo" data-editor-history="undo" aria-label="Undo dialog edit" title="Undo dialog edit (Ctrl+Z)" disabled><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
+            <button class="editor-header-tool" type="button" data-editor-undo-system="redo" data-editor-history="redo" aria-label="Redo dialog edit" title="Redo dialog edit (Ctrl+Shift+Z)" disabled><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m15 14 5-5-5-5m5 5H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>
           </div>
           <button class="task-editor-close" id="closeTaskEditor" type="button" aria-label="Cancel editing" title="Cancel">✕</button>
         </div>
@@ -203,9 +207,9 @@
       <header class="feature-editor-header">
         <nav class="task-editor-breadcrumb" aria-label="Feature location"><span id="featureEditorProject"></span><span aria-hidden="true">/</span><strong id="featureEditorFeature"></strong></nav>
         <div class="editor-header-actions">
-          <div class="editor-header-history" aria-label="Dialog edit history">
-            <button class="editor-header-tool" type="button" data-editor-history="undo" aria-label="Undo dialog edit" title="Undo dialog edit (Ctrl+Z)" disabled><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
-            <button class="editor-header-tool" type="button" data-editor-history="redo" aria-label="Redo dialog edit" title="Redo dialog edit (Ctrl+Shift+Z)" disabled><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m15 14 5-5-5-5m5 5H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>
+          <div class="editor-header-undo-system editor-header-history" aria-label="Dialog edit undo system">
+            <button class="editor-header-tool" type="button" data-editor-undo-system="undo" data-editor-history="undo" aria-label="Undo dialog edit" title="Undo dialog edit (Ctrl+Z)" disabled><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
+            <button class="editor-header-tool" type="button" data-editor-undo-system="redo" data-editor-history="redo" aria-label="Redo dialog edit" title="Redo dialog edit (Ctrl+Shift+Z)" disabled><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m15 14 5-5-5-5m5 5H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>
           </div>
           <button class="task-editor-close" id="closeFeatureEditor" type="button" aria-label="Cancel editing" title="Cancel">✕</button>
         </div>

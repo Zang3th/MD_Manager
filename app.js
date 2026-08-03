@@ -8,28 +8,38 @@ window.MDManager = window.MDManager || {};
   let fileHandle = null;
   /** @type {MDRecentFile[]} */
   let recentFiles = [];
-  let savedMarkdown = "";
-  /** @type {MDHistory | null} */
-  let history = null;
+  /** @type {MDUndoSystem | null} */
+  let undoSystem = null;
+  let diskMarkdown = "";
+  let diskStamp = "";
+  let serializedMarkdown = "";
+  /** @type {{markdown: string, stamp: string} | null} */
+  let externalChange = null;
+  let checkingExternal = false;
+  let lastExternalContentCheck = 0;
+  let lastExternalCheckError = "";
 
-  /** @param {MDViewState} [viewState] @param {string} [markdown] */
-  function render(viewState, markdown) {
+  /** @param {MDViewState} [viewState] */
+  function render(viewState) {
     if (!project || !fileHandle) return;
     app.render.project(project, viewState, fileHandle.name);
-    app.interactions.setProject(project, recordChange);
-    updateHistoryControls(markdown);
+    app.interactions.setProject(project, executeAction);
+    app.interactions.restoreViewState(viewState);
+    updateUndoSystemControls();
   }
 
   function currentMarkdown() {
     return app.markdown.serialize(project);
   }
 
-  /** @param {string} [current] */
-  function updateHistoryControls(current = project ? currentMarkdown() : "") {
-    app.interactions.setHistoryState({
-      dirty: Boolean(project) && current !== savedMarkdown,
-      canUndo: Boolean(history) && app.history.canUndo(history),
-      canRedo: Boolean(history) && app.history.canRedo(history)
+  function updateUndoSystemControls() {
+    app.interactions.setUndoSystemState({
+      dirty: Boolean(undoSystem) && app.undoSystem.isDirty(undoSystem),
+      canUndo: Boolean(undoSystem) && app.undoSystem.canUndo(undoSystem),
+      canRedo: Boolean(undoSystem) && app.undoSystem.canRedo(undoSystem),
+      undoLabel: undoSystem ? app.undoSystem.undoLabel(undoSystem) : "",
+      redoLabel: undoSystem ? app.undoSystem.redoLabel(undoSystem) : "",
+      externalChange: Boolean(externalChange)
     });
   }
 
@@ -39,28 +49,39 @@ window.MDManager = window.MDManager || {};
     return `Line ${lineNumber}: ${error.message}`;
   }
 
-  /** @param {MDViewState} viewState @param {any} [options] */
-  function recordChange(viewState, options = {}) {
-    const markdown = currentMarkdown();
-    app.history.record(history, markdown);
-    if (options.render === false) updateHistoryControls(markdown);
-    else render(viewState, markdown);
+  /** @param {MDUndoAction} action @param {{render?: boolean}} [options] @returns {boolean} */
+  function executeAction(action, options = {}) {
+    if (!undoSystem) return false;
+    const changed = app.undoSystem.execute(undoSystem, action);
+    if (!changed) {
+      updateUndoSystemControls();
+      return false;
+    }
+    serializedMarkdown = currentMarkdown();
+    if (options.render === false) updateUndoSystemControls();
+    else render(action.afterViewState);
+    return true;
   }
 
-  async function save() {
-    if (!project || !fileHandle) return;
-    const markdown = currentMarkdown();
-    if (markdown === savedMarkdown) return;
+  /** @param {boolean} [force] */
+  async function save(force = false) {
+    if (!project || !fileHandle || !undoSystem) return;
+    if (externalChange && !force) {
+      app.notifications.show("warning", "File changed externally", "Choose Reload or Overwrite before saving.");
+      return;
+    }
+    if (!force && !app.undoSystem.isDirty(undoSystem)) return;
+    const markdown = serializedMarkdown;
     await app.files.save(fileHandle, markdown);
-    savedMarkdown = markdown;
-    updateHistoryControls(markdown);
+    diskMarkdown = markdown;
+    if (typeof fileHandle.getFile === "function") {
+      const inspected = await app.files.inspect(fileHandle);
+      diskStamp = inspected.markdown === markdown ? inspected.stamp : "";
+    } else diskStamp = "";
+    externalChange = null;
+    app.undoSystem.markSaved(undoSystem);
+    updateUndoSystemControls();
     app.notifications.show("info", "File saved", [{ value: fileHandle.name }, " saved."]);
-  }
-
-  /** @param {string} markdown @param {MDViewState} viewState */
-  function restore(markdown, viewState) {
-    project = app.markdown.parse(markdown);
-    render(viewState);
   }
 
   /** @param {MDOpenedFile | null} opened */
@@ -69,14 +90,77 @@ window.MDManager = window.MDManager || {};
     const openedProject = app.markdown.parse(opened.markdown);
     fileHandle = opened.handle;
     project = openedProject;
-    savedMarkdown = opened.markdown;
-    history = app.history.create(opened.markdown);
+    serializedMarkdown = app.markdown.serialize(openedProject);
+    diskMarkdown = opened.markdown;
+    diskStamp = opened.stamp || "";
+    externalChange = null;
+    undoSystem = app.undoSystem.create();
     render();
     app.interactions.startClock();
     app.notifications.show("info", "File loaded", [{ value: fileHandle.name }, " is ready."]);
     app.files.remember(fileHandle, openedProject.title).catch((/** @type {Error} */ error) => {
       app.notifications.show("error", "Recent files", `Recent-files list could not be updated: ${error.message}`);
     });
+  }
+
+  async function checkExternalChange() {
+    if (!fileHandle || typeof fileHandle.getFile !== "function" || checkingExternal) return;
+    checkingExternal = true;
+    try {
+      const stamp = await app.files.stat(fileHandle);
+      lastExternalCheckError = "";
+      const now = Date.now();
+      if (diskStamp && stamp !== "0:0" && stamp === diskStamp && now - lastExternalContentCheck < 30000) return;
+      const inspected = await app.files.inspect(fileHandle);
+      lastExternalContentCheck = now;
+      lastExternalCheckError = "";
+      if (inspected.markdown === diskMarkdown) {
+        diskStamp = inspected.stamp;
+        if (externalChange) {
+          externalChange = null;
+          updateUndoSystemControls();
+        }
+        return;
+      }
+      if (externalChange?.markdown === inspected.markdown) return;
+      externalChange = inspected;
+      updateUndoSystemControls();
+      app.notifications.show("warning", "File changed externally", [{ value: fileHandle.name }, " changed on disk. Choose Reload or Overwrite."]);
+    } catch (error) {
+      if (error instanceof Error && error.message !== lastExternalCheckError) {
+        lastExternalCheckError = error.message;
+        app.notifications.show("error", "File check", `External changes could not be checked: ${error.message}`);
+      }
+    } finally {
+      checkingExternal = false;
+    }
+  }
+
+  async function reloadExternal() {
+    if (!externalChange || !fileHandle) return false;
+    try {
+      const viewState = app.interactions.getViewState();
+      const reloadedProject = app.markdown.parse(externalChange.markdown);
+      project = reloadedProject;
+      serializedMarkdown = app.markdown.serialize(reloadedProject);
+      diskMarkdown = externalChange.markdown;
+      diskStamp = externalChange.stamp;
+      externalChange = null;
+      undoSystem = app.undoSystem.create();
+      render(viewState);
+      app.notifications.show("info", "File reloaded", [{ value: fileHandle.name }, " reloaded from disk."]);
+      return true;
+    } catch (error) {
+      if (!(error instanceof Error)) throw error;
+      app.notifications.show("error", "File reload", error.name === "MarkdownFormatError" ? formatErrorBody(error) : error.message);
+      return false;
+    }
+  }
+
+  async function overwriteExternal() {
+    if (!externalChange) return false;
+    await save(true);
+    return true;
   }
 
   document.getElementById("openFile").addEventListener("click", async () => {
@@ -119,25 +203,44 @@ window.MDManager = window.MDManager || {};
     }
   });
 
-  app.interactions.setHistoryActions({
+  app.interactions.setUndoSystemActions({
     save,
     undo() {
-      if (history && app.history.canUndo(history)) restore(app.history.undo(history), app.interactions.getViewState());
+      if (!undoSystem) return;
+      const result = app.undoSystem.undo(undoSystem);
+      if (result) {
+        serializedMarkdown = currentMarkdown();
+        app.interactions.clearClipboard();
+        render(result.viewState);
+      }
     },
     redo() {
-      if (history && app.history.canRedo(history)) restore(app.history.redo(history), app.interactions.getViewState());
-    }
+      if (!undoSystem) return;
+      const result = app.undoSystem.redo(undoSystem);
+      if (result) {
+        serializedMarkdown = currentMarkdown();
+        render(result.viewState);
+      }
+    },
+    reloadExternal,
+    overwriteExternal
   });
+
+  window.addEventListener("focus", () => { void checkExternalChange(); });
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) void checkExternalChange();
+  });
+  window.setInterval(() => { if (!document.hidden) void checkExternalChange(); }, 2000);
 
   app.files.recent().then((/** @type {MDRecentFile[]} */ entries) => {
     recentFiles = entries;
     app.render.start(entries);
-    updateHistoryControls();
+    updateUndoSystemControls();
   }).catch((/** @type {Error} */ error) => {
     recentFiles = [];
     app.render.start(recentFiles);
     app.render.recentError(`Recent files could not be loaded: ${error.message}`);
     app.notifications.show("error", "Recent files", `Recent-files list could not be loaded: ${error.message}`);
-    updateHistoryControls();
+    updateUndoSystemControls();
   });
 })(window.MDManager);

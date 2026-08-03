@@ -192,7 +192,7 @@ window.MDManager = window.MDManager || {};
     app.layout.reset();
     document.body.classList.remove("start-view");
     document.getElementById("viewerControls").hidden = false;
-    document.getElementById("historyControls").hidden = false;
+    document.getElementById("undoSystemControls").hidden = false;
     document.getElementById("saveFile").hidden = false;
     document.getElementById("addFeature").disabled = false;
     document.getElementById("appVersion").hidden = true;
@@ -283,7 +283,7 @@ window.MDManager = window.MDManager || {};
   function showStart(entries) {
     document.body.classList.add("start-view");
     document.getElementById("viewerControls").hidden = false;
-    document.getElementById("historyControls").hidden = true;
+    document.getElementById("undoSystemControls").hidden = true;
     document.getElementById("saveFile").hidden = true;
     document.getElementById("addFeature").disabled = true;
     document.getElementById("appVersion").hidden = false;

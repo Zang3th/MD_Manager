@@ -42,11 +42,11 @@ window.MDManager = window.MDManager || {};
     confetti: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m4 16 3.2-8 4.8 4.8L4 16Z"/><path d="m7.2 8 4.8 4.8M11 5l.8-2.2M14 8l2.6-.8M8 4.2 6.8 2.4"/><circle cx="15.2" cy="3.7" r=".8"/><circle cx="16.1" cy="11.2" r=".7"/></svg>'
   };
 
-  /** @param {"info" | "error"} severity @param {string} title @param {string | Array<string | {value: string}>} body @param {"rocket" | "confetti"} [symbol] */
+  /** @param {"info" | "warning" | "error"} severity @param {string} title @param {string | Array<string | {value: string}>} body @param {"rocket" | "confetti"} [symbol] */
   function show(severity, title, body, symbol) {
     const notification = document.createElement("article");
     notification.className = `notification notification-${severity}`;
-    notification.setAttribute("role", severity === "info" ? "status" : "alert");
+    notification.setAttribute("role", severity === "error" ? "alert" : "status");
     notification.setAttribute("aria-atomic", "true");
 
     const header = document.createElement("header");

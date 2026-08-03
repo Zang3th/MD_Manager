@@ -52,17 +52,27 @@ type MDFeature = {
   ignored?: boolean;
 };
 type MDProject = { title: string; newline: string; beforeFeatures: string[]; features: MDFeature[] };
-type MDHistory = { entries: string[]; index: number; totalSize: number };
+type MDUndoAction = {
+  label: string;
+  undo(): void;
+  redo(): boolean | void;
+  size?: number;
+  beforeViewState?: MDViewState;
+  afterViewState?: MDViewState;
+};
+type MDUndoEntry = MDUndoAction & { size: number; beforeRevision: number; afterRevision: number };
+type MDUndoSystem = { entries: MDUndoEntry[]; index: number; revision: number; savedRevision: number; nextRevision: number; totalSize: number };
+type MDUndoResult = { label: string; viewState?: MDViewState };
 type MDFileHandle = {
   name: string;
-  getFile(): Promise<{text(): Promise<string>}>;
+  getFile(): Promise<{text(): Promise<string>; lastModified?: number; size?: number}>;
   queryPermission(options: {mode: "read" | "readwrite"}): Promise<PermissionState>;
   requestPermission(options: {mode: "read" | "readwrite"}): Promise<PermissionState>;
   createWritable(): Promise<{write(value: string): Promise<void>; close(): Promise<void>}>;
   isSameEntry(other: MDFileHandle): Promise<boolean>;
 };
 type MDRecentFile = { id: string; name: string; projectTitle?: string; handle: MDFileHandle; openedAt: number };
-type MDOpenedFile = {handle: MDFileHandle; markdown: string};
+type MDOpenedFile = {handle: MDFileHandle; markdown: string; stamp?: string};
 type MDViewState = {
   tasks: boolean[];
   featureNotes: boolean[];
@@ -72,4 +82,5 @@ type MDViewState = {
   contentScrollTop: number;
   backlogScrollLeft: number;
   backlogScrollTop: number;
+  focusSelector?: string;
 };

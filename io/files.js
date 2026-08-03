@@ -71,7 +71,20 @@ window.MDManager = window.MDManager || {};
   /** @param {MDFileHandle} handle @returns {Promise<MDOpenedFile | null>} */
   async function read(handle) {
     if (await handle.requestPermission({ mode: "readwrite" }) !== "granted") return null;
-    return { handle, markdown: await (await handle.getFile()).text() };
+    const file = await handle.getFile();
+    return { handle, markdown: await file.text(), stamp: `${file.lastModified || 0}:${file.size || 0}` };
+  }
+
+  /** @param {MDFileHandle} handle @returns {Promise<{markdown: string, stamp: string}>} */
+  async function inspect(handle) {
+    const file = await handle.getFile();
+    return { markdown: await file.text(), stamp: `${file.lastModified || 0}:${file.size || 0}` };
+  }
+
+  /** @param {MDFileHandle} handle @returns {Promise<string>} */
+  async function stat(handle) {
+    const file = await handle.getFile();
+    return `${file.lastModified || 0}:${file.size || 0}`;
   }
 
   async function open() {
@@ -94,5 +107,5 @@ window.MDManager = window.MDManager || {};
     return operation;
   }
 
-  app.files = { open, read, save, recent, remember, forget };
+  app.files = { open, read, stat, inspect, save, recent, remember, forget };
 })(window.MDManager);

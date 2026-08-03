@@ -324,18 +324,20 @@
 - 0.4.0
 
 #Date
-- TBD
-
-### Externe Dateiänderungen
-
-- [ ] Detection
-- [ ] Overwrite
-- [ ] Reload
+- 03.08.2026
 
 ### Undo-System
 
-- [ ] Ein richtiges Undo-System integrieren
-- [ ] Schlauere State-Erkennung
+- [x] ~Ein richtiges, vollständiges Undo-System integrieren~
+- [x] ~Aktionsbasierte, reversible Domain-Transaktionen~
+- [x] ~Korrektes Verwerfen von Redo-Zweigen~
+- [x] ~Wiederherstellung von Ansichten~
+
+### Externe Dateiänderungen
+
+- [x] ~Detection~
+- [x] ~Reload~
+- [x] ~Overwrite~
 
 ### New-Dialog
 
@@ -354,7 +356,7 @@
 
 - [ ] Referenzen herstellen + hervorheben können
 - [ ] Bilder unterstützen können
-- [ ] Auch einen Umgang mit anderen Markdown-Features + inline-HTML finden
+- [ ] Auch einen Umgang mit anderen Markdown-Features + Inline-HTML finden
 - [ ] Live-Parsing mit Fehlermeldungen
 
 ### Markdown-Linting
@@ -365,9 +367,9 @@
 ### Cross-Platform
 
 - [ ] Plattformabhängige Unicode-Symbole durch lokale SVG- oder CSS-Symbole ersetzen
-- [ ] Lokale Monospace-Schrift für Clock, Metadaten und Code-Darstellung ergänzen
+- [ ] Lokale Monospace-Schrift ergänzen
 - [ ] Schriftmetriken, Icons und Steuerelemente auf Windows, Linux und macOS testen
-- [ ] Chromium-Layouttests für Windows, Linux und macOS
+- [ ] Layouttests für Windows, Linux und macOS
 
 ## Archivierung und Suche
 
@@ -397,9 +399,8 @@
 
 ### Import/Export
 
-- [ ] csv
-- [ ] json
 - [ ] PDF-Report
+- [ ] json
 
 ### README.md
 
