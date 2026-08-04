@@ -71,6 +71,15 @@
           stroke-linejoin="round"/>
     </g>
 </symbol>
+    <symbol id="icon-reload" viewBox="0 0 32 32"
+     fill="none">
+    <path d="M25 7V13H19
+             M24.5 13A9 9 0 1 0 24.5 19"
+          stroke="currentColor"
+          stroke-width="4"
+          stroke-linecap="round"
+          stroke-linejoin="round"/>
+</symbol>
     <symbol id="icon-chevron" viewBox="0 0 32 32"
      fill="none">
     <path d="M8 11L16 19L24 11"
@@ -243,7 +252,7 @@
                  M16 10A4 4 0 1 0 16 18A4 4 0 1 0 16 10Z"/>
     </g>
 </symbol>
-    <symbol id="icon-confetti" viewBox="0 0 32 32"
+<symbol id="icon-confetti" viewBox="0 0 32 32"
      fill="none">
     <g transform="translate(-1 0)">
     <path d="M8 25L11 14L19 22Z"
@@ -261,23 +270,42 @@
           stroke-linecap="round"/>
     </g>
 </symbol>
+    <symbol id="icon-dots" viewBox="0 0 32 32">
+    <g fill="currentColor">
+        <circle cx="8" cy="8" r="2"/>
+        <circle cx="16" cy="8" r="2"/>
+        <circle cx="24" cy="8" r="2"/>
+
+        <circle cx="8" cy="16" r="2"/>
+        <circle cx="16" cy="16" r="2"/>
+        <circle cx="24" cy="16" r="2"/>
+
+        <circle cx="8" cy="24" r="2"/>
+        <circle cx="16" cy="24" r="2"/>
+        <circle cx="24" cy="24" r="2"/>
+    </g>
+</symbol>
   </svg>
   <header class="header">
     <div class="header-content">
-      <div class="app-logo-mark" aria-hidden="true"><img class="app-logo" src="res/logo/Logo.svg" alt=""></div>
+      <button class="app-logo-mark" id="reloadApp" type="button" aria-label="Reload application"><img class="app-logo" src="res/logo/Logo.svg" alt=""></button>
       <div class="header-left">
         <h1 class="project-title" id="projectTitle">MD_Manager</h1>
-        <span class="app-version" id="appVersion">v0.5.0</span>
+        <span class="app-version" id="appVersion">v0.6.0</span>
         <div class="file-controls">
-          <button class="btn control-btn" id="addFeature" type="button" hidden>New</button>
-          <button class="btn save-btn" id="saveFile" type="button" hidden>Save</button>
-        </div>
-        <div class="undo-system-controls history-controls" id="undoSystemControls" hidden>
-          <button class="btn control-btn icon-btn" id="undoChange" type="button" aria-label="Undo" data-tooltip="Undo" disabled><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-undo"></use></svg></button>
-          <button class="btn control-btn icon-btn" id="redoChange" type="button" aria-label="Redo" data-tooltip="Redo" disabled><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-redo"></use></svg></button>
-          <div class="external-actions" id="externalActions" role="group" aria-label="External file change" hidden>
-            <button class="btn control-btn" id="reloadExternal" type="button" aria-pressed="false">Reload</button>
-            <button class="btn control-btn" id="overwriteExternal" type="button" aria-pressed="false">Overwrite</button>
+          <div class="edit-tools">
+            <button class="btn control-btn icon-btn toolbar-icon-btn" id="addFeature" type="button" aria-label="New" data-tooltip="New feature" hidden><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-plus"></use></svg></button>
+            <div class="undo-system-controls history-controls" id="undoSystemControls" hidden>
+              <button class="btn control-btn icon-btn toolbar-icon-btn" id="undoChange" type="button" aria-label="Undo" data-tooltip="Undo" disabled><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-undo"></use></svg></button>
+              <button class="btn control-btn icon-btn toolbar-icon-btn" id="redoChange" type="button" aria-label="Redo" data-tooltip="Redo" disabled><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-redo"></use></svg></button>
+            </div>
+          </div>
+          <div class="save-menu">
+            <button class="btn save-btn" id="saveFile" type="button" aria-label="Saved" aria-expanded="false" aria-controls="externalActions" hidden><svg class="ui-icon save-state-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-check"></use></svg><span id="saveStateLabel">Saved</span></button>
+            <div class="save-options external-actions" id="externalActions" role="group" aria-label="Resolve file conflict" hidden>
+              <button class="save-option" id="reloadExternal" type="button" aria-pressed="false"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-reload"></use></svg><span>Reload</span></button>
+              <button class="save-option" id="overwriteExternal" type="button" aria-pressed="false"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-clipboard"></use></svg><span>Overwrite</span></button>
+            </div>
           </div>
         </div>
       </div>
@@ -287,7 +315,7 @@
       <div class="header-actions">
         <nav class="control-bar" id="viewerControls" aria-label="Viewer controls" hidden>
           <div class="help-menu">
-            <button class="btn control-btn icon-btn help-button" id="toggleHelp" type="button" aria-label="Help" data-tooltip="Help" aria-expanded="false" aria-controls="helpPopover"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-help"></use></svg></button>
+            <button class="btn control-btn icon-btn toolbar-icon-btn help-button" id="toggleHelp" type="button" aria-label="Help" data-tooltip="Help" aria-expanded="false" aria-controls="helpPopover"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-help"></use></svg></button>
             <aside class="help-popover" id="helpPopover" aria-label="Application help" hidden>
               <header class="help-header"><h2>Quick reference</h2><button class="help-close" id="closeHelp" type="button" aria-label="Close help" data-tooltip="Close help"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-close"></use></svg></button></header>
               <div class="help-content">
@@ -346,26 +374,26 @@
               </div>
             </aside>
           </div>
-          <div class="view-menu">
-            <button class="btn control-btn" id="toggleViewMenu" type="button" aria-expanded="false" aria-controls="viewOptions">View <svg class="ui-icon view-chevron" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-chevron"></use></svg></button>
-            <div class="view-options" id="viewOptions" hidden>
-              <button class="view-option" id="toggleBacklog" type="button" aria-pressed="false" disabled><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-check"></use></svg><span>Backlog</span></button>
-              <button class="view-option" id="toggleClock" type="button" aria-pressed="true"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-check"></use></svg><span>Clock</span></button>
-              <button class="view-option" id="toggleMetadata" type="button" aria-pressed="true"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-check"></use></svg><span>Metadata</span></button>
-              <button class="view-option" id="toggleStats" type="button" aria-pressed="true"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-check"></use></svg><span>Statistics</span></button>
-            </div>
-          </div>
           <div class="view-mode" role="group" aria-label="View mode">
             <button class="btn control-btn" id="showBoardView" type="button" aria-pressed="true">Board</button>
             <button class="btn control-btn" id="toggleGridView" type="button" aria-pressed="false">Grid</button>
           </div>
         </nav>
       </div>
-      <button class="btn control-btn icon-btn sound-toggle" id="toggleSounds" type="button" aria-label="Mute sounds" data-tooltip="Mute sounds" aria-pressed="false">
+      <button class="btn control-btn icon-btn toolbar-icon-btn sound-toggle" id="toggleSounds" type="button" aria-label="Mute sounds" data-tooltip="Mute sounds" aria-pressed="false">
         <svg class="ui-icon sound-toggle-on" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-volume"></use></svg>
         <svg class="ui-icon sound-toggle-off" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-muted"></use></svg>
       </button>
-      <button class="btn control-btn icon-btn theme-toggle" id="toggleTheme" type="button" aria-label="Switch to Light Mode" data-tooltip="Switch to Light Mode"><span class="theme-icon" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 32 32"><use href="#icon-sun"></use></svg></span></button>
+      <button class="btn control-btn icon-btn toolbar-icon-btn theme-toggle" id="toggleTheme" type="button" aria-label="Switch to Light Mode" data-tooltip="Switch to Light Mode"><span class="theme-icon" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 32 32"><use href="#icon-sun"></use></svg></span></button>
+      <div class="view-menu">
+        <button class="btn control-btn toolbar-icon-btn more-button" id="toggleViewMenu" type="button" aria-label="View" data-tooltip="View" aria-expanded="false" aria-controls="viewOptions"><svg class="ui-icon dots-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-dots"></use></svg><svg class="ui-icon view-chevron" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-chevron"></use></svg></button>
+        <div class="view-options" id="viewOptions" hidden>
+          <button class="view-option" id="toggleBacklog" type="button" aria-pressed="false" disabled><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-check"></use></svg><span>Backlog</span></button>
+          <button class="view-option" id="toggleClock" type="button" aria-pressed="true"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-check"></use></svg><span>Clock</span></button>
+          <button class="view-option" id="toggleMetadata" type="button" aria-pressed="true"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-check"></use></svg><span>Metadata</span></button>
+          <button class="view-option" id="toggleStats" type="button" aria-pressed="true"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-check"></use></svg><span>Statistics</span></button>
+        </div>
+      </div>
     </div>
   </header>
   <div class="workspace">
@@ -515,6 +543,6 @@
       </footer>
     </form>
   </dialog>
-  <div class="watermark" id="watermark">© 2026 MD_Manager v0.5.0 · Tim Krüger (Zang3th) · <a href="https://github.com/Zang3th" target="_blank" rel="noopener noreferrer">GitHub</a></div>
+  <div class="watermark" id="watermark">© 2026 MD_Manager v0.6.0 · Tim Krüger (Zang3th) · <a href="https://github.com/Zang3th" target="_blank" rel="noopener noreferrer">GitHub</a></div>
 </body>
 </html>

@@ -96,30 +96,39 @@ async function expectSvgInkCentered(button, svg) {
 test("start screen exposes the application identity and open action", async ({ page }) => {
   await page.goto(appUrl);
   await expect(page).toHaveTitle("MD_Manager");
-  await expect(page.locator("#appVersion")).toHaveText("v0.5.0");
+  await expect(page.locator("#appVersion")).toHaveText("v0.6.0");
   await expect(page.locator("#appVersion")).toHaveCSS("font-family", '"JetBrains Mono", monospace');
-  expect(await page.locator("#appVersion").evaluate(element => getComputedStyle(element, "::before").height)).toBe("2px");
+  expect(await page.locator("#appVersion").evaluate(element => getComputedStyle(element, "::before").content)).toBe("none");
+  const versionClockStyles = await page.locator("#appVersion, #appClock").evaluateAll(elements => elements.map(element => {
+    const style = getComputedStyle(element);
+    return [style.height, style.padding, style.borderWidth, style.borderRadius, style.backgroundImage, style.boxShadow, style.font];
+  }));
+  expect(versionClockStyles[0]).toEqual(versionClockStyles[1]);
   const startActions = page.locator(".start-actions");
+  await expect(startActions).toHaveCSS("margin-top", "64px");
   const openFile = startActions.getByRole("button", { name: "Open File", exact: true });
   const createFile = startActions.getByRole("button", { name: "Create File", exact: true });
   await expect(openFile).toBeVisible();
   expect(await openFile.evaluate(element => element.getBoundingClientRect().x)).toBeLessThan(await createFile.evaluate(element => element.getBoundingClientRect().x));
   for (const action of [openFile, createFile]) {
-    await expect(action).toHaveCSS("background-color", "rgb(60, 56, 54)");
+    await expect(action).toHaveCSS("background-color", "rgb(40, 40, 40)");
     await expect(action).toHaveCSS("border-color", "rgb(80, 73, 69)");
     await expect(action).toHaveCSS("color", "rgb(235, 219, 178)");
   }
+  const restingActionShadow = await openFile.evaluate(element => getComputedStyle(element).boxShadow);
   await openFile.hover();
-  await expect(openFile).toHaveCSS("background-color", "rgb(40, 40, 40)");
+  await expect(openFile).toHaveCSS("background-color", "rgb(60, 56, 54)");
   await expect(openFile).toHaveCSS("border-color", "rgb(235, 219, 178)");
   await expect(openFile).toHaveCSS("color", "rgb(235, 219, 178)");
+  await expect(openFile).toHaveCSS("box-shadow", restingActionShadow);
   await createFile.hover();
-  await expect(createFile).toHaveCSS("background-color", "rgb(40, 40, 40)");
+  await expect(createFile).toHaveCSS("background-color", "rgb(60, 56, 54)");
   await expect(createFile).toHaveCSS("border-color", "rgb(235, 219, 178)");
   await expect(createFile).toHaveCSS("color", "rgb(235, 219, 178)");
+  await expect(createFile).toHaveCSS("box-shadow", restingActionShadow);
   await expect(page.locator(".header").getByRole("button", { name: /Open/ })).toHaveCount(0);
   await expect(page.locator("#watermark")).toBeVisible();
-  await expect(page.locator("#watermark")).toContainText("MD_Manager v0.5.0");
+  await expect(page.locator("#watermark")).toContainText("MD_Manager v0.6.0");
   const help = page.getByRole("button", { name: "Help", exact: true });
   const sound = page.locator("#toggleSounds");
   const theme = page.locator("#toggleTheme");
@@ -145,6 +154,12 @@ test("recent files show the Markdown project title and filename", async ({ page 
   await expect(page.locator(".recent-project-name")).toHaveText("MD Manager");
   await expect(page.locator(".recent-file-name")).toHaveText("Roadmap.md");
   await expect(page.locator(".recent-file-time")).toHaveText("2026-08-03 12:34");
+  await expect(page.locator(".recent-file")).toHaveCSS("border-top-width", "2px");
+  await expect(page.locator(".recent-file-actions")).toHaveCSS("border-left-width", "0px");
+  await expect(page.locator(".recent-delete")).toHaveCSS("border-top-width", "0px");
+  await page.locator(".recent-delete").hover();
+  await expect(page.locator(".recent-file")).toHaveCSS("border-color", "rgb(254, 128, 25)");
+  expect(await page.locator(".recent-file").evaluate(element => getComputedStyle(element, "::after").content)).toBe("none");
 });
 
 test("local fonts, SVG symbols, custom tooltips, and editor controls are deterministic", async ({ page }) => {
@@ -161,7 +176,11 @@ test("local fonts, SVG symbols, custom tooltips, and editor controls are determi
   expect(fontState).toEqual({ status: "loaded", inter: 1, mono: 1, body: "Inter, sans-serif" });
   await expect(page.locator("body [title]")).toHaveCount(0);
   await expect(page.locator("#addFeature")).toBeHidden();
-  await expect(page.locator(".app-logo-mark")).toHaveCSS("cursor", "auto");
+  await expect(page.locator(".app-logo-mark")).toHaveCSS("cursor", "pointer");
+  await expect(page.locator(".app-logo-mark")).toHaveAttribute("aria-label", "Reload application");
+  await expect(page.locator(".app-logo-mark")).not.toHaveAttribute("data-tooltip");
+  await page.locator(".app-logo-mark").hover();
+  await expect(page.locator(".app-logo-mark")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
   await expect(page.locator("#toggleTheme svg")).toBeVisible();
   await expect(page.locator("#toggleViewMenu .view-chevron")).toBeAttached();
   await expect(page.locator("#icon-volume path").nth(1)).toHaveAttribute("stroke-width", "3");
@@ -178,12 +197,19 @@ test("local fonts, SVG symbols, custom tooltips, and editor controls are determi
   await expect(page.locator("#icon-help path")).toHaveAttribute("stroke-width", "4");
   await expect(page.locator("#icon-help path")).toHaveAttribute("d", /M16 25H16\.01/);
   await expect(page.locator("#addFeature")).toBeVisible();
-  await expect(page.locator("#addFeature")).not.toHaveAttribute("data-tooltip");
+  await expect(page.locator("#addFeature")).toHaveAttribute("data-tooltip", "New feature");
+  await page.locator("#addFeature").hover();
+  await expect(page.locator("#appTooltip")).toHaveText("New feature");
   await expect(page.locator("#toggleViewMenu .view-chevron")).toBeVisible();
   await expect(page.locator('.task-check .ui-icon use[href="#icon-check"]')).toBeVisible();
   await expect(page.locator('.task-in-progress .ui-icon use[href="#icon-progress"]')).toBeVisible();
   await expect(page.locator('.delete-btn .ui-icon use[href="#icon-close"]').first()).toBeAttached();
-  await page.locator("#content .card").first().dblclick();
+  const firstTask = page.locator("#content .card").first();
+  await expect(firstTask).toHaveCSS("border-top-width", "0px");
+  await firstTask.locator(".card-header").hover();
+  await expect(firstTask).toHaveCSS("box-shadow", /0px 0px 0px 2px inset/);
+  await expect(page.locator("#content .release-header").first()).toHaveCSS("border-bottom-width", "0px");
+  await firstTask.dblclick();
   await expect(page.locator("#taskEditorForm")).toHaveAttribute("spellcheck", "false");
   await expect(page.locator("#taskEditorMarkdown")).toHaveAttribute("spellcheck", "false");
   await expect(page.locator("#taskEditorMarkdown")).toHaveCSS("font-family", '"JetBrains Mono", monospace');
@@ -225,15 +251,42 @@ test("symbols, progress values, and the clock stay optically aligned in their co
   const backlogPlus = page.locator("#backlog .add-task-btn");
   await expect(featurePlus).toHaveCSS("width", "32px");
   await expect(featurePlus).toHaveCSS("height", "32px");
+  await expect(featurePlus.locator("xpath=..")).toHaveCSS("border-top-width", "0px");
+  const boardSpacing = await page.locator("#content > .release").first().evaluate(release => {
+    const cards = release.querySelectorAll(".card");
+    const last = cards[cards.length - 1].getBoundingClientRect();
+    const add = release.querySelector(".add-task-btn").getBoundingClientRect();
+    const previous = cards[cards.length - 2].getBoundingClientRect();
+    return { task: last.top - previous.bottom, add: add.top - last.bottom };
+  });
+  expect(boardSpacing.add).toBeCloseTo(boardSpacing.task, 5);
   await expect(featurePlus.locator("svg")).toHaveCSS("width", "16px");
   await expect(featurePlus.locator("svg")).toHaveCSS("height", "16px");
   await expect(backlogPlus).toHaveCSS("width", "32px");
   await expect(backlogPlus).toHaveCSS("height", "32px");
+  await expect(backlogPlus.locator("xpath=..")).toHaveCSS("border-top-width", "0px");
   await expect(backlogPlus.locator("svg")).toHaveCSS("width", "16px");
   await expect(backlogPlus.locator("svg")).toHaveCSS("height", "16px");
+  await expect(page.locator("#backlog .card").first()).toHaveCSS("border-top-width", "0px");
+  await expect(page.locator(".backlog-header")).toHaveCSS("border-bottom-width", "0px");
+  const surfaceColors = await page.evaluate(() => ({
+    feature: getComputedStyle(document.querySelector("#content > .release")).backgroundColor,
+    backlog: getComputedStyle(document.getElementById("backlog")).backgroundColor
+  }));
+  expect(surfaceColors.backlog).toBe(surfaceColors.feature);
+  const borderlessActions = page.locator(".add-task-btn,.delete-btn,.edit-btn,.stats-close,.backlog-close,.help-close,.task-editor-close");
+  expect(await borderlessActions.evaluateAll(buttons => buttons.every(button => getComputedStyle(button).borderTopWidth === "0px"))).toBe(true);
   await expectCentered(featurePlus, featurePlus.locator("svg"));
   await expectCentered(backlogPlus, backlogPlus.locator("svg"));
   await page.locator("#toggleGridView").click();
+  const gridSpacing = await page.locator("#content > .release").first().evaluate(release => {
+    const cards = release.querySelectorAll(".card");
+    const last = cards[cards.length - 1].getBoundingClientRect();
+    const add = release.querySelector(".add-task-btn").getBoundingClientRect();
+    const previous = cards[cards.length - 2].getBoundingClientRect();
+    return { task: last.top - previous.bottom, add: add.top - last.bottom };
+  });
+  expect(gridSpacing.add).toBeCloseTo(gridSpacing.task, 5);
   await expect(featurePlus).toHaveCSS("width", "32px");
   await expect(featurePlus.locator("svg")).toHaveCSS("width", "16px");
   await expect(backlogPlus).toHaveCSS("width", "32px");
@@ -293,7 +346,7 @@ test("symbols, progress values, and the clock stay optically aligned in their co
     });
     return { definitions, rendered, framed };
   });
-  expect(rasterContract.definitions.length).toBe(21);
+  expect(rasterContract.definitions.length).toBe(23);
   for (const definition of rasterContract.definitions) {
     const [x, y, width, height] = definition.ink;
     expect(definition.ink.every(Number.isFinite), `${definition.id} has finite source geometry`).toBe(true);
@@ -325,10 +378,10 @@ test("symbols, progress values, and the clock stay optically aligned in their co
 
 test("cross-platform start and board surfaces match the shared visual baseline", async ({ page }) => {
   await page.goto(appUrl);
-  await expect(page).toHaveScreenshot("cross-platform-start.png", { animations: "disabled", maxDiffPixelRatio: 0.01 });
+  await expect(page).toHaveScreenshot("cross-platform-start.png", { animations: "disabled", maxDiffPixels: 100 });
   await openFixture(page);
   await page.addStyleTag({ content: ".notifications,.app-clock{visibility:hidden!important}" });
-  await expect(page).toHaveScreenshot("cross-platform-board.png", { animations: "disabled", maxDiffPixelRatio: 0.01 });
+  await expect(page).toHaveScreenshot("cross-platform-board.png", { animations: "disabled", maxDiffPixels: 100 });
 });
 
 test("theme toggle switches Gruvbox themes on the start screen and in the app", async ({ page }) => {
@@ -371,6 +424,111 @@ test("Markdown import renders features, tasks, progress states, and filename tit
   await expect(page.locator(".notification-title").last()).toHaveText("File loaded");
   await expect(page.locator(".notification-body").last()).toHaveText("Fixture.md is ready.");
   await expect(page.locator(".notification").last().locator(".notification-value")).toHaveText("Fixture.md");
+});
+
+test("open project keeps only the project name in the header", async ({ page }) => {
+  await openFixture(page);
+  await expect(page.locator("#projectTitle")).toHaveText("Test Project");
+  await expect(page.locator("#projectFile, .project-file-separator")).toHaveCount(0);
+});
+
+test("application logo reloads the start screen and an open project", async ({ page }) => {
+  await page.goto(appUrl);
+  await page.evaluate(() => { window.__logoReloadMarker = true; });
+  await page.locator("#reloadApp").click();
+  await expect.poll(() => page.evaluate(() => window.__logoReloadMarker)).toBeUndefined();
+
+  await openFixture(page);
+  await expect(page.locator("#projectTitle")).toHaveText("Test Project");
+  await page.locator("#reloadApp").click();
+  await expect(page.locator(".start-screen")).toBeVisible();
+  await expect(page.locator("#projectTitle")).toHaveText("MD_Manager");
+});
+
+test("New, Undo, and Redo are adjacent borderless tools before Save", async ({ page }) => {
+  await openFixture(page);
+  const tools = page.locator("#addFeature, #undoChange, #redoChange");
+  await expect(tools).toHaveCount(3);
+  const layout = await page.evaluate(() => {
+    const tools = ["addFeature", "undoChange", "redoChange"].map(id => document.getElementById(id).getBoundingClientRect());
+    const save = document.getElementById("saveFile").getBoundingClientRect();
+    return { gaps: [tools[1].left - tools[0].right, tools[2].left - tools[1].right], saveGap: save.left - tools[2].right };
+  });
+  expect(layout.gaps.every(gap => Math.abs(gap) <= .01)).toBe(true);
+  expect(Math.abs(layout.saveGap)).toBeLessThanOrEqual(.01);
+  for (let index = 0; index < 3; index += 1) {
+    const tool = tools.nth(index);
+    await expect(tool).toHaveCSS("width", "32px");
+    await expect(tool).toHaveCSS("height", "32px");
+    await expect(tool).toHaveCSS("border-color", "rgba(0, 0, 0, 0)");
+    await expect(tool).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  }
+});
+
+test("save state uses existing icons and colors without a border", async ({ page }) => {
+  await openFixture(page);
+  const save = page.locator("#saveFile");
+  await expect(save).toHaveText("Saved");
+  await expect(save).toHaveCSS("color", "rgb(184, 187, 38)");
+  await expect(save).toHaveCSS("border-color", "rgba(0, 0, 0, 0)");
+  await expect(save.locator("use")).toHaveAttribute("href", "#icon-check");
+  await page.locator(".card-header").first().click();
+  await page.locator(".card").first().locator(".checkbox").nth(1).click();
+  await expect(save).toHaveText("Unsaved");
+  await expect(save).toHaveCSS("color", "rgb(254, 128, 25)");
+  await expect(save.locator("use")).toHaveAttribute("href", "#icon-progress");
+});
+
+test("View uses an overflow button to the right of the theme control", async ({ page }) => {
+  await openFixture(page);
+  const theme = page.locator("#toggleTheme");
+  const view = page.locator("#toggleViewMenu");
+  await expect(view).toHaveAttribute("aria-label", "View");
+  await expect(view.locator('.dots-icon use')).toHaveAttribute("href", "#icon-dots");
+  expect(await theme.evaluate(node => node.getBoundingClientRect().x)).toBeLessThan(await view.evaluate(node => node.getBoundingClientRect().x));
+});
+
+test("right header tools use stable borderless icon buttons", async ({ page }) => {
+  await openFixture(page);
+  const tools = page.locator("#toggleHelp, #toggleSounds, #toggleTheme, #toggleViewMenu");
+  await expect(tools).toHaveCount(4);
+  const gaps = await tools.evaluateAll(buttons => buttons.slice(1).map((button, index) => {
+    const previous = buttons[index].getBoundingClientRect();
+    return button.getBoundingClientRect().left - previous.right;
+  }));
+  expect(gaps.every(gap => Math.abs(gap) <= .01)).toBe(true);
+  for (let index = 0; index < 4; index += 1) {
+    const tool = tools.nth(index);
+    await expect(tool).toHaveCSS("width", "32px");
+    await expect(tool).toHaveCSS("height", "32px");
+    await expect(tool).toHaveCSS("border-color", "rgba(0, 0, 0, 0)");
+    await expect(tool).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+    await tool.hover();
+    await expect(tool).toHaveCSS("background-color", "rgb(60, 56, 54)");
+  }
+});
+
+test("Board and Grid use a two-pixel segmented control with the standard action gap", async ({ page }) => {
+  await openFixture(page);
+  await expect(page.locator(".header")).toHaveCSS("border-bottom-width", "0px");
+  const board = page.locator("#showBoardView");
+  const grid = page.locator("#toggleGridView");
+  await expect(board).toHaveCSS("border-left-width", "2px");
+  await expect(board).toHaveCSS("border-right-width", "2px");
+  await grid.hover();
+  await expect(grid).toHaveCSS("border-left-width", "2px");
+  await expect(grid).toHaveCSS("border-right-width", "2px");
+  await expect(page.locator(".view-mode")).toHaveCSS("border-left-style", "none");
+  await expect(page.locator(".control-bar > .help-menu")).toHaveCSS("border-left-style", "none");
+
+  const gaps = await page.evaluate(() => {
+    const project = document.getElementById("projectTitle").getBoundingClientRect();
+    const add = document.getElementById("addFeature").getBoundingClientRect();
+    const view = document.querySelector(".view-mode").getBoundingClientRect();
+    const help = document.getElementById("toggleHelp").getBoundingClientRect();
+    return { left: add.left - project.right, view: help.left - view.right };
+  });
+  expect(gaps.view).toBeCloseTo(gaps.left, 5);
 });
 
 test("text below a task label keeps its position and visual hierarchy", async ({ page }) => {
@@ -586,6 +744,7 @@ test("Markdown toolbars format defaults and selected text in the active field", 
   const toolbar = page.locator("#taskMarkdownToolbar");
   await expect(page.locator("#taskEditor")).toHaveCSS("transform", "none");
   await expect(toolbar).toHaveCSS("height", "44px");
+  await expect(toolbar).toHaveCSS("border-bottom-width", "0px");
   const toolMetrics = await toolbar.locator(":scope > .markdown-tool-group > .markdown-tool, :scope > .markdown-help-menu > .markdown-tool").evaluateAll(buttons => buttons.flatMap(button => {
     const bounds = button.getBoundingClientRect();
     if (!bounds.width || !bounds.height) return [];
@@ -607,6 +766,7 @@ test("Markdown toolbars format defaults and selected text in the active field", 
   }));
   expect(formattingGaps).toEqual([4, 4, 4, 4, 4]);
   await expect(toolbar.locator(".markdown-tool-group").first()).toHaveCSS("border-right-width", "0px");
+  expect(await toolbar.locator(".markdown-tool, .markdown-tags > summary").evaluateAll(controls => controls.every(control => getComputedStyle(control).borderTopWidth === "0px"))).toBe(true);
   await expect(page.getByText("Content, todos, #Info and #Warn", { exact: true })).toHaveCount(0);
   await expect(toolbar.locator(".markdown-tool-group")).toHaveCount(2);
   await expect(toolbar.locator("[data-editor-history]")).toHaveCount(0);
@@ -616,10 +776,33 @@ test("Markdown toolbars format defaults and selected text in the active field", 
   await expect(page.locator("#taskEditorForm .editor-header-tool").first()).toHaveCSS("height", "32px");
   await expect(page.locator("#closeTaskEditor")).toHaveCSS("width", "32px");
   await expect(page.locator("#closeTaskEditor")).toHaveCSS("height", "32px");
+  expect(await page.locator(".task-editor-header, .feature-editor-header").evaluateAll(headers => headers.every(header => getComputedStyle(header).borderBottomWidth === "0px"))).toBe(true);
+  expect(await page.locator("#taskEditor, #featureEditor").evaluateAll(dialogs => dialogs.every(dialog => getComputedStyle(dialog).borderTopWidth === "0px"))).toBe(true);
+  expect(await page.locator(".task-editor-footer").evaluateAll(footers => footers.every(footer => getComputedStyle(footer).borderTopWidth === "0px"))).toBe(true);
+  await expect(page.locator("#taskEditor .task-editor-footer")).toHaveCSS("background-color", "rgb(40, 40, 40)");
   await expect(page.locator("#cancelTaskEditor")).toHaveCSS("width", "64px");
+  await expect(page.locator("#cancelTaskEditor")).toHaveCSS("border-top-width", "2px");
+  await expect(page.locator("#saveTaskEditor")).toHaveCSS("border-top-width", "2px");
+  const editorActionOffsets = await page.locator("#cancelTaskEditor, #saveTaskEditor").evaluateAll(buttons => buttons.map(button => {
+    const buttonBounds = button.getBoundingClientRect();
+    const range = document.createRange();
+    range.selectNodeContents(button);
+    const textBounds = range.getBoundingClientRect();
+    return {
+      horizontal: Math.abs(textBounds.x + textBounds.width / 2 - (buttonBounds.x + buttonBounds.width / 2)),
+      vertical: Math.abs(textBounds.y + textBounds.height / 2 - (buttonBounds.y + buttonBounds.height / 2))
+    };
+  }));
+  expect(editorActionOffsets.every(offset => offset.horizontal <= 1 && offset.vertical <= 1)).toBe(true);
   await expect(page.locator("#cancelTaskEditor")).toHaveCSS("height", "32px");
   await expect(page.locator("#saveTaskEditor")).toHaveCSS("width", "64px");
   await expect(page.locator("#saveTaskEditor")).toHaveCSS("height", "32px");
+  const separateEditorStyle = await page.locator("#cancelTaskEditor, #saveTaskEditor, #toggleGridView").evaluateAll(buttons => buttons.map(button => {
+    const style = getComputedStyle(button);
+    return [style.backgroundColor, style.borderColor, style.borderWidth, style.color, style.fontSize, style.fontWeight];
+  }));
+  expect(separateEditorStyle[0]).toEqual(separateEditorStyle[2]);
+  expect(separateEditorStyle[1]).toEqual(separateEditorStyle[2]);
   await expect(toolbar.getByRole("button", { name: "URL" })).toHaveText("URL");
   await expect(toolbar.getByRole("button", { name: "URL" }).locator("svg")).toHaveCount(0);
   await expect(toolbar.getByRole("button", { name: "Bold" })).toBeDisabled();
@@ -699,8 +882,8 @@ test("Markdown toolbars format defaults and selected text in the active field", 
     await expect(textarea).toHaveValue(expected);
     await expect(button).toHaveClass(/active/);
     await page.mouse.move(0, 0);
-    await expect(button).toHaveCSS("border-color", "rgb(80, 73, 69)");
-    await expect(button).toHaveCSS("background-color", "rgb(29, 32, 33)");
+    await expect(button).toHaveCSS("border-top-width", "0px");
+    await expect(button).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
     await button.click();
     await expect(textarea).toHaveValue(selected);
     await expect(button).not.toHaveClass(/active/);
@@ -794,15 +977,14 @@ test("dialog undo and redo include all fields and reset when the dialog reopens"
   const redo = page.getByRole("button", { name: "Redo dialog edit" });
   await expect(page.locator("#taskEditor .editor-header-history").getByRole("button")).toHaveCount(2);
   expect(await undo.evaluate(element => element.closest("header")?.className)).toContain("task-editor-header");
-  /** @param {import("@playwright/test").Locator} locator */
-  const historyStyle = locator => locator.evaluate(element => {
-    const style = getComputedStyle(element);
-    return [style.width, style.height, style.backgroundColor, style.borderColor, style.borderRadius, style.color, style.boxShadow, style.opacity, style.cursor, style.lineHeight];
-  });
-  expect(await historyStyle(undo)).toEqual(await historyStyle(page.locator("#undoChange")));
-  expect(await historyStyle(redo)).toEqual(await historyStyle(page.locator("#redoChange")));
-  await expect(undo).toHaveCSS("border-left-width", "1px");
-  await expect(redo).toHaveCSS("border-left-width", "1px");
+  await expect(undo).toHaveCSS("width", "32px");
+  await expect(undo).toHaveCSS("height", "32px");
+  await expect(undo).toHaveCSS("border-radius", "6px");
+  await expect(redo).toHaveCSS("width", "32px");
+  await expect(redo).toHaveCSS("height", "32px");
+  await expect(redo).toHaveCSS("border-radius", "6px");
+  await expect(undo).toHaveCSS("border-left-width", "0px");
+  await expect(redo).toHaveCSS("border-left-width", "0px");
   await expect(undo).toBeDisabled();
   await expect(redo).toBeDisabled();
   await title.evaluate(element => {
@@ -907,9 +1089,8 @@ test("New button and task buttons create features and tasks through existing edi
   await openFixture(page);
   const addFeature = page.getByRole("button", { name: "New", exact: true });
   await expect(addFeature).toBeEnabled();
-  expect(await addFeature.evaluate(button => button.nextElementSibling?.id)).toBe("saveFile");
-  await page.locator(".app-logo-mark").click();
-  await expect(page.locator("#featureEditor")).not.toBeVisible();
+  expect(await addFeature.evaluate(button => button.nextElementSibling?.id)).toBe("undoSystemControls");
+  expect(await addFeature.evaluate(button => button.parentElement?.nextElementSibling?.querySelector("button")?.id)).toBe("saveFile");
   await addFeature.click();
   await expect(page.locator("#featureEditorTitle")).toHaveValue("New Feature");
   await page.locator("#cancelFeatureEditor").click();
@@ -992,7 +1173,7 @@ test("start screen Create File creates and opens a filesystem Markdown and help 
   expect(newBounds.width).toBeGreaterThanOrEqual(160);
   await expect(newProject.locator("img")).toHaveCount(0);
   const recentOffset = await page.locator(".recent-files").evaluate(element => new DOMMatrix(getComputedStyle(element).transform).m42);
-  expect(recentOffset).toBeCloseTo(-page.viewportSize().height * 0.05, 0);
+  expect(recentOffset).toBe(0);
   await page.evaluate(() => {
     window.MDManager.files.createProject = async () => ({ handle: { name: "Project.md" }, markdown: "# New Project\n", stamp: "1:14" });
     window.MDManager.files.remember = async () => {};
@@ -1087,7 +1268,14 @@ test("backlog opens as a separate pane and closes from its framed button", async
   await toggleBacklogFromView(page);
   await expect(page.locator("#backlog")).toBeVisible();
   await expect(page.locator(".backlog-title")).toHaveText("Later");
-  await expect(page.locator(".backlog-pane")).toHaveCSS("width", "300px");
+  const backlogPane = page.locator(".backlog-pane");
+  await expect(backlogPane).toHaveCSS("width", "280px");
+  await expect(backlogPane).toHaveCSS("border-left-width", "0px");
+  await expect.poll(async () => {
+    const boardBounds = await page.locator("#showBoardView").boundingBox();
+    const paneBounds = await backlogPane.boundingBox();
+    return Math.abs(boardBounds.x - paneBounds.x);
+  }).toBeLessThanOrEqual(1);
   await expect.poll(async () => {
     const backlogBounds = await page.locator("#backlog").boundingBox();
     const paneBounds = await page.locator(".backlog-pane").boundingBox();
@@ -1138,7 +1326,9 @@ test("statistics can close and reopen in board and grid", async ({ page }) => {
   const content = page.locator("#content");
   const firstRelease = page.locator("#content > .release").first();
   await expect(stats).toBeVisible();
-  await expect(stats).toHaveCSS("width", "300px");
+  await expect(stats).toHaveCSS("width", "280px");
+  await expect(stats).toHaveCSS("border-top-width", "0px");
+  expect(await stats.evaluate(node => getComputedStyle(node, "::before").content)).toBe("none");
   await expect(stats).toHaveCSS("border-radius", "10px");
   await expect(stats.locator("td").first()).toHaveCSS("font-size", "12px");
   await expect.poll(() => stats.evaluate(node => node.getBoundingClientRect().bottom)).toBe(page.viewportSize().height - 12);
@@ -1163,6 +1353,9 @@ test("clock is app-only, centered, and controlled from View", async ({ page }) =
   await expect(clock).toBeHidden();
   await openFixture(page);
   await expect(clock).toBeVisible();
+  await expect(clock).toHaveCSS("height", "32px");
+  await expect(clock).toHaveCSS("border-top-width", "0px");
+  expect(await clock.evaluate(node => getComputedStyle(node, "::before").content)).toBe("none");
   await expect(page.locator("#clockCurrent")).toHaveText(/^\d{2}:\d{2}:\d{2}$/);
   const centerOffset = await clock.evaluate(node => {
     const bounds = node.getBoundingClientRect();
@@ -1177,6 +1370,14 @@ test("clock is app-only, centered, and controlled from View", async ({ page }) =
   await expect(toggle).toHaveAttribute("aria-pressed", "false");
   await toggle.click();
   await expect(clock).toBeVisible();
+  await page.setViewportSize({ width: 1000, height: 900 });
+  await expect(clock).toBeHidden();
+  await page.setViewportSize({ width: 800, height: 900 });
+  for (const control of ["#addFeature", "#undoChange", "#redoChange", "#saveFile", "#showBoardView", "#toggleGridView", "#toggleHelp", "#toggleSounds", "#toggleTheme", "#toggleViewMenu"]) {
+    await expect(page.locator(control)).toBeVisible();
+  }
+  await page.setViewportSize({ width: 1001, height: 900 });
+  await expect(clock).toBeVisible();
 });
 
 test("notifications stack by severity, use the board width, and disappear automatically", async ({ page }) => {
@@ -1190,7 +1391,7 @@ test("notifications stack by severity, use the board width, and disappear automa
   await expect(notifications).toHaveCount(2);
   await expect(notifications.nth(0).locator(".notification-tag")).toHaveText("Info");
   await expect(notifications.nth(1).locator(".notification-tag")).toHaveText("Error");
-  await expect(notifications.nth(0)).toHaveCSS("width", "300px");
+  await expect(notifications.nth(0)).toHaveCSS("width", "280px");
   await expect(notifications.nth(0)).toHaveCSS("height", "88px");
   await page.evaluate(() => window.MDManager.notifications.show("error", "Long error", "UnbrokenDiagnostic".repeat(40)));
   const longNotification = notifications.last();
@@ -1208,7 +1409,7 @@ test("notifications stack by severity, use the board width, and disappear automa
   await toggleBacklogFromView(page);
   await expect(notifications.nth(0)).toHaveCSS("transform", "none");
   await expect(page.locator("#backlog")).toHaveCSS("transform", "none");
-  const accentBars = await page.locator("#appClock, #projectStats, .backlog-header, .notification-info").evaluateAll(nodes => nodes.map(node => {
+  const accentBars = await page.locator(".backlog-header, .notification-info").evaluateAll(nodes => nodes.map(node => {
     const bounds = node.getBoundingClientRect();
     const accent = getComputedStyle(node, "::before");
     return { elementWidth: bounds.width, barWidth: Number.parseFloat(accent.width), barHeight: Number.parseFloat(accent.height), color: accent.backgroundColor };
@@ -1217,7 +1418,7 @@ test("notifications stack by severity, use the board width, and disappear automa
     expect(accent.barHeight).toBe(2);
     expect(Math.round(Math.abs(accent.elementWidth - accent.barWidth))).toBeLessThanOrEqual(2);
   }
-  expect(accentBars.map(accent => accent.color)).toEqual(["rgb(184, 187, 38)", "rgb(146, 131, 116)", "rgb(211, 134, 155)", "rgb(131, 165, 152)"]);
+  expect(accentBars.map(accent => accent.color)).toEqual(["rgb(211, 134, 155)", "rgb(131, 165, 152)"]);
   const positions = await notifications.evaluateAll(nodes => nodes.map(node => node.getBoundingClientRect().y));
   expect(positions[0]).toBeLessThan(positions[1]);
   await page.locator("#toggleGridView").click();
@@ -1389,7 +1590,7 @@ test("help popover documents shortcuts and Markdown and closes predictably", asy
   const soundButton = page.locator("#toggleSounds");
   const positions = await Promise.all([helpButton, soundButton].map(locator => locator.evaluate(node => node.getBoundingClientRect().x)));
   expect(positions[0]).toBeLessThan(positions[1]);
-  await expect(page.locator(".help-menu")).toHaveCSS("border-left-style", "solid");
+  await expect(page.locator(".help-menu")).toHaveCSS("border-left-style", "none");
   await helpButton.click();
   const help = page.locator("#helpPopover");
   await expect(help).toBeVisible();
@@ -1704,7 +1905,7 @@ test("fixed grid uses 260px columns and backlog overlays without shifting it", a
   expect(after).toEqual(before);
   const backlog = await page.locator(".backlog-pane").boundingBox();
   const content = await page.locator("#content").boundingBox();
-  expect(backlog.width).toBe(260);
+  expect(backlog.width).toBe(280);
   await expect.poll(() => page.locator("#projectStats").evaluate(node => node.getBoundingClientRect().bottom)).toBe(page.viewportSize().height - 8);
   expect(backlog.x + backlog.width).toBeCloseTo(content.x + content.width, 0);
 

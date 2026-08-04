@@ -373,13 +373,37 @@
 - [x] ~Neues Logo erstellen~
 - [x] ~Überall einpflegen~
 
-## Markdown-Erweiterungen
+## Polishing
 
 #Version
 - 0.6.0
 
 #Date
+- 04.08.2026
+
+### UI
+
+- [x] ~Headerbar anpassen~
+- [x] ~Controls überall anpassen~
+- [x] ~Größe von Sidebar und Stats~
+- [x] ~Startseite anpassen~
+
+### Interaktion
+
+- [x] ~Klick auf Logo returned zur Startseite~
+
+## Markdown-Erweiterungen
+
+#Version
+- 0.7.0
+
+#Date
 - TBD
+
+### Github
+
+- [ ] Ordentliche README im Stil der anderen Projekte erstellen
+- [ ] Repository pflegen
 
 ### Markdown-Features
 
@@ -396,7 +420,7 @@
 ## Archivierung und Suche
 
 #Version
-- 0.7.0
+- 0.8.0
 
 #Date
 - TBD
@@ -405,16 +429,17 @@
 
 - [ ] Archivierung von Features anbieten
 - [ ] Neues Tag integrieren
+- [ ] Ins Stats nachpflegen
 
 ### Suche
 
 - [ ] Fuzzy-Finding mit Echtzeitfilter
 - [ ] Enter führt zu Navigation zur richtigen Stelle
 
-## Mehr Dateiformate
+## Erweiterungen
 
 #Version
-- 0.8.0
+- 0.9.0
 
 #Date
 - TBD
@@ -424,26 +449,9 @@
 - [ ] PDF-Report
 - [ ] json
 
-## Polishing
+### Keyboard-Controls
 
-#Version
-- 0.9.0
-
-#Date
-- TBD
-
-### UI
-
-- [ ] Auf finales, modernes UI festlegen
-- [ ] Headerbar in der App + Startseite anpassen
-- [ ] Startseite selbst anpassen
-- [ ] Hochkantmodus polishen ('More' für Buttons)
-- [ ] Sidebar-Alignments
-- [ ] UI-Details ergänzen (Bspw. Rahmen von Haken)
-
-### README.md
-
-- [ ] Ordentliche README im Stil der anderen Projekte erstellen
+- [ ] Ausbauen und vervollständigen
 
 #Backlog
 ## Backlog

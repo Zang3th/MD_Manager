@@ -27,7 +27,7 @@ test("a failed save stays dirty, reports the error, and allows a later save", as
   await expect(page.locator(".notification-error .notification-title")).toHaveText("File save");
   await expect(page.locator(".notification-error .notification-body")).toHaveText("File could not be saved: Disk unavailable");
   await save.click();
-  await expect(save).toHaveText("Save");
+  await expect(save).toHaveText("Saved");
   await expect(save).not.toHaveClass(/dirty/);
 });
 

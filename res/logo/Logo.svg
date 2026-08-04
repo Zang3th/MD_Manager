@@ -5,9 +5,7 @@
           width="30"
           height="30"
           rx="6"
-          fill="#282828"
-          stroke="#928374"
-          stroke-width="2"/>
+          fill="#282828"/>
 
     <path d="M5 23V9L9.25 15.5L13.5 9V23"
           fill="none"

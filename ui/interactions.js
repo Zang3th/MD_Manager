@@ -420,6 +420,11 @@ window.MDManager = window.MDManager || {};
     document.getElementById("toggleViewMenu").setAttribute("aria-expanded", "false");
   }
 
+  function closeSaveMenu() {
+    document.getElementById("externalActions").hidden = true;
+    document.getElementById("saveFile").setAttribute("aria-expanded", "false");
+  }
+
   function closeHelp() {
     document.getElementById("helpPopover").hidden = true;
     document.getElementById("toggleHelp").setAttribute("aria-expanded", "false");
@@ -935,6 +940,7 @@ window.MDManager = window.MDManager || {};
   });
   document.getElementById("toggleViewMenu").addEventListener("click", event => {
     closeHelp();
+    closeSaveMenu();
     const options = document.getElementById("viewOptions");
     options.hidden = !options.hidden;
     (/** @type {HTMLElement} */ (event.currentTarget)).setAttribute("aria-expanded", String(!options.hidden));
@@ -949,6 +955,7 @@ window.MDManager = window.MDManager || {};
   });
   document.getElementById("toggleHelp").addEventListener("click", event => {
     closeViewMenu();
+    closeSaveMenu();
     const help = document.getElementById("helpPopover");
     help.hidden = !help.hidden;
     (/** @type {HTMLElement} */ (event.currentTarget)).setAttribute("aria-expanded", String(!help.hidden));
@@ -962,6 +969,7 @@ window.MDManager = window.MDManager || {};
     const key = event.key.toLowerCase();
     if (event.key === "Escape") {
       closeViewMenu();
+      closeSaveMenu();
       closeHelp();
     }
     if (shortcut && !event.shiftKey && key === "s") {
@@ -1017,7 +1025,20 @@ window.MDManager = window.MDManager || {};
 
   document.getElementById("toggleGridView").addEventListener("click", () => setGridView(true));
 
-  document.getElementById("saveFile").addEventListener("click", saveFile);
+  document.getElementById("reloadApp").addEventListener("click", () => window.location.reload());
+  document.getElementById("saveFile").addEventListener("click", event => {
+    const button = /** @type {HTMLButtonElement} */ (event.currentTarget);
+    if (!button.classList.contains("conflict")) {
+      closeSaveMenu();
+      void saveFile();
+      return;
+    }
+    closeViewMenu();
+    closeHelp();
+    const options = document.getElementById("externalActions");
+    options.hidden = !options.hidden;
+    button.setAttribute("aria-expanded", String(!options.hidden));
+  });
   document.getElementById("undoChange").addEventListener("click", () => undo?.());
   document.getElementById("redoChange").addEventListener("click", () => redo?.());
   document.getElementById("reloadExternal").addEventListener("click", () => { void resolveExternalFile("reload"); });
@@ -1025,6 +1046,7 @@ window.MDManager = window.MDManager || {};
   document.addEventListener("click", event => {
     const target = eventElement(event);
     if (!target.closest(".view-menu")) closeViewMenu();
+    if (!target.closest(".save-menu")) closeSaveMenu();
     if (!target.closest(".help-menu")) closeHelp();
     if (!target.closest(".release,.card,.task-editor-dialog,.feature-editor-dialog")) {
       hoveredElement = null;
@@ -1057,16 +1079,22 @@ window.MDManager = window.MDManager || {};
     /** @param {{dirty: boolean, canUndo: boolean, canRedo: boolean, undoLabel: string, redoLabel: string, externalChange: boolean}} state */
     setUndoSystemState(state) {
       const saveButton = document.getElementById("saveFile");
-      saveButton.textContent = "Save";
+      const label = state.externalChange ? "Conflict" : state.dirty ? "Unsaved" : "Saved";
+      const icon = state.externalChange ? "#icon-close" : state.dirty ? "#icon-progress" : "#icon-check";
+      document.getElementById("saveStateLabel").textContent = label;
+      saveButton.querySelector("use").setAttribute("href", icon);
+      saveButton.setAttribute("aria-label", label);
       delete saveButton.dataset.tooltip;
       saveButton.classList.toggle("dirty", state.dirty);
+      saveButton.classList.toggle("conflict", state.externalChange);
+      saveButton.classList.remove("save-error");
       const undoButton = document.getElementById("undoChange");
       const redoButton = document.getElementById("redoChange");
       undoButton.disabled = !state.canUndo;
       redoButton.disabled = !state.canRedo;
       undoButton.dataset.tooltip = state.undoLabel ? `Undo: ${state.undoLabel}` : "Undo";
       redoButton.dataset.tooltip = state.redoLabel ? `Redo: ${state.redoLabel}` : "Redo";
-      document.getElementById("externalActions").hidden = !state.externalChange;
+      if (!state.externalChange) closeSaveMenu();
     }
   };
 })(window.MDManager);

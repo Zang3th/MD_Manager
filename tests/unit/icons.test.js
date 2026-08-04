@@ -31,8 +31,8 @@ test("local SVG files exactly match every inline icon symbol", () => {
     return iconNames.get(sourceName) || sourceName;
   }).sort();
 
-  assert.equal(symbols.size, 21);
-  assert.equal(files.length, 21);
+  assert.equal(symbols.size, 23);
+  assert.equal(files.length, 23);
   assert.deepEqual(mappedNames, Array.from(symbols.keys()).sort());
 
   for (const entry of files) {
@@ -61,7 +61,6 @@ test("application logo uses the dark theme palette", () => {
   const logo = fs.readFileSync(path.join(logoDirectory, "Logo.svg"), "utf8");
   assert.match(logo, /viewBox="0 0 32 32"/);
   assert.match(logo, /fill="#282828"/);
-  assert.match(logo, /stroke="#928374"/);
   assert.match(logo, /stroke="#b8bb26"/);
   assert.match(logo, /stroke="#d79921"/);
 });
