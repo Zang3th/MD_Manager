@@ -46,6 +46,17 @@ async function toggleBacklogFromView(page) {
   await page.locator("#toggleViewMenu").click();
 }
 
+async function expandAllProjectContent(page) {
+  const collapsible = page.locator(".card, .feature-note");
+  for (let index = 0; index < await collapsible.count(); index += 1) {
+    const item = collapsible.nth(index);
+    if (await item.getAttribute("aria-expanded") === "true") continue;
+    const toggle = await item.evaluate(node => node.classList.contains("card")) ? ".card-header" : ".note-toggle";
+    await item.locator(toggle).click();
+  }
+  await expect.poll(() => collapsible.evaluateAll(items => items.every(item => item.getAttribute("aria-expanded") === "true"))).toBe(true);
+}
+
 async function expectCentered(parent, child, axes = "both") {
   const offset = await parent.evaluate((container, childElement) => {
     const outer = container.getBoundingClientRect();
@@ -376,12 +387,37 @@ test("symbols, progress values, and the clock stay optically aligned in their co
   expect(new Set(checkReferences)).toEqual(new Set(["#icon-check"]));
 });
 
-test("start and board match their platform visual baselines", async ({ page }) => {
+test("start help matches its platform visual baselines in both color schemes", async ({ page }) => {
   await page.goto(appUrl);
-  await expect(page).toHaveScreenshot("cross-platform-start.png", { animations: "disabled", maxDiffPixels: 100 });
+  await page.addStyleTag({ content: ".app-tooltip,.notifications,.app-clock{visibility:hidden!important}" });
+  await page.locator("#toggleHelp").click();
+  await expect(page.locator("#helpPopover")).toBeVisible();
+  await expect(page.locator("#toggleHelp")).toHaveAttribute("aria-expanded", "true");
+  await page.mouse.move(720, 700);
+  await expect(page).toHaveScreenshot("start-help-dark.png", { animations: "disabled", maxDiffPixels: 100 });
+
+  await page.locator("#toggleTheme").click();
+  await expect(page.locator("body")).toHaveAttribute("data-theme", "gruvbox-light");
+  await page.locator("#toggleHelp").click();
+  await expect(page.locator("#helpPopover")).toBeVisible();
+  await expect(page.locator("#toggleHelp")).toHaveAttribute("aria-expanded", "true");
+  await page.mouse.move(720, 700);
+  await expect(page).toHaveScreenshot("start-help-light.png", { animations: "disabled", maxDiffPixels: 100 });
+});
+
+test("expanded board and backlog match their platform visual baselines in both color schemes", async ({ page }) => {
   await openFixture(page);
-  await page.addStyleTag({ content: ".notifications,.app-clock{visibility:hidden!important}" });
-  await expect(page).toHaveScreenshot("cross-platform-board.png", { animations: "disabled", maxDiffPixels: 100 });
+  await page.addStyleTag({ content: ".app-tooltip,.notifications,.app-clock{visibility:hidden!important}" });
+  await toggleBacklogFromView(page);
+  await expect(page.locator("#backlog")).toBeVisible();
+  await expandAllProjectContent(page);
+  await page.mouse.move(720, 700);
+  await expect(page).toHaveScreenshot("board-expanded-backlog-dark.png", { animations: "disabled", maxDiffPixels: 100 });
+
+  await page.locator("#toggleTheme").click();
+  await expect(page.locator("body")).toHaveAttribute("data-theme", "gruvbox-light");
+  await page.mouse.move(720, 700);
+  await expect(page).toHaveScreenshot("board-expanded-backlog-light.png", { animations: "disabled", maxDiffPixels: 100 });
 });
 
 test("theme toggle switches Gruvbox themes on the start screen and in the app", async ({ page }) => {

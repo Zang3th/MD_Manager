@@ -31,7 +31,7 @@ jobs:
       - if: runner.os != 'Linux'
         run: npx playwright install chromium
       - run: npx playwright test tests/e2e/app.spec.js --grep "platform visual baselines" --update-snapshots=all
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: visual-baselines-${{ matrix.platform }}
           path: tests/e2e/snapshots/${{ matrix.platform }}
@@ -43,19 +43,19 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           name: visual-baselines-linux
           path: tests/e2e/snapshots/linux
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           name: visual-baselines-win32
           path: tests/e2e/snapshots/win32
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           name: visual-baselines-darwin
           path: tests/e2e/snapshots/darwin
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: visual-baselines
           path: tests/e2e/snapshots
