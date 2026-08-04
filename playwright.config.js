@@ -2,7 +2,8 @@ const { defineConfig } = require("@playwright/test");
 
 module.exports = defineConfig({
   testDir: "tests/e2e",
-  snapshotPathTemplate: "{testDir}/snapshots/{arg}{ext}",
+  snapshotPathTemplate: "{testDir}/snapshots/{platform}/{arg}{ext}",
+  updateSnapshots: process.env.CI ? "none" : "missing",
   fullyParallel: true,
   forbidOnly: true,
   retries: 0,

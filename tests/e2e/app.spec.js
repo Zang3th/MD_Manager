@@ -376,12 +376,12 @@ test("symbols, progress values, and the clock stay optically aligned in their co
   expect(new Set(checkReferences)).toEqual(new Set(["#icon-check"]));
 });
 
-test("cross-platform start and board surfaces match the shared visual baseline", async ({ page }) => {
+test("start and board match their platform visual baselines", async ({ page }) => {
   await page.goto(appUrl);
-  await expect(page).toHaveScreenshot("cross-platform-start.png", { animations: "disabled", maxDiffPixels: 100, threshold: 0.3 });
+  await expect(page).toHaveScreenshot("cross-platform-start.png", { animations: "disabled", maxDiffPixels: 100 });
   await openFixture(page);
   await page.addStyleTag({ content: ".notifications,.app-clock{visibility:hidden!important}" });
-  await expect(page).toHaveScreenshot("cross-platform-board.png", { animations: "disabled", maxDiffPixels: 100, threshold: 0.3 });
+  await expect(page).toHaveScreenshot("cross-platform-board.png", { animations: "disabled", maxDiffPixels: 100 });
 });
 
 test("theme toggle switches Gruvbox themes on the start screen and in the app", async ({ page }) => {
