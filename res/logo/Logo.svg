@@ -1,25 +1,23 @@
 <svg xmlns="http://www.w3.org/2000/svg"
      viewBox="0 0 32 32">
-    <rect x="1"
-          y="1"
-          width="30"
-          height="30"
+    <rect width="32"
+          height="32"
           rx="6"
           fill="#282828"/>
 
-    <path d="M5 23V9L9.25 15.5L13.5 9V23"
+    <path d="M4 25V7L9 15.5L14 7V25"
           fill="none"
           stroke="#b8bb26"
-          stroke-width="3"
+          stroke-width="3.5"
           stroke-linecap="round"
           stroke-linejoin="round"/>
 
-    <path d="M17 9V23H20
-             C24.5 23 27 20.25 27 16
-             C27 11.75 24.5 9 20 9H17"
+    <path d="M18 7V25H21
+             C26 25 29 21.5 29 16
+             C29 10.5 26 7 21 7H18"
           fill="none"
           stroke="#d79921"
-          stroke-width="3"
+          stroke-width="3.5"
           stroke-linecap="round"
           stroke-linejoin="round"/>
 </svg>
