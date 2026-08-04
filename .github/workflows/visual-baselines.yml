@@ -36,3 +36,27 @@ jobs:
           name: visual-baselines-${{ matrix.platform }}
           path: tests/e2e/snapshots/${{ matrix.platform }}
           if-no-files-found: error
+
+  collect:
+    needs: generate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          name: visual-baselines-linux
+          path: tests/e2e/snapshots/linux
+      - uses: actions/download-artifact@v5
+        with:
+          name: visual-baselines-win32
+          path: tests/e2e/snapshots/win32
+      - uses: actions/download-artifact@v5
+        with:
+          name: visual-baselines-darwin
+          path: tests/e2e/snapshots/darwin
+      - uses: actions/upload-artifact@v4
+        with:
+          name: visual-baselines
+          path: tests/e2e/snapshots
+          if-no-files-found: error

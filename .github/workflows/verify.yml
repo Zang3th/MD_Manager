@@ -9,7 +9,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            platform: linux
+          - os: windows-latest
+            platform: win32
+          - os: macos-latest
+            platform: darwin
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     permissions:
@@ -20,6 +26,11 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      - name: Require platform visual baselines
+        if: ${{ hashFiles(format('tests/e2e/snapshots/{0}/cross-platform-start.png', matrix.platform)) == '' || hashFiles(format('tests/e2e/snapshots/{0}/cross-platform-board.png', matrix.platform)) == '' }}
+        run: |
+          echo "::error::Missing ${{ matrix.platform }} visual baselines. Run the 'Generate visual baselines' workflow, download the 'visual-baselines' artifact, and copy its contents into tests/e2e/snapshots/."
+          exit 1
       - run: npm ci
       - if: runner.os == 'Linux'
         run: npx playwright install --with-deps chromium
