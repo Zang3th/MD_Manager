@@ -402,8 +402,9 @@
 
 ### Github
 
-- [ ] Ordentliche README im Stil der anderen Projekte erstellen
-- [ ] Repository pflegen
+- [x] ~Ordentliche README im Stil der anderen Projekte erstellen~
+- [x] ~Repository pflegen~
+- [ ] Automatisches Deployment neuer Versionen
 
 ### Markdown-Features
 
@@ -459,7 +460,6 @@
 ### Hosting und Deployment
 
 - [ ] Anwendung zentral hosten
-- [ ] Automatisches Deployment neuer Versionen
 
 ### Monetarisierung
 
