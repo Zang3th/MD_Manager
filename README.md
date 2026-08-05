@@ -1,5 +1,7 @@
 # MD_Manager
 
+<a href="https://github.com/Zang3th/MD_Manager/actions/workflows/verify.yml"><img src="https://img.shields.io/github/actions/workflow/status/Zang3th/MD_Manager/verify.yml?branch=master&amp;label=CI&amp;logo=githubactions" alt="CI status"></a>
+
 MD_Manager is an interactive, fully local Markdown project board for humans, Git, automation, and AI agents. Plan visually while keeping your project data in an open, human-readable format.
 
 ![MD_Manager main page](res/screenshots/Mainpage.png)
