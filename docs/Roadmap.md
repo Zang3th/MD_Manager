@@ -404,7 +404,12 @@
 
 - [x] ~Ordentliche README im Stil der anderen Projekte erstellen~
 - [x] ~Repository pflegen~
-- [ ] Automatisches Deployment neuer Versionen
+- [ ] Release + Deployment neuer Versionen automatisieren
+
+### Bugs
+
+#### Browserkompatibilität
+- [ ] Ordentliche Fehlermeldungen wenn Browser nicht unterstützt wird
 
 ### Markdown-Features
 

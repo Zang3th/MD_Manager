@@ -1,0 +1,81 @@
+name: Prepare release
+
+run-name: Prepare v${{ inputs.version }} by @${{ github.actor }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version without leading v (for example 0.7.0)
+        required: true
+        type: string
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    uses: ./.github/workflows/verify.yml
+
+  prepare:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Validate release
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" != "refs/heads/master" ]]; then
+            echo "::error::Releases must be prepared from the master branch."
+            exit 1
+          fi
+
+          if [[ ! "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "::error::Version must be stable SemVer without a leading v, for example 0.7.0."
+            exit 1
+          fi
+
+          app_version=$(sed -nE 's/.*id="appVersion">v([^<]+)<.*/\1/p' MD_Manager.html)
+          if [[ "$app_version" != "$VERSION" ]]; then
+            echo "::error::MD_Manager.html contains v${app_version:-<missing>}, but the requested release is v$VERSION."
+            exit 1
+          fi
+
+          if git rev-parse --verify --quiet "refs/tags/v$VERSION"; then
+            echo "::error::Tag v$VERSION already exists."
+            exit 1
+          fi
+      - name: Package application
+        shell: bash
+        run: |
+          archive="MD_Manager-v$VERSION.zip"
+          mkdir dist
+          git archive \
+            --format=zip \
+            --prefix="MD_Manager-v$VERSION/" \
+            --output="dist/$archive" \
+            "$GITHUB_SHA" \
+            MD_Manager.html app.js styles.css domain io ui vendor res data/templates README.md LICENSE
+          cd dist
+          sha256sum "$archive" > "$archive.sha256"
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          archive="dist/MD_Manager-v$VERSION.zip"
+          gh release create "v$VERSION" \
+            "$archive" \
+            "$archive.sha256" \
+            --draft \
+            --generate-notes \
+            --target "$GITHUB_SHA" \
+            --title "v$VERSION"
+          echo "Draft release v$VERSION created. Review and publish it from the Releases page." >> "$GITHUB_STEP_SUMMARY"
