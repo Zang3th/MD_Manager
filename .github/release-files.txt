@@ -1,0 +1,11 @@
+MD_Manager.html
+app.js
+styles.css
+domain
+io
+ui
+vendor
+res
+data/templates
+README.md
+LICENSE

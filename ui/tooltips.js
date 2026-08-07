@@ -1,6 +1,6 @@
 window.MDManager = window.MDManager || {};
 
-(function () {
+(function (app) {
   const tooltip = document.getElementById("appTooltip");
   const showDelay = 350;
   let showTimer = 0;
@@ -65,4 +65,5 @@ window.MDManager = window.MDManager || {};
   document.addEventListener("pointerdown", hide);
   window.addEventListener("resize", hide);
   window.addEventListener("scroll", hide, true);
-})();
+  app.tooltips = { ready: true };
+})(window.MDManager);

@@ -120,5 +120,12 @@ window.MDManager = window.MDManager || {};
     return operation;
   }
 
-  app.files = { open, createProject, read, stat, inspect, save, recent, remember, forget };
+  function missingFileSystemApis() {
+    const missing = [];
+    if (typeof window.showOpenFilePicker !== "function") missing.push("window.showOpenFilePicker()");
+    if (typeof window.showSaveFilePicker !== "function") missing.push("window.showSaveFilePicker()");
+    return missing;
+  }
+
+  app.files = { open, createProject, read, stat, inspect, save, recent, remember, forget, missingFileSystemApis };
 })(window.MDManager);

@@ -110,6 +110,7 @@ window.MDManager = window.MDManager || {};
   function taskBody(task) {
     const content = taskContent(task);
     const notes = content.blocks.filter(block => block.type === "note");
+    let hasPreviousTodo = false;
     return `${notes.length ? `<div class="task-notes">${notesMarkup(notes)}</div>` : ""}
       <div class="task-blocks">${content.blocks.map(block => {
       if (block.type === "note") return "";
@@ -117,7 +118,9 @@ window.MDManager = window.MDManager || {};
         return `<p>${inlineMarkdown(block.text)}</p>`;
       }
       if (!block.title && !block.descriptions.length && !block.todos.length && content.todos.length > 0) return "";
-      return `<section class="todo-group">${block.title ? `<div class="todo-separator">${inlineMarkdown(block.title)}</div>` : ""}
+      const showSeparator = hasPreviousTodo;
+      if (block.todos.length) hasPreviousTodo = true;
+      return `<section class="todo-group">${block.title ? `<div class="todo-separator${showSeparator ? " todo-separator-divided" : ""}">${inlineMarkdown(block.title)}</div>` : ""}
         ${block.sections.map(section => `${section.descriptions.map(description => `<p class="todo-description">${inlineMarkdown(description.text)}</p>`).join("")}
         <div class="todo-list" data-anchor-line="${section.lineIndex}">${section.todos.map(todo => `<div class="todo-item" data-line="${todo.lineIndex}">
           <button class="checkbox${todo.checked ? " checked" : ""}" data-checked="${todo.checked}" type="button" aria-label="Toggle todo" aria-pressed="${todo.checked}">${todo.checked ? checkIcon : ""}</button>
@@ -304,20 +307,9 @@ window.MDManager = window.MDManager || {};
     document.getElementById("watermark").hidden = false;
     document.getElementById("content").innerHTML = `<div class="empty start-screen">
       <section class="recent-files" aria-labelledby="recentFilesTitle"><h2 id="recentFilesTitle">Recent files</h2>
-        <div class="recent-files-list">${entries.length ? entries.map((entry, index) => `<div class="recent-file"><button class="recent-file-open" data-recent="${index}" type="button"><span class="recent-file-details"><span class="recent-project-name">${escapeHtml(entry.projectTitle || entry.name)}</span>${entry.projectTitle ? `<span class="recent-file-name">${escapeHtml(entry.name)}</span>` : ""}</span><time class="recent-file-time" datetime="${new Date(entry.openedAt).toISOString()}">${formatRecentTime(entry.openedAt)}</time></button><div class="recent-file-actions"><button class="recent-delete" data-remove-recent="${index}" type="button" aria-label="Remove ${escapeHtml(entry.name)} from recent files" data-tooltip="Remove from recent files">${deleteIcon}</button></div></div>`).join("") : '<p class="recent-files-empty">No recent files</p>'}</div>
+        <div class="recent-files-list">${entries.length ? entries.map((entry, index) => `<div class="recent-file"><button class="recent-file-open" data-recent="${index}" type="button"><span class="recent-file-details"><span class="recent-project-name">${escapeHtml(entry.projectTitle || entry.name)}</span>${entry.projectTitle ? `<span class="recent-file-name">${escapeHtml(entry.name)}</span>` : ""}</span><time class="recent-file-time" datetime="${new Date(entry.openedAt).toISOString()}">${formatRecentTime(entry.openedAt)}</time></button><div class="recent-file-actions"><button class="recent-delete" data-remove-recent="${index}" type="button" aria-label="Remove ${escapeHtml(entry.name)} from recent files" data-tooltip="Remove from recent files">${deleteIcon}</button></div></div>`).join("") : '<p class="recent-files-empty">No recent files.</p>'}</div>
         <div class="start-actions"><button class="btn start-file-action" id="openFile" type="button">Open File</button><button class="btn start-file-action" id="newProject" type="button">Create File</button></div>
       </section></div>`;
-  }
-
-  /** @param {string} message */
-  function showError(message) {
-    document.getElementById("content").innerHTML = `<div class="error">${escapeHtml(message)}</div>`;
-  }
-
-  /** @param {string} message */
-  function showRecentError(message) {
-    const list = document.querySelector(".recent-files-list");
-    if (list) list.innerHTML = `<p class="recent-files-empty">${escapeHtml(message)}</p>`;
   }
 
   /** @param {string} message */
@@ -333,8 +325,6 @@ window.MDManager = window.MDManager || {};
   app.render = {
     project: render,
     start: showStart,
-    error: showError,
-    recentError: showRecentError,
     saveError: showSaveError,
     updateTodo,
     escapeHtml,

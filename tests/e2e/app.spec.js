@@ -154,7 +154,7 @@ test("start screen exposes the application identity and open action", async ({ p
 
 test("recent files show the Markdown project title and filename", async ({ page }) => {
   await page.goto(appUrl);
-  await expect(page.locator(".recent-files-empty")).toBeVisible();
+  await expect(page.locator(".recent-files-empty")).toHaveText("No recent files.");
   await page.evaluate(() => window.MDManager.render.start([{
     id: "roadmap",
     name: "Roadmap.md",
@@ -586,6 +586,26 @@ test("text below a task label keeps its position and visual hierarchy", async ({
   expect(gaps[0]).toBeCloseTo(gaps[1], 5);
 });
 
+test("task group dividers only appear after an earlier todo", async ({ page }) => {
+  await openFixture(page, "# Project\n\n## Feature\n\n### After notes\n#Info\nDetails\n#Warn\nWarning\n#### First group\n- [ ] first grouped todo\n#### Later group\n- [ ] later grouped todo\n\n### After global todo\n- [ ] global todo\n#### Group after global\n- [ ] grouped todo");
+  const cards = page.locator(".card");
+  await cards.nth(0).locator(".card-header").click();
+  await cards.nth(1).locator(".card-header").click();
+
+  const firstGroupTitle = cards.nth(0).locator(".todo-separator").nth(0);
+  await expect(firstGroupTitle).toHaveClass("todo-separator");
+  await expect(firstGroupTitle).toHaveCSS("border-top-style", "none");
+  await expect(firstGroupTitle).toHaveCSS("margin-top", "0px");
+  await expect(firstGroupTitle).toHaveCSS("padding-top", "0px");
+
+  const laterGroupTitle = cards.nth(0).locator(".todo-separator").nth(1);
+  const afterGlobalTitle = cards.nth(1).locator(".todo-separator");
+  await expect(laterGroupTitle).toHaveClass("todo-separator todo-separator-divided");
+  await expect(afterGlobalTitle).toHaveClass("todo-separator todo-separator-divided");
+  await expect(laterGroupTitle).toHaveCSS("border-top-style", "solid");
+  await expect(afterGlobalTitle).toHaveCSS("border-top-style", "solid");
+});
+
 test("inline code wraps at punctuation and case transitions", async ({ page }) => {
   const source = "HTTPServer.longIdentifier_value=>NextCase(argument_one)";
   await openFixture(page, `# Project\n\n## Feature\n\n### Task\n\`${source}\``);
@@ -943,6 +963,41 @@ test("Markdown toolbars format defaults and selected text in the active field", 
   await expect(page.locator("#taskEditorDirty")).toBeVisible();
 });
 
+test("portrait task editor keeps the textarea and highlight wrapping widths aligned", async ({ page }) => {
+  await page.setViewportSize({ width: 1080, height: 1920 });
+  await openFixture(page, "# Project\n\n## Feature\n\n### Story 3324\n#### Transformationen\n- [ ] Lokal im Entity zwischenspeichern bis Freigeben/Abschließen gedrückt wird\n- [ ] Natürlich erst nach Erzeugung der Cube-Sicht im Falle von Kopien");
+  const task = page.locator(".card");
+  await task.hover();
+  await task.locator('[data-edit="task"]').click();
+
+  const widths = await page.locator("#taskEditor .markdown-editor-stack").evaluate(stack => {
+    const textarea = stack.querySelector("textarea");
+    const highlight = stack.querySelector(".markdown-highlight");
+    return [textarea.clientWidth, highlight.clientWidth];
+  });
+  expect(widths[0]).toBe(widths[1]);
+});
+
+test("task and feature editors share the requested responsive width", async ({ page }) => {
+  await openFixture(page);
+
+  for (const [viewportWidth, expectedWidth] of [[800, 500], [1080, 648], [1920, 1000]]) {
+    await page.setViewportSize({ width: viewportWidth, height: 1080 });
+
+    const feature = page.locator(".release").first();
+    await feature.locator(".release-heading").hover();
+    await feature.locator('[data-edit="feature"]').click();
+    await expect(page.locator("#featureEditor")).toHaveCSS("width", `${expectedWidth}px`);
+    await page.locator("#closeFeatureEditor").click();
+
+    const task = page.locator(".card").first();
+    await task.locator(".card-header").hover();
+    await task.locator('[data-edit="task"]').click();
+    await expect(page.locator("#taskEditor")).toHaveCSS("width", `${expectedWidth}px`);
+    await page.locator("#closeTaskEditor").click();
+  }
+});
+
 test("Markdown fields continue and finish lists while formatting shortcuts wrap selections", async ({ page }) => {
   await openFixture(page);
   const task = page.locator(".card").first();
@@ -1238,8 +1293,8 @@ test("task editor opens in the foreground and saves title and Markdown as one un
   await expect(dialog).toBeVisible();
   const width = await dialog.evaluate(node => node.getBoundingClientRect().width);
   const viewportWidth = page.viewportSize().width;
-  expect(width / viewportWidth).toBeGreaterThan(.45);
-  expect(width / viewportWidth).toBeLessThan(.55);
+  expect(width / viewportWidth).toBeGreaterThan(.55);
+  expect(width / viewportWidth).toBeLessThan(.65);
   await expect(page.locator("#taskEditorMarkdown")).not.toHaveValue(/\n$/);
   await page.locator("#taskEditorTitle").fill("Edited Task");
   await page.locator("#taskEditorMarkdown").fill("**Next**\n- [ ] added todo\n\n#Info\nEdited content\n\n#Warn\nReview this task");
@@ -1416,32 +1471,69 @@ test("clock is app-only, centered, and controlled from View", async ({ page }) =
   await expect(clock).toBeVisible();
 });
 
-test("notifications stack by severity, use the board width, and disappear automatically", async ({ page }) => {
+test("notifications keep errors actionable while transient severities disappear automatically", async ({ page }) => {
   await openFixture(page);
   await page.locator("#notifications").evaluate(node => node.replaceChildren());
   const notifications = page.locator(".notification");
   await page.evaluate(() => {
     window.MDManager.notifications.show("info", "Information", "Operation completed.");
+    window.MDManager.notifications.show("warning", "Warning", "Operation needs attention.");
     window.MDManager.notifications.show("error", "Application", "Operation failed.");
   });
-  await expect(notifications).toHaveCount(2);
+  await expect(notifications).toHaveCount(3);
   await expect(notifications.nth(0).locator(".notification-tag")).toHaveText("Info");
-  await expect(notifications.nth(1).locator(".notification-tag")).toHaveText("Error");
+  await expect(notifications.nth(1).locator(".notification-tag")).toHaveText("Warning");
+  await expect(notifications.nth(2).locator(".notification-tag")).toHaveText("Error");
   await expect(notifications.nth(0)).toHaveCSS("width", "280px");
   await expect(notifications.nth(0)).toHaveCSS("height", "88px");
-  await page.evaluate(() => window.MDManager.notifications.show("error", "Long error", "UnbrokenDiagnostic".repeat(40)));
+
+  const longMessage = "UnbrokenDiagnostic".repeat(40);
+  await page.evaluate(message => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: async value => { window.__copiedError = value; } }
+    });
+    window.MDManager.notifications.show("error", "Long error", "The operation failed.", undefined, message, "MDM-999");
+  }, longMessage);
   const longNotification = notifications.last();
-  await expect(longNotification.locator(".notification-body")).toContainText("…");
+  await expect(longNotification.locator(".notification-text")).toHaveText("The operation failed.");
+  await expect(longNotification.locator(".notification-copy-note")).toHaveText("Extended details can be copied with the clipboard button.");
+  await expect(longNotification.locator(".notification-body")).not.toContainText("UnbrokenDiagnostic");
+  const errorActions = longNotification.locator(".notification-action");
+  await expect(errorActions).toHaveCount(2);
+  const copyError = longNotification.locator(".notification-copy-action");
+  const closeError = longNotification.getByRole("button", { name: "Close error" });
+  await expect(closeError).toBeVisible();
+  await expect(copyError).toHaveCSS("width", "24px");
+  await expect(copyError).toHaveCSS("height", "24px");
+  await expect(copyError).toHaveCSS("border-top-width", "0px");
+  await copyError.click();
+  await expect.poll(() => page.evaluate(() => window.__copiedError)).toBe(`Error: Code MDM-999 Long error\nDetails: ${longMessage}`);
+  await expect(copyError.locator("use")).toHaveAttribute("href", "#icon-check");
+  await expect(copyError).toHaveAttribute("data-tooltip", "Copied");
+
   const longLayout = await longNotification.evaluate(notification => {
     const body = notification.querySelector(".notification-body");
     const notificationBounds = notification.getBoundingClientRect();
     const bodyBounds = body.getBoundingClientRect();
-    return { height: notificationBounds.height, contained: bodyBounds.bottom <= notificationBounds.bottom, horizontalOverflow: body.scrollWidth > body.clientWidth };
+    const messageBounds = notification.querySelector(".notification-message").getBoundingClientRect();
+    const copyBounds = notification.querySelector(".notification-copy-action").getBoundingClientRect();
+    const closeBounds = notification.querySelector('[aria-label="Close error"]').getBoundingClientRect();
+    return {
+      height: notificationBounds.height,
+      contained: bodyBounds.bottom <= notificationBounds.bottom,
+      horizontalOverflow: body.scrollWidth > body.clientWidth,
+      copyCentered: Math.abs((copyBounds.top + copyBounds.bottom) / 2 - (messageBounds.top + messageBounds.bottom) / 2),
+      actionsRightDifference: Math.abs(copyBounds.right - closeBounds.right)
+    };
   });
-  expect(longLayout.height).toBeGreaterThan(88);
+  expect(longLayout.height).toBeGreaterThanOrEqual(88);
   expect(longLayout.height).toBeLessThanOrEqual(144);
   expect(longLayout.contained).toBe(true);
   expect(longLayout.horizontalOverflow).toBe(false);
+  expect(longLayout.copyCentered).toBeLessThanOrEqual(1);
+  expect(longLayout.actionsRightDifference).toBeLessThanOrEqual(1);
+
   await toggleBacklogFromView(page);
   await expect(notifications.nth(0)).toHaveCSS("transform", "none");
   await expect(page.locator("#backlog")).toHaveCSS("transform", "none");
@@ -1459,6 +1551,7 @@ test("notifications stack by severity, use the board width, and disappear automa
   expect(positions[0]).toBeLessThan(positions[1]);
   await page.locator("#toggleGridView").click();
   await expect(notifications.nth(0)).toHaveCSS("width", "260px");
+
   await page.evaluate(() => {
     const clearTimeout = window.clearTimeout;
     window.__clearedNotificationTimers = 0;
@@ -1468,13 +1561,22 @@ test("notifications stack by severity, use the board width, and disappear automa
     };
     for (let index = 0; index < 20; index += 1) window.MDManager.notifications.show("info", `Rapid ${index}`, `Notification ${index}`);
   });
-  expect(await notifications.count()).toBeLessThan(20);
+  expect(await notifications.count()).toBeLessThan(24);
   expect(await page.evaluate(() => window.__clearedNotificationTimers)).toBeGreaterThan(0);
   await expect(notifications.last().locator(".notification-title")).toHaveText("Rapid 19");
   const notificationBounds = await notifications.first().boundingBox();
   const headerBounds = await page.locator(".header").boundingBox();
   expect(notificationBounds.y).toBeGreaterThan(headerBounds.y + headerBounds.height);
-  await expect(notifications).toHaveCount(0, { timeout: 5000 });
+  await expect(page.locator(".notification-info,.notification-warning")).toHaveCount(0, { timeout: 5000 });
+  await expect(page.locator(".notification-error")).toHaveCount(2);
+  for (let index = 0; index < 2; index += 1) await page.locator('.notification-error [aria-label="Close error"]').first().click();
+  await expect(notifications).toHaveCount(0);
+
+  await page.evaluate(() => {
+    for (let index = 0; index < 20; index += 1) window.MDManager.notifications.show("error", `Persistent ${index}`, `Error ${index}`);
+  });
+  await expect(page.locator(".notification-error")).toHaveCount(20);
+  expect(await page.locator("#notifications").evaluate(container => container.scrollHeight > container.clientHeight)).toBe(true);
 });
 
 test("todo completion sound can be muted", async ({ page }) => {

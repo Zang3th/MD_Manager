@@ -141,7 +141,7 @@ test("deleting the open file shows one concise and readable notification", async
   const deleted = page.locator(".notification-error").filter({ hasText: "File deleted" });
   await expect(deleted).toHaveCount(1);
   await expect(deleted.locator(".notification-title")).toHaveText("File deleted");
-  await expect(deleted.locator(".notification-body")).toHaveText("Project.md was deleted from disk. Your work remains open.");
+  await expect(deleted.locator(".notification-text")).toHaveText("Project.md was deleted from disk. Your work remains open.");
   await expect(page.getByRole("button", { name: "Reload", exact: true })).toBeHidden();
   await expect(page.getByRole("button", { name: "Overwrite" })).toBeHidden();
 

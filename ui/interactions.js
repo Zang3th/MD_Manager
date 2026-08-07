@@ -104,9 +104,9 @@ window.MDManager = window.MDManager || {};
   function showSaveFailure(error) {
     const missing = typeof error === "object" && error !== null && /** @type {{name?: unknown}} */ (error).name === "NotFoundError";
     const detail = error instanceof Error ? error.message : "Unknown error occurred.";
-    const message = missing ? "The open file no longer exists on disk. Your work remains open." : `File could not be saved: ${detail}`;
+    const message = missing ? "The open file no longer exists on disk. Your work remains open." : "The open file could not be saved.";
     app.render.saveError(missing ? message : detail);
-    app.notifications.show("error", missing ? "File deleted" : "File save", message);
+    app.notifications.show("error", missing ? "File deleted" : "File save", message, undefined, missing ? message : `File could not be saved: ${detail}`, missing ? "MDM-113" : "MDM-114");
   }
 
   async function saveFile() {
@@ -1055,6 +1055,8 @@ window.MDManager = window.MDManager || {};
   });
 
   app.interactions = {
+    sortableSource: "vendor/Sortable.min.js",
+    sortableReady: typeof Sortable === "function",
     setProject,
     clearClipboard() { setClipboard([]); },
     startClock,

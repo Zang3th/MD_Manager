@@ -2,7 +2,93 @@ window.MDManager = window.MDManager || {};
 
 /** @param {any} app */
 (function (app) {
-  document.fonts.ready.then(() => document.body.classList.add("fonts-ready"));
+  const requiredComponents = /** @type {Array<[string, () => boolean]>} */ ([
+    ...(app.interactions ? [[app.interactions.sortableSource, () => app.interactions.sortableReady === true]] : []),
+    ["domain/project.js", () => Boolean(app.domain)],
+    ["domain/history.js", () => Boolean(app.undoSystem && app.history)],
+    ["domain/status.js", () => Boolean(app.status)],
+    ["io/markdown.js", () => Boolean(app.markdown)],
+    ["io/templates.js", () => Boolean(app.templates)],
+    ["io/files.js", () => Boolean(app.files)],
+    ["ui/tooltips.js", () => Boolean(app.tooltips)],
+    ["ui/theme.js", () => Boolean(app.theme)],
+    ["ui/layout.js", () => Boolean(app.layout)],
+    ["ui/render.js", () => Boolean(app.render)],
+    ["ui/editor.js", () => Boolean(app.editor)],
+    ["ui/notifications.js", () => Boolean(app.notifications)],
+    ["ui/sounds.js", () => Boolean(app.sounds)],
+    ["ui/interactions.js", () => Boolean(app.interactions)]
+  ]);
+
+  /** @param {HTMLImageElement} image */
+  function imageLoaded(image) {
+    if (image.complete) return Promise.resolve(image.naturalWidth > 0);
+    return new Promise(resolve => {
+      image.addEventListener("load", () => resolve(true), { once: true });
+      image.addEventListener("error", () => resolve(false), { once: true });
+    });
+  }
+
+  /** @param {string} font */
+  async function fontLoaded(font) {
+    try {
+      return (await document.fonts.load(font)).length > 0;
+    } catch {
+      return false;
+    }
+  }
+
+  /** @param {string} title @param {string} message @param {string} copyMessage @param {string} errorCode */
+  function startupFailure(title, message, copyMessage, errorCode) {
+    app.render?.start([]);
+    if (app.notifications?.fatal) app.notifications.fatal(title, message, copyMessage, errorCode);
+    else {
+      document.body.classList.add("startup-blocked");
+      document.body.dataset.startupState = "blocked";
+      document.querySelectorAll(".header,.workspace,dialog,.watermark").forEach(element => {
+        if (element instanceof HTMLElement) element.inert = true;
+      });
+      document.querySelectorAll("button,input,textarea,select").forEach(control => { control.disabled = true; });
+      const content = document.getElementById("content");
+      if (content) content.textContent = `${title}: ${message}`;
+    }
+  }
+
+  async function initialize() {
+    const missingComponents = requiredComponents.filter(([, available]) => !available()).map(([file]) => file);
+    if (missingComponents.length) {
+      document.body.classList.add("fonts-ready");
+      startupFailure("Application files missing", "Required application files are missing. Restore the complete release folder and reload MD_Manager.", `Required application files are missing. Restore the complete release folder and open MD_Manager.html directly from that folder. MD_Manager was blocked to prevent incomplete operation. Keep the original directory structure unchanged. Missing components: ${missingComponents.join(", ")}.`, "MDM-001");
+      return;
+    }
+
+    const missingApis = app.files.missingFileSystemApis();
+    if (missingApis.length) {
+      document.body.classList.add("fonts-ready");
+      startupFailure("Unsupported browser", "A Chromium-based browser is required, such as Chrome, Edge, Brave, or Chromium.", `A Chromium-based browser is required. Open MD_Manager in Chrome, Edge, Brave, Chromium, or another Chromium-based browser. The required File System Access API is unavailable, so local Markdown files cannot be opened, created, or saved. Missing browser functions: ${missingApis.join(", ")}.`, "MDM-002");
+      return;
+    }
+
+    const missingResources = [];
+    if (!getComputedStyle(document.documentElement).getPropertyValue("--bg-primary").trim()) missingResources.push("styles.css");
+    const [interLoaded, monoLoaded] = await Promise.all([
+      fontLoaded('400 14px "Inter"'),
+      fontLoaded('400 14px "JetBrains Mono"')
+    ]);
+    if (!interLoaded) missingResources.push("res/fonts/InterVariable.woff2");
+    if (!monoLoaded) missingResources.push("res/fonts/JetBrainsMonoVariable.woff2");
+    const logo = document.querySelector(".app-logo");
+    if (!(logo instanceof HTMLImageElement) || !(await imageLoaded(logo))) missingResources.push("res/logo/Logo.svg");
+    document.body.classList.add("fonts-ready");
+    if (missingResources.length) {
+      startupFailure("Application resources missing", "Required application resources are missing. Restore the complete release folder and reload MD_Manager.", `Required local resources did not load. Restore the complete release folder and open MD_Manager.html directly from that folder. MD_Manager was blocked to prevent inconsistent layout or behavior. Keep the original directory structure unchanged. Missing resources: ${missingResources.join(", ")}.`, "MDM-003");
+      return;
+    }
+
+    startApplication();
+  }
+
+  function startApplication() {
 
   /** @type {MDProject | null} */
   let project = null;
@@ -109,7 +195,7 @@ window.MDManager = window.MDManager || {};
     app.interactions.startClock();
     app.notifications.show("info", "File loaded", [{ value: fileHandle.name }, " is ready."]);
     app.files.remember(fileHandle, openedProject.title).catch((/** @type {Error} */ error) => {
-      app.notifications.show("error", "Recent files", `Recent-files list could not be updated: ${error.message}`);
+      app.notifications.show("error", "Recent files", "The recent-files list could not be updated.", undefined, `Recent-files list could not be updated: ${error.message}`, "MDM-101");
     });
   }
 
@@ -143,13 +229,13 @@ window.MDManager = window.MDManager || {};
           lastExternalCheckError = errorKey;
           externalChange = null;
           updateUndoSystemControls();
-          app.notifications.show("error", "File deleted", [{ value: fileHandle.name }, " was deleted from disk. Your work remains open."]);
+          app.notifications.show("error", "File deleted", [{ value: fileHandle.name }, " was deleted from disk. Your work remains open."], undefined, [{ value: fileHandle.name }, " was deleted from disk. Your work remains open."], "MDM-102");
         }
         return;
       }
       if (error instanceof Error && error.message !== lastExternalCheckError) {
         lastExternalCheckError = error.message;
-        app.notifications.show("error", "File check", `External changes could not be checked: ${error.message}`);
+        app.notifications.show("error", "File check", "External file changes could not be checked.", undefined, `External changes could not be checked: ${error.message}`, "MDM-103");
       }
     } finally {
       checkingExternal = false;
@@ -173,7 +259,8 @@ window.MDManager = window.MDManager || {};
       return true;
     } catch (error) {
       if (!(error instanceof Error)) throw error;
-      app.notifications.show("error", "File reload", error.name === "MarkdownFormatError" ? formatErrorBody(error) : error.message);
+      const formatError = error.name === "MarkdownFormatError";
+      app.notifications.show("error", "File reload", formatError ? "The changed file has an invalid Markdown format." : "The changed file could not be reloaded.", undefined, formatError ? formatErrorBody(error) : `File reload failed: ${error.message}`, formatError ? "MDM-104" : "MDM-105");
       return false;
     }
   }
@@ -194,8 +281,7 @@ window.MDManager = window.MDManager || {};
       if (!(error instanceof Error)) throw error;
       if (error.name === "AbortError") return;
       const formatError = error.name === "MarkdownFormatError";
-      if (!formatError) app.render.error(`The file could not be read: ${error.message}`);
-      app.notifications.show("error", formatError ? "File format" : "File read", formatError ? formatErrorBody(error) : `File could not be read: ${error.message}`);
+      app.notifications.show("error", formatError ? "File format" : "File read", formatError ? "The selected file has an invalid Markdown format." : "The selected file could not be read.", undefined, formatError ? formatErrorBody(error) : `File could not be read: ${error.message}`, formatError ? "MDM-106" : "MDM-107");
     }
   });
 
@@ -205,8 +291,7 @@ window.MDManager = window.MDManager || {};
     } catch (error) {
       if (!(error instanceof Error)) throw error;
       const formatError = error.name === "MarkdownFormatError";
-      if (!formatError) app.render.recentError(`The file could not be opened: ${error.message}`);
-      app.notifications.show("error", formatError ? "File format" : "File open", formatError ? formatErrorBody(error) : `Recent file could not be opened: ${error.message}`);
+      app.notifications.show("error", formatError ? "File format" : "File open", formatError ? "The recent file has an invalid Markdown format." : "The recent file could not be opened.", undefined, formatError ? formatErrorBody(error) : `Recent file could not be opened: ${error.message}`, formatError ? "MDM-108" : "MDM-109");
     }
   });
 
@@ -220,7 +305,7 @@ window.MDManager = window.MDManager || {};
     } catch (error) {
       if (!(error instanceof Error)) throw error;
       app.render.start(recentFiles);
-      app.notifications.show("error", "Recent files", `File could not be removed from recent-files list: ${error.message}`);
+      app.notifications.show("error", "Recent files", "The file could not be removed from the recent-files list.", undefined, `File could not be removed from recent-files list: ${error.message}`, "MDM-110");
     }
   });
 
@@ -230,7 +315,7 @@ window.MDManager = window.MDManager || {};
     } catch (error) {
       if (!(error instanceof Error)) throw error;
       if (error.name === "AbortError") return;
-      app.notifications.show("error", "Project creation", `Project could not be created: ${error.message}`);
+      app.notifications.show("error", "Project creation", "The project file could not be created.", undefined, `Project could not be created: ${error.message}`, "MDM-111");
     }
   });
 
@@ -266,12 +351,19 @@ window.MDManager = window.MDManager || {};
   app.files.recent().then((/** @type {MDRecentFile[]} */ entries) => {
     recentFiles = entries;
     app.render.start(entries);
+    document.body.dataset.startupState = "ready";
     updateUndoSystemControls();
   }).catch((/** @type {Error} */ error) => {
     recentFiles = [];
     app.render.start(recentFiles);
-    app.render.recentError(`Recent files could not be loaded: ${error.message}`);
-    app.notifications.show("error", "Recent files", `Recent-files list could not be loaded: ${error.message}`);
+    app.notifications.fatal("Recent files unavailable", "Browser storage for recent files is unavailable. Enable storage for local files and reload MD_Manager.", `MD_Manager could not start because browser storage for recent files is unavailable. Reload after enabling storage for local file pages. No project data was changed. Technical details: ${error.message}`, "MDM-112");
     updateUndoSystemControls();
+  });
+  }
+
+  void initialize().catch((/** @type {unknown} */ error) => {
+    document.body.classList.add("fonts-ready");
+    const details = error instanceof Error ? error.stack || error.message : String(error);
+    startupFailure("Startup failed", "MD_Manager could not start. Restore the complete release folder and reload the application.", `MD_Manager encountered an unexpected error while checking its startup requirements and was blocked to prevent incomplete operation. Restore the complete release folder, then reload the application. Technical details: ${details}`, "MDM-004");
   });
 })(window.MDManager);

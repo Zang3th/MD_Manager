@@ -57,12 +57,13 @@ jobs:
         run: |
           archive="MD_Manager-v$VERSION.zip"
           mkdir dist
+          mapfile -t release_paths < .github/release-files.txt
           git archive \
             --format=zip \
             --prefix="MD_Manager-v$VERSION/" \
             --output="dist/$archive" \
             "$GITHUB_SHA" \
-            MD_Manager.html app.js styles.css domain io ui vendor res data/templates README.md LICENSE
+            "${release_paths[@]}"
           cd dist
           sha256sum "$archive" > "$archive.sha256"
       - name: Create draft release

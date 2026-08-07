@@ -404,18 +404,20 @@
 - 0.7.0
 
 #Date
-- TBD
+- 07.08.2026 - TBD
 
 ### Bugs
 
 #### Browserkompatibilität
-- [ ] Ordentliche Fehlermeldungen wenn Browser nicht unterstützt wird
+- [x] ~Error-Notifications persistent machen + Kopieren der Meldung anbieten~
+- [x] ~Ordentliche Fehlermeldungen anzeigen, wenn der Browser nicht unterstützt wird~
 
 #### Hochkantmodus
-- [ ] Im Edit-Dialog werden Zeilenenden nicht korrekt dargestellt
+- [x] ~Im Edit-Dialog werden Zeilenenden nicht korrekt umgebrochen und dargestellt~
+- [x] ~Edit-Dialoge breiter machen~
 
 #### Markdown-Rendering
-- [ ] Wenn unter einem Task direkt eine ToDo-Gruppierung folgt, kann man sich Leerzeile und Trennlinie sparen
+- [x] ~ToDo-Gruppierungen zeigen Trennlinie nur an, wenn zuvor ein ToDo im Task dargestellt wurde~
 
 ### Markdown-Features
 
@@ -441,7 +443,7 @@
 
 - [ ] Archivierung von Features anbieten
 - [ ] Neues Tag integrieren
-- [ ] Ins Stats nachpflegen
+- [ ] In Stats nachpflegen
 
 ### Suche
 
