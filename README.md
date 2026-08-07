@@ -133,7 +133,6 @@ CI executes the complete pipeline on Windows, Linux, and macOS.
     <tr>
       <th rowspan="2">Release</th>
       <th rowspan="2">Date</th>
-      <th rowspan="2">Commit</th>
       <th colspan="3">Lines of code</th>
       <th rowspan="2">Tests</th>
       <th rowspan="2">Main features</th>
@@ -145,12 +144,12 @@ CI executes the complete pipeline on Windows, Linux, and macOS.
     </tr>
   </thead>
   <tbody>
-    <tr><td>v0.6.0</td><td>04.08.2026</td><td><a href="https://github.com/Zang3th/MD_Manager/commit/d16e266"><code>d16e266</code></a></td><td>538</td><td>385</td><td>3,351</td><td>103</td><td>UI polish</td></tr>
-    <tr><td>v0.5.0</td><td>03.08.2026</td><td><a href="https://github.com/Zang3th/MD_Manager/commit/4b930c0"><code>4b930c0</code></a></td><td>512</td><td>376</td><td>3,321</td><td>96</td><td>Cross-platform work</td></tr>
-    <tr><td>v0.4.0</td><td>03.08.2026</td><td><a href="https://github.com/Zang3th/MD_Manager/commit/fca5a3f"><code>fca5a3f</code></a></td><td>279</td><td>392</td><td>3,255</td><td>90</td><td>Undo/redo and file conflicts</td></tr>
-    <tr><td>v0.3.0</td><td>30.07.2026</td><td><a href="https://github.com/Zang3th/MD_Manager/commit/1ab31b7"><code>1ab31b7</code></a></td><td>271</td><td>373</td><td>2,763</td><td>76</td><td>Markdown editing</td></tr>
-    <tr><td>v0.2.0</td><td>29.07.2026</td><td><a href="https://github.com/Zang3th/MD_Manager/commit/4ab316c"><code>4ab316c</code></a></td><td>181</td><td>316</td><td>2,169</td><td>64</td><td>Notifications and copy/paste</td></tr>
-    <tr><td>v0.1.0</td><td>27.07.2026</td><td><a href="https://github.com/Zang3th/MD_Manager/commit/6f3af33"><code>6f3af33</code></a></td><td>166</td><td>270</td><td>1,566</td><td>50</td><td>Application foundation</td></tr>
+    <tr><td><a href="https://github.com/Zang3th/MD_Manager/releases/tag/v0.6.0">v0.6.0</a></td><td>07.08.2026</td><td>538</td><td>385</td><td>3,351</td><td>107</td><td>UI polish, README, release workflow</td></tr>
+    <tr><td>v0.5.0</td><td>03.08.2026</td><td>512</td><td>376</td><td>3,321</td><td>96</td><td>Cross-platform improvements</td></tr>
+    <tr><td>v0.4.0</td><td>03.08.2026</td><td>279</td><td>392</td><td>3,255</td><td>90</td><td>New undo/redo system and file conflicts</td></tr>
+    <tr><td>v0.3.0</td><td>30.07.2026</td><td>271</td><td>373</td><td>2,763</td><td>76</td><td>Markdown features + editing</td></tr>
+    <tr><td>v0.2.0</td><td>29.07.2026</td><td>181</td><td>316</td><td>2,169</td><td>64</td><td>Notification system and copy/paste</td></tr>
+    <tr><td>v0.1.0</td><td>27.07.2026</td><td>166</td><td>270</td><td>1,566</td><td>50</td><td>Application foundation</td></tr>
   </tbody>
 </table>
 
