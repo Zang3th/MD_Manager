@@ -392,6 +392,12 @@
 
 - [x] ~Klick auf Logo returned zur Startseite~
 
+### Github
+
+- [x] ~Ordentliche README im Stil der anderen Projekte erstellen~
+- [x] ~Repository pflegen~
+- [x] ~Release + Deployment neuer Versionen automatisieren~
+
 ## Markdown-Erweiterungen
 
 #Version
@@ -400,16 +406,16 @@
 #Date
 - TBD
 
-### Github
-
-- [x] ~Ordentliche README im Stil der anderen Projekte erstellen~
-- [x] ~Repository pflegen~
-- [ ] Release + Deployment neuer Versionen automatisieren
-
 ### Bugs
 
 #### Browserkompatibilität
 - [ ] Ordentliche Fehlermeldungen wenn Browser nicht unterstützt wird
+
+#### Hochkantmodus
+- [ ] Im Edit-Dialog werden Zeilenenden nicht korrekt dargestellt
+
+#### Markdown-Rendering
+- [ ] Wenn unter einem Task direkt eine ToDo-Gruppierung folgt, kann man sich Leerzeile und Trennlinie sparen
 
 ### Markdown-Features
 
