@@ -398,7 +398,7 @@
 - [x] ~Repository pflegen~
 - [x] ~Release + Deployment neuer Versionen automatisieren~
 
-## Markdown-Erweiterungen
+## Archivierung und Suche
 
 #Version
 - 0.7.0
@@ -419,6 +419,37 @@
 #### Markdown-Rendering
 - [x] ~ToDo-Gruppierungen zeigen Trennlinie nur an, wenn zuvor ein ToDo im Task dargestellt wurde~
 
+### Feature-Karten
+
+- [ ] Edit- und Close-Button in Dot-Submenü packen, da weitere Buttons hinzukommen
+
+### Archiv
+
+- [ ] Archivierung von Features anbieten
+- [ ] Neues Tag integrieren (+ Symbol)
+- [ ] In Stats nachpflegen
+- [ ] Wie das Backlog togglen können (auch via Keyboard)
+- [ ] Keyboard-Shortcuts implementieren
+
+### Pinning
+
+- [ ] Anpinnen/Lösen von einem einzelnen Feature erlauben
+- [ ] Neues Tag integrieren (+ Symbol)
+- [ ] Springen zum Pin via Keyboard
+
+### Suche
+
+- [ ] Fuzzy-Finding mit Echtzeitfilter
+- [ ] Enter führt zu Navigation zur richtigen Stelle
+
+## Markdown-Erweiterungen
+
+#Version
+- 0.8.0
+
+#Date
+- TBD
+
 ### Markdown-Features
 
 - [ ] Referenzen herstellen + hervorheben können
@@ -430,25 +461,6 @@
 
 - [ ] Nach Linting-Regeln importieren/exportieren
 - [ ] Schalter im UI (Default = False)
-
-## Archivierung und Suche
-
-#Version
-- 0.8.0
-
-#Date
-- TBD
-
-### Archiv
-
-- [ ] Archivierung von Features anbieten
-- [ ] Neues Tag integrieren
-- [ ] In Stats nachpflegen
-
-### Suche
-
-- [ ] Fuzzy-Finding mit Echtzeitfilter
-- [ ] Enter führt zu Navigation zur richtigen Stelle
 
 ## Erweiterungen
 
