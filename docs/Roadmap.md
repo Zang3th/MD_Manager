@@ -30,7 +30,7 @@
 
 ### Board-Interaktion
 
-- [x] ~Drag-and-drop-Operationen über Domain-Aktionen ergänzen~
+- [x] ~Drag-and-Drop-Operationen über Domain-Aktionen ergänzen~
 - [x] ~Löschfunktionen für Aufgaben und Features ergänzen~
 - [x] ~Board-Layout und Interaktionsverhalten verfeinern~
 
@@ -398,6 +398,7 @@
 - [x] ~Repository pflegen~
 - [x] ~Release + Deployment neuer Versionen automatisieren~
 
+#Pin
 ## Archivierung und Suche
 
 #Version
@@ -419,9 +420,18 @@
 #### Markdown-Rendering
 - [x] ~ToDo-Gruppierungen zeigen Trennlinie nur an, wenn zuvor ein ToDo im Task dargestellt wurde~
 
+#### Leere Features/Tasks
+- [x] ~Unnötige Leerzeilen entfernen => Drap-and-Drop muss weiter funktionieren~
+
 ### Feature-Karten
 
-- [ ] Edit- und Close-Button in Dot-Submenü packen, da weitere Buttons hinzukommen
+- [x] ~Edit- und Close-Button in Dot-Submenü packen, da weitere Buttons hinzukommen~
+
+### Pinning
+
+- [x] ~Anpinnen/Lösen von einem einzelnen Feature erlauben~
+- [x] ~Neues Tag integrieren (+ Symbol)~
+- [x] ~Springen zum Pin via Keyboard~
 
 ### Archiv
 
@@ -430,12 +440,6 @@
 - [ ] In Stats nachpflegen
 - [ ] Wie das Backlog togglen können (auch via Keyboard)
 - [ ] Keyboard-Shortcuts implementieren
-
-### Pinning
-
-- [ ] Anpinnen/Lösen von einem einzelnen Feature erlauben
-- [ ] Neues Tag integrieren (+ Symbol)
-- [ ] Springen zum Pin via Keyboard
 
 ### Suche
 

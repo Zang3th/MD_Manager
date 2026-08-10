@@ -43,6 +43,8 @@ window.MDManager = window.MDManager || {};
   let lastPointer = null;
   /** @type {MDViewState | null} */
   let dragViewState = null;
+  /** @type {HTMLElement | null} */
+  let todoDropPreview = null;
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   const clipboardIndicatorTemplate = /** @type {HTMLTemplateElement} */ (document.getElementById("clipboardIndicatorTemplate"));
   const clipboardResizeObserver = new ResizeObserver(scheduleClipboardPosition);
@@ -420,6 +422,16 @@ window.MDManager = window.MDManager || {};
     document.getElementById("toggleViewMenu").setAttribute("aria-expanded", "false");
   }
 
+  /** @param {HTMLElement | null} [except] */
+  function closeFeatureMenus(except = null) {
+    document.querySelectorAll(".feature-menu").forEach(menu => {
+      if (menu === except) return;
+      const options = /** @type {HTMLElement} */ (menu.querySelector(".feature-options"));
+      options.hidden = true;
+      menu.querySelector(".feature-menu-button")?.setAttribute("aria-expanded", "false");
+    });
+  }
+
   function closeSaveMenu() {
     document.getElementById("externalActions").hidden = true;
     document.getElementById("saveFile").setAttribute("aria-expanded", "false");
@@ -475,7 +487,7 @@ window.MDManager = window.MDManager || {};
   }
 
   function collapseAll() {
-    document.querySelectorAll(".card").forEach(task => {
+    document.querySelectorAll(".card:not(.bodyless-task)").forEach(task => {
       task.setAttribute("aria-expanded", "false");
       task.querySelector(".card-body").hidden = true;
     });
@@ -488,6 +500,11 @@ window.MDManager = window.MDManager || {};
   /** @param {MDViewState} viewState */
   function restoreExpandedState(viewState) {
     document.querySelectorAll(".card").forEach((task, index) => {
+      if (task.classList.contains("bodyless-task")) {
+        task.removeAttribute("aria-expanded");
+        task.querySelector(".card-body").hidden = true;
+        return;
+      }
       const expanded = viewState.tasks[index] ?? false;
       task.setAttribute("aria-expanded", String(expanded));
       task.querySelector(".card-body").hidden = !expanded;
@@ -545,9 +562,46 @@ window.MDManager = window.MDManager || {};
     }
   }
 
+  function jumpToPinnedFeature() {
+    const pinned = document.querySelector("#content > .release.pinned");
+    if (!pinned) return;
+    pinned.querySelectorAll(".card:not(.bodyless-task)").forEach(task => {
+      task.setAttribute("aria-expanded", "true");
+      task.querySelector(".card-body").hidden = false;
+    });
+    pinned.querySelectorAll(".feature-note").forEach(note => {
+      note.classList.remove("collapsed");
+      note.setAttribute("aria-expanded", "true");
+    });
+    app.layout.contentOverflowChanged();
+    const behavior = reducedMotion.matches ? "auto" : "smooth";
+    if (document.body.classList.contains("toggle-grid-view")) {
+      pinned.scrollIntoView({ behavior, block: "nearest", inline: "nearest" });
+      return;
+    }
+    const content = document.getElementById("content");
+    const clock = document.getElementById("appClock");
+    const pinnedBounds = pinned.getBoundingClientRect();
+    const clockBounds = clock.getBoundingClientRect();
+    const pinnedCenter = pinnedBounds.left + pinnedBounds.width / 2;
+    const clockCenter = clock.hidden ? window.innerWidth / 2 : clockBounds.left + clockBounds.width / 2;
+    const maximum = Math.max(0, content.scrollWidth - content.offsetWidth);
+    const target = Math.max(0, Math.min(maximum, content.scrollLeft + pinnedCenter - clockCenter));
+    content.scrollTo({ left: target, behavior });
+  }
+
   function resetSortables() {
+    setTodoDropPreview(null);
     sortables.forEach(sortable => sortable.destroy());
     sortables = [];
+  }
+
+  /** @param {HTMLElement | null} task */
+  function setTodoDropPreview(task) {
+    if (todoDropPreview === task) return;
+    todoDropPreview?.classList.remove("todo-drop-preview");
+    todoDropPreview = task?.classList.contains("bodyless-task") ? task : null;
+    todoDropPreview?.classList.add("todo-drop-preview");
   }
 
   function connectSortable() {
@@ -584,6 +638,7 @@ window.MDManager = window.MDManager || {};
         handle: ".card-header",
         filter: ".action-btn",
         preventOnFilter: false,
+        emptyInsertThreshold: 30,
         ghostClass: "sortable-ghost",
         chosenClass: "sortable-chosen",
         dragClass: "sortable-drag",
@@ -614,9 +669,18 @@ window.MDManager = window.MDManager || {};
         ghostClass: "sortable-ghost",
         chosenClass: "sortable-chosen",
         dragClass: "sortable-drag",
-        onStart() { dragViewState = captureViewState(); },
+        onStart() {
+          setTodoDropPreview(null);
+          dragViewState = captureViewState();
+        },
+        /** @param {any} event */
+        onMove(event) {
+          setTodoDropPreview(event.to.closest(".card"));
+          return true;
+        },
         /** @param {any} event */
         onEnd(event) {
+          setTodoDropPreview(null);
           if (!project) return;
           const fromTask = event.from.closest(".card");
           const toTask = event.to.closest(".card");
@@ -651,6 +715,10 @@ window.MDManager = window.MDManager || {};
           };
           const beforeViewState = dragViewState || captureViewState();
           const afterViewState = captureViewState();
+          if (toTask.classList.contains("bodyless-task") && toTask.getAttribute("aria-expanded") !== "true") {
+            const targetViewIndex = [...document.querySelectorAll(".card")].indexOf(toTask);
+            if (targetViewIndex >= 0) afterViewState.tasks[targetViewIndex] = true;
+          }
           dragViewState = null;
           perform("Todo moved", redo, undoAction, beforeViewState, afterViewState, undefined, sourceBefore.join("\n").length + targetBefore.join("\n").length);
         }
@@ -710,6 +778,36 @@ window.MDManager = window.MDManager || {};
 
     if (!project) return;
 
+    const featureMenuButton = eventElement(event).closest(".feature-menu-button");
+    if (featureMenuButton) {
+      event.stopPropagation();
+      const menu = requiredClosest(featureMenuButton, ".feature-menu");
+      const options = /** @type {HTMLElement} */ (menu.querySelector(".feature-options"));
+      const open = options.hidden;
+      closeFeatureMenus(menu);
+      options.hidden = !open;
+      featureMenuButton.setAttribute("aria-expanded", String(open));
+      return;
+    }
+
+    const pendingFeatureAction = eventElement(event).closest("[data-feature-action]");
+    if (pendingFeatureAction) {
+      event.stopPropagation();
+      closeFeatureMenus();
+      if (pendingFeatureAction.dataset.featureAction === "pin") {
+        const activeProject = project;
+        const featureElement = requiredClosest(pendingFeatureAction, ".release");
+        const featureIndex = Number(featureElement.dataset.feature);
+        const pinned = Boolean(activeProject.features[featureIndex].isPinned);
+        const pinnedBefore = activeProject.features.map(feature => Boolean(feature.isPinned));
+        const viewState = captureViewState();
+        perform(pinned ? "Feature unpinned" : "Feature pinned", () => app.domain.setFeaturePinned(activeProject, featureIndex, !pinned), () => {
+          activeProject.features.forEach((feature, index) => { feature.isPinned = pinnedBefore[index]; });
+        }, viewState, viewState, undefined, 1);
+      }
+      return;
+    }
+
     const addTaskButton = eventElement(event).closest("[data-add-task]");
     if (addTaskButton) {
       event.stopPropagation();
@@ -735,6 +833,7 @@ window.MDManager = window.MDManager || {};
     const editButton = eventElement(event).closest("[data-edit]");
     if (editButton) {
       event.stopPropagation();
+      closeFeatureMenus();
       if (editButton.dataset.edit === "feature") {
         const featureElement = requiredClosest(editButton, ".release");
         const featureIndex = Number(featureElement.dataset.feature);
@@ -769,9 +868,10 @@ window.MDManager = window.MDManager || {};
       return;
     }
 
-    const deleteButton = eventElement(event).closest(".delete-btn");
+    const deleteButton = eventElement(event).closest("[data-delete]");
     if (deleteButton) {
       event.stopPropagation();
+      closeFeatureMenus();
       const featureElement = requiredClosest(deleteButton, ".release");
       const featureIndex = Number(featureElement.dataset.feature);
       const beforeViewState = captureViewState();
@@ -836,6 +936,7 @@ window.MDManager = window.MDManager || {};
     const taskHeader = eventElement(event).closest(".card-header");
     if (taskHeader) {
       const task = requiredClosest(taskHeader, ".card");
+      if (task.classList.contains("bodyless-task")) return;
       const body = task.querySelector(".card-body");
       body.hidden = !body.hidden;
       task.setAttribute("aria-expanded", String(!body.hidden));
@@ -846,7 +947,7 @@ window.MDManager = window.MDManager || {};
     const featureHeader = eventElement(event).closest(".release-header");
     if (featureHeader) {
       const feature = requiredClosest(featureHeader, ".release");
-      const tasks = [...feature.querySelectorAll(".card")];
+      const tasks = [...feature.querySelectorAll(".card:not(.bodyless-task)")];
       const notes = [...feature.querySelectorAll(".feature-note")];
       const expand = tasks.some(task => task.getAttribute("aria-expanded") !== "true") || notes.some(note => note.getAttribute("aria-expanded") !== "true");
       tasks.forEach(task => {
@@ -968,6 +1069,7 @@ window.MDManager = window.MDManager || {};
     const editsText = target.matches("input,textarea,[contenteditable='true']");
     const key = event.key.toLowerCase();
     if (event.key === "Escape") {
+      closeFeatureMenus();
       closeViewMenu();
       closeSaveMenu();
       closeHelp();
@@ -997,6 +1099,10 @@ window.MDManager = window.MDManager || {};
     if (shortcut && !event.shiftKey && !editsText && key === "b" && !document.getElementById("toggleBacklog").disabled) {
       event.preventDefault();
       toggleBacklog();
+    }
+    if (!event.ctrlKey && !event.metaKey && !event.altKey && !editsText && !document.querySelector("dialog[open]") && key === "p") {
+      event.preventDefault();
+      jumpToPinnedFeature();
     }
   });
 
@@ -1045,6 +1151,7 @@ window.MDManager = window.MDManager || {};
   document.getElementById("overwriteExternal").addEventListener("click", () => { void resolveExternalFile("overwrite"); });
   document.addEventListener("click", event => {
     const target = eventElement(event);
+    if (!target.closest(".feature-menu")) closeFeatureMenus();
     if (!target.closest(".view-menu")) closeViewMenu();
     if (!target.closest(".save-menu")) closeSaveMenu();
     if (!target.closest(".help-menu")) closeHelp();

@@ -50,9 +50,11 @@ type MDFeature = {
   notes: MDNote[];
   tasks: MDTask[];
   isBacklog: boolean;
+  isPinned?: boolean;
   ignored?: boolean;
 };
-type MDProject = { title: string; newline: string; beforeFeatures: string[]; features: MDFeature[] };
+type MDMarkdownWarning = { lineNumber: number; message: string };
+type MDProject = { title: string; newline: string; beforeFeatures: string[]; features: MDFeature[]; warnings: MDMarkdownWarning[] };
 type MDUndoAction = {
   label: string;
   undo(): void;

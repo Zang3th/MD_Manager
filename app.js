@@ -132,6 +132,13 @@ window.MDManager = window.MDManager || {};
     });
   }
 
+  /** @param {MDProject} activeProject */
+  function showMarkdownWarnings(activeProject) {
+    activeProject.warnings.forEach(warning => {
+      app.notifications.show("warning", "Markdown warning", `Line ${warning.lineNumber}: ${warning.message}`);
+    });
+  }
+
   /** @param {Error} error */
   function formatErrorBody(error) {
     const lineNumber = /** @type {Error & {lineNumber?: number}} */ (error).lineNumber || 1;
@@ -194,6 +201,7 @@ window.MDManager = window.MDManager || {};
     render();
     app.interactions.startClock();
     app.notifications.show("info", "File loaded", [{ value: fileHandle.name }, " is ready."]);
+    showMarkdownWarnings(openedProject);
     app.files.remember(fileHandle, openedProject.title).catch((/** @type {Error} */ error) => {
       app.notifications.show("error", "Recent files", "The recent-files list could not be updated.", undefined, `Recent-files list could not be updated: ${error.message}`, "MDM-101");
     });
@@ -256,6 +264,7 @@ window.MDManager = window.MDManager || {};
       undoSystem = app.undoSystem.create();
       render(viewState);
       app.notifications.show("info", "File reloaded", [{ value: fileHandle.name }, " reloaded from disk."]);
+      showMarkdownWarnings(reloadedProject);
       return true;
     } catch (error) {
       if (!(error instanceof Error)) throw error;

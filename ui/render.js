@@ -5,6 +5,9 @@ window.MDManager = window.MDManager || {};
   const checkIcon = '<svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-check"></use></svg>';
   const editIcon = '<svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-edit"></use></svg>';
   const addIcon = '<svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-plus"></use></svg>';
+  const archiveIcon = '<svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-archive"></use></svg>';
+  const dotsIcon = '<svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-dots"></use></svg>';
+  const pinIcon = '<svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-pin"></use></svg>';
   let taskContentCache = new WeakMap();
 
   /** @param {string} value */
@@ -134,7 +137,12 @@ window.MDManager = window.MDManager || {};
   function restoreViewState(viewState) {
     if (!viewState) return;
     document.querySelectorAll(".card").forEach((task, index) => {
-      const expanded = viewState.tasks[index] ?? false;
+      if (task.classList.contains("bodyless-task")) {
+        task.removeAttribute("aria-expanded");
+        task.querySelector(".card-body").hidden = true;
+        return;
+      }
+      const expanded = !task.classList.contains("bodyless-task") && (viewState.tasks[index] ?? false);
       task.setAttribute("aria-expanded", String(expanded));
       task.querySelector(".card-body").hidden = !expanded;
     });
@@ -147,8 +155,10 @@ window.MDManager = window.MDManager || {};
 
   /** @param {MDTask} task @param {number} taskIndex */
   function taskMarkup(task, taskIndex) {
+    const content = taskContent(task);
     const { entries: taskTodos, complete: taskComplete, inProgress: taskInProgress } = taskProgress(task);
-    return `<section class="card${taskComplete ? " complete" : ""}${taskInProgress ? " in-progress" : ""}${taskTodos.length ? "" : " empty-task"}" data-task="${taskIndex}" tabindex="0" aria-expanded="false">
+    const hasBody = content.blocks.some(block => block.type === "paragraph" || block.type === "note" && block.items.length || block.type === "group" && (Boolean(block.title) || block.descriptions.length || block.todos.length));
+    return `<section class="card${taskComplete ? " complete" : ""}${taskInProgress ? " in-progress" : ""}${taskTodos.length ? "" : " empty-task"}${hasBody ? "" : " bodyless-task"}" data-task="${taskIndex}"${hasBody ? ' tabindex="0" aria-expanded="false"' : ""}>
       <header class="card-header"><h3 class="card-title" data-full-title="${escapeHtml(task.title)}"><span class="title-text">${escapeHtml(task.title)}</span></h3><span class="task-status">${taskStatusMarkup(task)}</span><button class="edit-btn action-btn" data-edit="task" type="button" aria-label="Edit task" data-tooltip="Edit task">${editIcon}</button><button class="delete-btn action-btn" data-delete="task" type="button" aria-label="Delete task" data-tooltip="Delete task">${deleteIcon}</button></header>
       <div class="card-body" hidden>${taskBody(task)}</div>
     </section>`;
@@ -221,10 +231,15 @@ window.MDManager = window.MDManager || {};
     content.innerHTML = regularFeatures.map(feature => {
       const featureIndex = project.features.indexOf(feature);
       const { complete, inProgress, percentage } = featureProgress(feature);
-      return `<section class="release${complete ? " complete" : ""}${inProgress ? " in-progress" : ""}" data-feature="${featureIndex}">
-        <header class="release-header" tabindex="0"><div class="release-heading"><button class="edit-btn action-btn" data-edit="feature" type="button" aria-label="Edit feature" data-tooltip="Edit feature">${editIcon}</button><button class="delete-btn action-btn" data-delete="feature" type="button" aria-label="Delete feature" data-tooltip="Delete feature">${deleteIcon}</button>
+      return `<section class="release${complete ? " complete" : ""}${inProgress ? " in-progress" : ""}${feature.isPinned ? " pinned" : ""}" data-feature="${featureIndex}">
+        <header class="release-header" tabindex="0"><div class="release-heading"><div class="feature-menu"><button class="feature-menu-button action-btn" type="button" aria-label="Feature actions" data-tooltip="Feature actions" aria-expanded="false" aria-controls="featureOptions${featureIndex}">${dotsIcon}</button><div class="feature-options" id="featureOptions${featureIndex}" hidden>
+          <button class="feature-option action-btn" data-feature-action="archive" type="button" aria-label="Archive feature">${archiveIcon}<span>Archive</span></button>
+          <button class="feature-option feature-delete action-btn" data-delete="feature" type="button" aria-label="Delete feature">${deleteIcon}<span>Delete</span></button>
+          <button class="feature-option action-btn" data-edit="feature" type="button" aria-label="Edit feature">${editIcon}<span>Edit</span></button>
+          <button class="feature-option action-btn" data-feature-action="pin" type="button" aria-label="${feature.isPinned ? "Unpin" : "Pin"} feature">${pinIcon}<span>${feature.isPinned ? "Unpin" : "Pin"}</span></button>
+        </div></div>
           <span class="feature-progress"><span class="status-value">${percentage}%</span></span>
-          <h2 class="release-title" data-full-title="${escapeHtml(feature.title)}"><span class="title-text">${escapeHtml(feature.title)}</span></h2>
+          ${feature.isPinned ? `<span class="feature-pin" aria-hidden="true">${pinIcon}</span>` : ""}<h2 class="release-title" data-full-title="${escapeHtml(feature.title)}"><span class="title-text">${escapeHtml(feature.title)}</span></h2>
         </div>${feature.dates.length || feature.version ? `<div class="release-meta">${feature.dates.length ? `<ul class="release-dates">${feature.dates.map(date => `<li>${escapeHtml(date.from)}${date.to ? ` – ${escapeHtml(date.to)}` : ""}</li>`).join("")}</ul>` : ""}${feature.version ? `<p class="release-version">v${escapeHtml(feature.version)}</p>` : ""}</div>` : ""}</header>
         <div class="release-content">${feature.notes.length ? `<div class="feature-notes task-notes">${notesMarkup(feature.notes, true)}</div>` : ""}
           <div class="board">${feature.tasks.filter(task => !task.ignored).map(task => taskMarkup(task, feature.tasks.indexOf(task))).join("")}</div>

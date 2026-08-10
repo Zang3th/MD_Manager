@@ -148,7 +148,7 @@ window.MDManager = window.MDManager || {};
     const newline = markdown.includes("\r\n") ? "\r\n" : "\n";
     const lines = markdown.replace(/\r\n?/g, "\n").split("\n");
     /** @type {MDProject} */
-    const project = { title: "Untitled Project", newline, beforeFeatures: [], features: [] };
+    const project = { title: "Untitled Project", newline, beforeFeatures: [], features: [], warnings: [] };
     /** @type {MDFeature | null} */
     let feature = null;
     /** @type {MDTask | null} */
@@ -157,8 +157,13 @@ window.MDManager = window.MDManager || {};
     let featureMetadata = null;
     let pendingBacklog = false;
     let pendingIgnore = false;
+    /** @type {{lineNumber: number} | null} */
+    let pendingPin = null;
+    let pinCount = 0;
+    let hasPinnedFeature = false;
 
-    for (const line of lines) {
+    for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+      const line = lines[lineIndex];
       if (/^\s*#Ignore\s*$/i.test(line)) {
         pendingIgnore = true;
         continue;
@@ -167,17 +172,27 @@ window.MDManager = window.MDManager || {};
         pendingBacklog = true;
         continue;
       }
+      if (/^\s*#Pin\s*$/i.test(line)) {
+        pinCount++;
+        if (pinCount === 2) project.warnings.push({ lineNumber: lineIndex + 1, message: "File contains multiple #Pin tags. Only the first pinned feature is used." });
+        if (!pendingPin) pendingPin = { lineNumber: lineIndex + 1 };
+        continue;
+      }
       const heading = line.match(/^(#{1,3})\s+(.+?)\s*#*\s*$/);
       if (heading) {
         const level = heading[1].length;
         const title = heading[2].trim();
+        const pinned = level === 2 && Boolean(pendingPin) && !pendingBacklog && !hasPinnedFeature;
+        if (pendingPin && level !== 2) project.warnings.push({ lineNumber: pendingPin.lineNumber, message: "#Pin is only supported directly before a feature heading and was ignored." });
+        if (pendingPin && level === 2 && pendingBacklog) project.warnings.push({ lineNumber: pendingPin.lineNumber, message: "#Pin cannot be used on the backlog and was ignored." });
         if (level === 1) {
           project.title = title;
           project.beforeFeatures.push(line);
           pendingIgnore = false;
         } else if (level === 2) {
-          feature = { title, headerLines: [], version: "", dates: [], notes: [], tasks: [], isBacklog: pendingBacklog, ignored: pendingIgnore };
+          feature = { title, headerLines: [], version: "", dates: [], notes: [], tasks: [], isBacklog: pendingBacklog, isPinned: pinned, ignored: pendingIgnore };
           project.features.push(feature);
+          if (pinned) hasPinnedFeature = true;
           task = null;
           featureMetadata = null;
           pendingBacklog = false;
@@ -188,10 +203,15 @@ window.MDManager = window.MDManager || {};
           featureMetadata = null;
           pendingIgnore = false;
         }
+        pendingPin = null;
         continue;
       }
 
       if (pendingBacklog && line.trim()) pendingBacklog = false;
+      if (pendingPin && line.trim()) {
+        project.warnings.push({ lineNumber: pendingPin.lineNumber, message: "#Pin is only supported directly before a feature heading and was ignored." });
+        pendingPin = null;
+      }
 
       if (task) task.lines.push(line);
       else if (feature) {
@@ -221,6 +241,7 @@ window.MDManager = window.MDManager || {};
         }
       } else project.beforeFeatures.push(line);
     }
+    if (pendingPin) project.warnings.push({ lineNumber: pendingPin.lineNumber, message: "#Pin is only supported directly before a feature heading and was ignored." });
     project.features = [...project.features.filter(feature => !feature.isBacklog), ...project.features.filter(feature => feature.isBacklog)];
     return project;
   }
@@ -294,6 +315,7 @@ window.MDManager = window.MDManager || {};
     const orderedFeatures = [...project.features.filter(feature => !feature.isBacklog), ...project.features.filter(feature => feature.isBacklog)];
     for (const feature of orderedFeatures) {
       if (feature.isBacklog) lines.push("#Backlog");
+      if (feature.isPinned && !feature.isBacklog) lines.push("#Pin");
       if (feature.ignored) lines.push("#Ignore");
       lines.push(`## ${feature.title}`, ...feature.headerLines);
       for (const task of feature.tasks) {
@@ -307,10 +329,10 @@ window.MDManager = window.MDManager || {};
       const line = cleaned[index];
       const heading = /^#{1,3}\s+/.test(line);
       const label = /^####\s+.+?\s*#*\s*$/.test(line);
-      const backlogMarker = /^\s*#Backlog\s*$/i.test(line);
-      if (backlogMarker) {
+      const featureMarker = /^\s*#(?:Backlog|Pin)\s*$/i.test(line);
+      if (featureMarker) {
         while (normalized.at(-1)?.trim() === "") normalized.pop();
-        if (normalized.length) normalized.push("");
+        if (normalized.length && !/^#(?:Backlog|Pin)$/i.test(normalized.at(-1)?.trim() || "")) normalized.push("");
         normalized.push(line);
         continue;
       }
@@ -320,7 +342,7 @@ window.MDManager = window.MDManager || {};
       }
 
       while (normalized.at(-1)?.trim() === "") normalized.pop();
-      if (normalized.length && !/^#(?:Backlog|Ignore)$/i.test(normalized.at(-1)?.trim() || "")) normalized.push("");
+      if (normalized.length && !/^#(?:Backlog|Pin|Ignore)$/i.test(normalized.at(-1)?.trim() || "")) normalized.push("");
       normalized.push(line);
 
       while (cleaned[index + 1]?.trim() === "") index++;

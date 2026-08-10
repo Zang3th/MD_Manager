@@ -104,6 +104,34 @@ test("Ignore preserves but hides the following feature or task", () => {
   assert.equal((markdown.serialize(project).match(/#Ignore/g) || []).length, 2);
 });
 
+test("only the first #Pin is used and duplicate pins produce a warning", () => {
+  const project = markdown.parse("# P\n\n#Pin\n## First\n### A\n- [ ] one\n\n#Pin\n## Second\n### B\n- [ ] two");
+  assert.equal(project.features[0].isPinned, true);
+  assert.equal(project.features[1].isPinned, false);
+  assert.equal(project.warnings.length, 1);
+  assert.match(project.warnings[0].message, /multiple #Pin tags/i);
+  const serialized = markdown.serialize(project);
+  assert.equal((serialized.match(/^#Pin$/gm) || []).length, 1);
+  assert.match(serialized, /#Pin\n## First/);
+});
+
+test("#Pin outside feature level is ignored with a warning", () => {
+  const project = markdown.parse("# P\n\n## Feature\n#Pin\n### Task\n- [ ] work");
+  assert.equal(project.features[0].isPinned, false);
+  assert.equal(project.warnings.length, 1);
+  assert.match(project.warnings[0].message, /only supported directly before a feature heading/i);
+  assert.doesNotMatch(markdown.serialize(project), /#Pin/);
+});
+
+test("#Pin cannot pin the backlog or be serialized on it", () => {
+  const parsed = markdown.parse("# P\n\n#Backlog\n#Pin\n## Later\n### Task\n- [ ] work");
+  assert.equal(parsed.features[0].isBacklog, true);
+  assert.equal(parsed.features[0].isPinned, false);
+  assert.match(parsed.warnings[0].message, /cannot be used on the backlog/i);
+  parsed.features[0].isPinned = true;
+  assert.doesNotMatch(markdown.serialize(parsed), /#Pin/);
+});
+
 test("serialization preserves newline style, orders backlog last, and normalizes todos", () => {
   const value = markdown.parse("# P\r\n\r\n#Backlog\r\n## Later\r\n### T\r\n  + old\r\n* [x] done\r\n- open\r\n#Info\r\n- parent\r\n  + nested\r\n\r\n## Now\r\n### Work\r\n- [x] complete");
   const output = markdown.serialize(value);

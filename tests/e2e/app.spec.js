@@ -46,6 +46,11 @@ async function toggleBacklogFromView(page) {
   await page.locator("#toggleViewMenu").click();
 }
 
+async function openFeatureActions(feature) {
+  await feature.locator(".release-heading").hover();
+  await feature.locator(".feature-menu-button").click();
+}
+
 async function expandAllProjectContent(page) {
   const collapsible = page.locator(".card, .feature-note");
   for (let index = 0; index < await collapsible.count(); index += 1) {
@@ -357,7 +362,7 @@ test("symbols, progress values, and the clock stay optically aligned in their co
     });
     return { definitions, rendered, framed };
   });
-  expect(rasterContract.definitions.length).toBe(23);
+  expect(rasterContract.definitions.length).toBe(25);
   for (const definition of rasterContract.definitions) {
     const [x, y, width, height] = definition.ink;
     expect(definition.ink.every(Number.isFinite), `${definition.id} has finite source geometry`).toBe(true);
@@ -522,6 +527,175 @@ test("View uses an overflow button to the right of the theme control", async ({ 
   await expect(view).toHaveAttribute("aria-label", "View");
   await expect(view.locator('.dots-icon use')).toHaveAttribute("href", "#icon-dots");
   expect(await theme.evaluate(node => node.getBoundingClientRect().x)).toBeLessThan(await view.evaluate(node => node.getBoundingClientRect().x));
+});
+
+test("feature actions use a consistent overflow menu", async ({ page }) => {
+  await openFixture(page);
+  const feature = page.locator("#content > .release").first();
+  await openFeatureActions(feature);
+  const menuButton = feature.locator(".feature-menu-button");
+  const options = feature.locator(".feature-option");
+  await expect(menuButton).toHaveAttribute("aria-expanded", "true");
+  await expect(feature.locator(".release-header")).toHaveCSS("border-top-left-radius", "8px");
+  await expect(feature.locator(".release-header")).toHaveCSS("border-top-right-radius", "8px");
+  await expect(menuButton.locator('use')).toHaveAttribute("href", "#icon-dots");
+  await expect(options).toHaveText(["Archive", "Delete", "Edit", "Pin"]);
+  await expect(options.locator("[data-tooltip]" )).toHaveCount(0);
+  expect(await options.locator("use").evaluateAll(uses => uses.map(use => use.getAttribute("href")))).toEqual(["#icon-archive", "#icon-close", "#icon-edit", "#icon-pin"]);
+  const deleteOption = options.filter({ hasText: "Delete" });
+  const regularOption = options.filter({ hasText: "Edit" });
+  await regularOption.hover();
+  const regularHover = await regularOption.evaluate(button => ({ color: getComputedStyle(button).color, background: getComputedStyle(button).backgroundColor }));
+  await deleteOption.hover();
+  await expect(deleteOption).toHaveCSS("color", regularHover.color);
+  await expect(deleteOption).toHaveCSS("background-color", regularHover.background);
+  await expect(feature).toHaveCSS("border-color", "rgb(254, 128, 25)");
+  await expect(feature.locator(".release-content")).toHaveCSS("opacity", "0.55");
+  await options.filter({ hasText: "Archive" }).click();
+  await expect(feature).toBeAttached();
+  await expect(feature.locator(".feature-options")).toBeHidden();
+  await openFeatureActions(feature);
+  await options.filter({ hasText: "Pin" }).click();
+  await expect(feature).toBeAttached();
+  await expect(feature.locator(".feature-options")).toBeHidden();
+  await expect(feature).toHaveClass(/pinned/);
+  await expect(feature.locator(".feature-pin")).toHaveCSS("color", "rgb(131, 165, 152)");
+});
+
+test("empty features stay compact and show their complete action menu", async ({ page }) => {
+  await openFixture(page, `# Empty states
+
+## Empty Feature
+
+## Task Feature
+### Movable Task
+Task details`);
+  const emptyFeature = page.locator("#content > .release").first();
+  const emptyBoard = emptyFeature.locator(".board");
+  expect(await emptyBoard.evaluate(node => node.getBoundingClientRect().height)).toBe(8);
+
+  await openFeatureActions(emptyFeature);
+  const options = emptyFeature.locator(".feature-options");
+  const featureBox = await emptyFeature.boundingBox();
+  const optionsBox = await options.boundingBox();
+  expect(optionsBox.y + optionsBox.height).toBeGreaterThan(featureBox.y + featureBox.height);
+  expect(await options.evaluate(node => {
+    const bounds = node.getBoundingClientRect();
+    return node.contains(document.elementFromPoint(bounds.left + bounds.width / 2, bounds.bottom - 2));
+  })).toBe(true);
+
+  await page.keyboard.press("Escape");
+  const source = page.locator("#content > .release").nth(1).locator(".card");
+  const from = await source.boundingBox();
+  const to = await emptyBoard.boundingBox();
+  await page.mouse.move(from.x + from.width / 2, from.y + 15);
+  await page.mouse.down();
+  await page.mouse.move(to.x + to.width / 2, to.y, { steps: 12 });
+  await page.mouse.up();
+  await expect(emptyBoard.locator(".card")).toHaveCount(1);
+});
+
+test("bodyless tasks do not expand but accept todos through a temporary drop target", async ({ page }) => {
+  await openFixture(page, `# Empty tasks
+
+## Feature
+### Source Task
+- [ ] movable
+
+### Empty Task
+
+### Text Task
+Visible details`);
+  const cards = page.locator("#content > .release .card");
+  const emptyTask = cards.nth(1);
+  const textTask = cards.nth(2);
+
+  await emptyTask.locator(".card-header").click();
+  await expect(emptyTask).not.toHaveAttribute("aria-expanded");
+  await expect(emptyTask).not.toHaveAttribute("tabindex");
+  await expect(emptyTask.locator(".card-body")).toBeHidden();
+  await textTask.locator(".card-header").click();
+  await expect(textTask.locator(".card-body")).toContainText("Visible details");
+  await expect(textTask.locator(".card-body")).toBeVisible();
+
+  const sourceTask = cards.first();
+  await sourceTask.locator(".card-header").click();
+  const todo = sourceTask.locator(".todo-text");
+  const from = await todo.boundingBox();
+  const feature = page.locator("#content > .release");
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  const featureHeightBeforeDrag = await feature.evaluate(node => node.getBoundingClientRect().height);
+  const emptyTaskHeightBeforeDrag = await emptyTask.evaluate(node => node.getBoundingClientRect().height);
+  await page.mouse.down();
+  await page.mouse.move(from.x + from.width / 2 + 8, from.y + from.height / 2 + 8, { steps: 4 });
+  await expect(emptyTask.locator(".card-body")).toBeVisible();
+  expect(await feature.evaluate(node => node.getBoundingClientRect().height)).toBe(featureHeightBeforeDrag);
+  expect(await emptyTask.evaluate(node => node.getBoundingClientRect().height)).toBe(emptyTaskHeightBeforeDrag);
+  const target = await emptyTask.locator(".todo-list").boundingBox();
+  await page.mouse.move(target.x + target.width / 2, target.y + target.height / 2, { steps: 12 });
+  await expect(emptyTask).toHaveClass(/todo-drop-preview/);
+  const previewHeight = await emptyTask.evaluate(node => node.getBoundingClientRect().height);
+  expect(previewHeight).toBeGreaterThan(emptyTaskHeightBeforeDrag);
+  const previewTarget = await emptyTask.locator(".todo-list").boundingBox();
+  await page.mouse.move(previewTarget.x + previewTarget.width / 2, previewTarget.y + previewTarget.height / 2, { steps: 4 });
+  await page.mouse.up();
+
+  await expect(emptyTask.locator(".todo-item")).toHaveCount(1);
+  await expect(emptyTask).toHaveAttribute("aria-expanded", "true");
+  await expect(emptyTask.locator(".card-body")).toBeVisible();
+  expect(await emptyTask.evaluate(node => node.getBoundingClientRect().height)).toBeCloseTo(previewHeight, 1);
+});
+
+test("features can be pinned, reached with P, persisted, and unpinned", async ({ page }) => {
+  const features = Array.from({ length: 8 }, (_, index) => `## Feature ${index + 1}\n### Task ${index + 1}\n- [ ] pending`).join("\n\n");
+  await openFixture(page, `# Pin Test\n\n${features}`);
+  const target = page.locator("#content > .release").nth(3);
+  await openFeatureActions(target);
+  await target.getByRole("button", { name: "Pin feature" }).click();
+  await expect(target).toHaveClass(/pinned/);
+  await expect(target.locator('.feature-pin use')).toHaveAttribute("href", "#icon-pin");
+  await page.locator("#saveFile").click();
+  await expect.poll(() => page.evaluate(() => window.__savedMarkdown)).toMatch(/#Pin\n## Feature 4/);
+
+  const content = page.locator("#content");
+  await content.evaluate(element => { element.scrollLeft = 0; });
+  await expect(content).toHaveJSProperty("scrollLeft", 0);
+  await expect(target.locator(".card")).toHaveAttribute("aria-expanded", "false");
+  await page.keyboard.press("p");
+  await expect(target.locator(".card")).toHaveAttribute("aria-expanded", "true");
+  await expect(target.locator(".card-body")).toBeVisible();
+  await expect.poll(() => page.evaluate(() => {
+    const feature = document.querySelector("#content > .release.pinned").getBoundingClientRect();
+    const clock = document.getElementById("appClock").getBoundingClientRect();
+    return Math.abs(feature.left + feature.width / 2 - (clock.left + clock.width / 2));
+  })).toBeLessThanOrEqual(1);
+
+  const last = page.locator("#content > .release").last();
+  await openFeatureActions(last);
+  await last.getByRole("button", { name: "Pin feature" }).click();
+  await content.evaluate(element => { element.scrollLeft = 0; });
+  await page.keyboard.press("p");
+  await expect.poll(() => content.evaluate(element => Math.abs(element.scrollWidth - element.offsetWidth - element.scrollLeft))).toBeLessThanOrEqual(1);
+
+  await openFeatureActions(last);
+  const unpin = last.getByRole("button", { name: "Unpin feature" });
+  await expect(unpin).toHaveText("Unpin");
+  await unpin.click();
+  await expect(last).not.toHaveClass(/pinned/);
+  await expect(last.locator(".feature-pin")).toHaveCount(0);
+  await page.locator("#saveFile").click();
+  await expect.poll(() => page.evaluate(() => window.__savedMarkdown)).not.toMatch(/#Pin/);
+});
+
+test("duplicate and misplaced #Pin tags load with warnings", async ({ page }) => {
+  await openFixture(page, "# P\n\n#Pin\n## First\n### A\n- [ ] one\n\n#Pin\n## Second\n### B\n- [ ] two");
+  await expect(page.locator("#content > .release").first()).toHaveClass(/pinned/);
+  await expect(page.locator("#content > .release").nth(1)).not.toHaveClass(/pinned/);
+  await expect(page.locator(".notification-warning")).toContainText("multiple #Pin tags");
+
+  await openFixture(page, "# P\n\n## Feature\n#Pin\n### Task\n- [ ] work");
+  await expect(page.locator("#content > .release")).not.toHaveClass(/pinned/);
+  await expect(page.locator(".notification-warning")).toContainText("only supported directly before a feature heading");
 });
 
 test("right header tools use stable borderless icon buttons", async ({ page }) => {
@@ -702,9 +876,9 @@ test("feature editor saves title, metadata, info, and warn as one undo step", as
   await openFixture(page);
   const feature = page.locator("#content > .release").first();
   const heading = feature.locator(".release-heading");
-  await heading.hover();
+  await openFeatureActions(feature);
   const editFeature = heading.locator('[data-edit="feature"]');
-  await expect(editFeature).toHaveAttribute("data-tooltip", "Edit feature");
+  await expect(editFeature).not.toHaveAttribute("data-tooltip");
   await expect(editFeature).toHaveAccessibleName("Edit feature");
   await editFeature.click();
   const dialog = page.locator("#featureEditor");
@@ -730,7 +904,7 @@ test("feature editor saves title, metadata, info, and warn as one undo step", as
 test("editors open without focusing a field and keep immediate field clicks", async ({ page }) => {
   await openFixture(page);
   const featureHeading = page.locator(".release-heading").first();
-  await featureHeading.hover();
+  await openFeatureActions(featureHeading.locator(".."));
   await featureHeading.locator('[data-edit="feature"]').click();
   await expect(page.locator("#featureEditor")).toBeFocused();
   await page.locator("#featureEditorMetadata").click();
@@ -748,7 +922,7 @@ test("editors open without focusing a field and keep immediate field clicks", as
 test("Control+Enter saves feature and task dialogs", async ({ page }) => {
   await openFixture(page);
   const feature = page.locator("#content > .release").first();
-  await feature.locator(".release-heading").hover();
+  await openFeatureActions(feature);
   await feature.locator('[data-edit="feature"]').click();
   await page.locator("#featureEditorTitle").fill("Feature shortcut");
   await page.keyboard.press("Control+Enter");
@@ -779,7 +953,7 @@ test("unchanged dialogs close without creating a project change", async ({ page 
   await expect(page.locator("#undoChange")).toBeDisabled();
 
   const feature = page.locator(".release").first();
-  await feature.locator(".release-heading").hover();
+  await openFeatureActions(feature);
   await feature.locator('[data-edit="feature"]').click();
   await page.locator("#featureEditorTitle").focus();
   await page.locator("#featureEditorTitle").press("Tab");
@@ -985,7 +1159,7 @@ test("task and feature editors share the requested responsive width", async ({ p
     await page.setViewportSize({ width: viewportWidth, height: 1080 });
 
     const feature = page.locator(".release").first();
-    await feature.locator(".release-heading").hover();
+    await openFeatureActions(feature);
     await feature.locator('[data-edit="feature"]').click();
     await expect(page.locator("#featureEditor")).toHaveCSS("width", `${expectedWidth}px`);
     await page.locator("#closeFeatureEditor").click();
@@ -1121,7 +1295,7 @@ test("dialog undo and redo include all fields and reset when the dialog reopens"
 test("merged feature Markdown highlights syntax and inserts tags", async ({ page }) => {
   await openFixture(page);
   const feature = page.locator(".release").first();
-  await feature.locator(".release-heading").hover();
+  await openFeatureActions(feature);
   await feature.locator('[data-edit="feature"]').click();
   const metadata = page.locator("#featureEditorMetadata");
   const highlight = page.locator("#featureMarkdownHighlight");
@@ -1314,7 +1488,7 @@ test("task editor opens in the foreground and saves title and Markdown as one un
 test("Escape ends field editing before cancelling feature and task dialogs", async ({ page }) => {
   await openFixture(page);
   const featureHeading = page.locator(".release-heading").first();
-  await featureHeading.hover();
+  await openFeatureActions(featureHeading.locator(".."));
   await featureHeading.locator('[data-edit="feature"]').click();
   await page.locator("#featureEditorTitle").fill("Discarded feature");
   await page.keyboard.press("Escape");
@@ -1743,7 +1917,9 @@ test("help popover documents shortcuts and Markdown and closes predictably", asy
   expect(keySurfaces.length).toBeGreaterThan(0);
   expect(keySurfaces.every(key => key.minWidth === "22px" && key.height === "22px" && key.display === "grid" && key.overflow === "hidden")).toBe(true);
   await expect(help).toContainText("#Backlog");
+  await expect(help).toContainText("#Pin");
   await expect(help).toContainText("#Ignore");
+  await expect(help).toContainText("Jump to pinned feature");
   const structure = help.locator(".markdown-reference").first();
   await expect(structure).toContainText("#### Label");
   await expect(structure).toContainText("- [ ] Todo");
@@ -1989,8 +2165,8 @@ test("long titles remain clipped to their headers and scroll only on hover", asy
   await heading.hover();
   await expect(title).toHaveClass(/title-scroll/);
   const titleBox = await title.boundingBox();
-  const editBox = await heading.locator(".edit-btn").boundingBox();
-  expect(titleBox.x + titleBox.width).toBeLessThanOrEqual(editBox.x);
+  const menuBox = await heading.locator(".feature-menu-button").boundingBox();
+  expect(titleBox.x + titleBox.width).toBeLessThanOrEqual(menuBox.x);
   await page.mouse.move(0, 0);
   await expect(title).not.toHaveClass(/title-scroll/);
 });

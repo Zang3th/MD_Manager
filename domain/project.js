@@ -41,7 +41,8 @@ window.MDManager = window.MDManager || {};
         dates: (feature.dates || []).map(date => ({ ...date })),
         notes: (feature.notes || []).map(note => ({ ...note, items: note.items.map(item => typeof item === "string" ? item : { ...item }) })),
         tasks: feature.tasks.map(copyTask),
-        isBacklog: false
+        isBacklog: false,
+        isPinned: false
       };
     },
     /** @param {MDProject} project @param {number} index @param {MDFeature} feature */
@@ -82,6 +83,14 @@ window.MDManager = window.MDManager || {};
       if (project.features[fromIndex]?.isBacklog) return false;
       const backlogIndex = project.features.findIndex(feature => feature.isBacklog);
       return moveItem(project.features, fromIndex, backlogIndex >= 0 ? Math.min(toIndex, backlogIndex - 1) : toIndex);
+    },
+    /** @param {MDProject} project @param {number} featureIndex @param {boolean} pinned */
+    setFeaturePinned(project, featureIndex, pinned) {
+      const feature = project.features[featureIndex];
+      if (!feature || feature.isBacklog || Boolean(feature.isPinned) === pinned && (!pinned || project.features.filter(item => item.isPinned).length === 1)) return false;
+      if (pinned) project.features.forEach(item => { item.isPinned = item === feature; });
+      else feature.isPinned = false;
+      return true;
     },
     /** @param {MDProject} project @param {number} fromFeature @param {number} fromIndex @param {number} toFeature @param {number} toIndex */
     moveTask(project, fromFeature, fromIndex, toFeature, toIndex) {

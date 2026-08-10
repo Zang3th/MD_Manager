@@ -16,6 +16,19 @@ test("features move without crossing the backlog", () => {
   assert.deepEqual(value.features.map(x => x.title), ["B", "A", "Backlog"]);
 });
 
+test("pinning is unique, reversible, and not retained by feature copies", () => {
+  const value = project();
+  assert.equal(domain.setFeaturePinned(value, 0, true), true);
+  assert.deepEqual(value.features.map(feature => Boolean(feature.isPinned)), [true, false, false]);
+  assert.equal(domain.setFeaturePinned(value, 1, true), true);
+  assert.deepEqual(value.features.map(feature => Boolean(feature.isPinned)), [false, true, false]);
+  assert.equal(domain.setFeaturePinned(value, 1, false), true);
+  assert.deepEqual(value.features.map(feature => Boolean(feature.isPinned)), [false, false, false]);
+  value.features[0].isPinned = true;
+  assert.equal(domain.copyFeature(value.features[0]).isPinned, false);
+  assert.equal(domain.setFeaturePinned(value, 2, true), false);
+});
+
 test("features are added before the backlog and tasks at the end of their feature", () => {
   const value = project();
   domain.addFeature(value, { title: "C", headerLines: [], version: "", dates: [], notes: [], tasks: [], isBacklog: false });
