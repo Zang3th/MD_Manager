@@ -145,24 +145,99 @@ test("serialization preserves newline style, orders backlog last, and normalizes
   assert.match(output, /^- \[x\] ~complete~$/m);
 });
 
+test("archive is optional, may be empty, and round-trips complete features at the end", () => {
+  const omitted = markdown.parse("# P\n\n## Current");
+  assert.equal(omitted.hasArchive, false);
+  assert.doesNotMatch(markdown.serialize(omitted), /#Archive/);
+
+  const empty = markdown.parse("# P\n\n#Archive\n");
+  assert.equal(empty.hasArchive, true);
+  assert.match(markdown.serialize(empty), /#Archive\n# Archive$/);
+
+  const source = "# P\n\n#Archive\n# Finished work\n## Archived\n#Info\n- retained\n### Child\n- [x] done";
+  const project = markdown.parse(source);
+  assert.equal(project.archiveTitle, "Finished work");
+  assert.equal(project.features[0].isArchived, true);
+  assert.equal(project.features[0].tasks[0].title, "Child");
+  assert.deepEqual(Array.from(project.features[0].tasks[0].lines), ["- [x] done"]);
+  assert.equal(markdown.parse(markdown.serialize(project)).features[0].isArchived, true);
+});
+
+test("backlog and archive tags define behavior independently of their display names", () => {
+  const project = markdown.parse("# P\n\n#Backlog\n## Later queue\n### Deferred\n- [ ] pending\n\n#Archive\n# Finished history\n\n## Shipped release\n### Done\n- [x] complete");
+  const backlog = project.features.find(feature => feature.isBacklog);
+  const archived = project.features.find(feature => feature.isArchived);
+  assert.equal(backlog.title, "Later queue");
+  assert.equal(archived.title, "Shipped release");
+  assert.equal(project.archiveTitle, "Finished history");
+  assert.match(markdown.serialize(project), /#Backlog\n## Later queue[\s\S]+#Archive\n# Finished history[\s\S]+## Shipped release/);
+});
+
+test("docs/Roadmap.md uses the supported tagged archive section shape", () => {
+  const source = fs.readFileSync(path.join(__dirname, "../../docs/Roadmap.md"), "utf8");
+  const project = markdown.parse(source);
+  assert.equal(project.features.find(feature => feature.isBacklog).title, "Backlog");
+  assert.equal(project.archiveTitle, "Archive");
+  assert.equal(project.features.find(feature => feature.isArchived).title, "Prototyp");
+});
+
+test("archive serialization sorts versions and ISO or European dates before missing metadata", () => {
+  const project = markdown.parse("# P\n\n#Archive\n## Unknown\n### U\n- [x] u\n## Date Late\n#Date\n- 2028-04-01\n### Done\n- [x] done\n## Version Ten\n#Version\n- 10.0.0\n### Done\n- [x] done\n## Date Early\n#Date\n- 01.03.2027\n### Done\n- [x] done\n## Version Two\n#Version\n- 2.0.0\n### Done\n- [x] done");
+  const output = markdown.serialize(project);
+  const titles = Array.from(output.matchAll(/^## (.+)$/gm), match => match[1]);
+  assert.deepEqual(titles, ["Version Two", "Version Ten", "Date Early", "Date Late", "Unknown"]);
+  assert.ok(output.indexOf("#Archive") > output.indexOf("# P"));
+});
+
+test("archive rejects individual tasks and sections following it", () => {
+  assert.throws(
+    () => markdown.parse("# P\n\n## Current\n### Work\n- [ ] open\n\n#Archive\n### Orphan\n- [ ] forbidden"),
+    error => error.name === "MarkdownFormatError" && /individual tasks/i.test(error.message)
+  );
+  assert.throws(
+    () => markdown.parse("# P\n\n#Archive\n\n#Backlog\n## Later"),
+    error => error.name === "MarkdownFormatError" && /cannot appear after/i.test(error.message)
+  );
+  assert.throws(
+    () => markdown.parse("# P\n\n#Archive\n## Incomplete\n### Open\n- [ ] pending"),
+    error => error.name === "MarkdownFormatError" && /not 100% complete/i.test(error.message)
+  );
+});
+
 test("data/parsing/Layout.md is the parsing golden file and round-trips without losing information", () => {
   const source = fs.readFileSync(path.join(__dirname, "../../data/parsing/Layout.md"), "utf8");
   const first = markdown.parse(source);
   const serialized = markdown.serialize(first);
   const second = markdown.parse(serialized);
 
-  const regularFeatures = first.features.filter(feature => !feature.isBacklog);
+  const regularFeatures = first.features.filter(feature => !feature.isBacklog && !feature.isArchived);
   const backlog = first.features.find(feature => feature.isBacklog);
-  assert.equal(regularFeatures.length, 3);
+  const archivedFeatures = first.features.filter(feature => feature.isArchived);
+  assert.equal(regularFeatures.length, 5);
   assert.equal(backlog.tasks.length, 3);
+  assert.equal(first.hasArchive, true);
+  assert.equal(first.archiveTitle, "Archive");
+  assert.deepEqual(Array.from(archivedFeatures, feature => feature.title), ["Archived Version Fixture", "Archived Date Fixture", "Archived Metadata-free Fixture"]);
+  assert.equal(archivedFeatures[0].version, "0.8.0");
+  assert.equal(archivedFeatures[1].dates[0].from, "2025-10-01");
+  assert.equal(archivedFeatures[2].version, "");
+  assert.equal(archivedFeatures[2].dates.length, 0);
+  assert.equal(regularFeatures.find(feature => feature.title === "Editor Experience").isPinned, true);
+  assert.equal(regularFeatures.find(feature => feature.title === "Hidden Feature Fixture").ignored, true);
+  assert.equal(regularFeatures.find(feature => feature.title === "Empty Feature Fixture").tasks.length, 0);
   assert.equal(regularFeatures[1].tasks.find(task => task.title === "Internal migration fixture").ignored, true);
   assert.match(source, /^#### Formatting toolbar$/m);
   assert.match(source, /\*\*bold context\*\*/);
   assert.match(source, /\*italic nuance\*/);
+  assert.match(source, /~obsolete wording~/);
   assert.match(source, /`inline code`/);
   assert.match(source, /\[reference URL\]\(https:\/\/example\.com\/bootstrap\)/);
   assert.match(source, /- \[x\] ~Create the canonical local folders~/);
   assert.match(source, /#Info[\s\S]+#Warn/);
+  for (const tag of ["#Pin", "#Ignore", "#Backlog", "#Archive", "#Version", "#Date", "#Info", "#Warn"]) {
+    assert.match(source, new RegExp(`^${tag}$`, "m"));
+  }
+  assert.match(serialized, /#Archive[\s\S]+Archived Metadata-free Fixture[\s\S]*$/);
   assert.deepEqual(second, first);
   assert.equal(markdown.serialize(second), serialized);
 });

@@ -30,11 +30,24 @@ window.MDManager = window.MDManager || {};
     const lines = markdown.replace(/\r\n?/g, "\n").split("\n");
     let projectHeading = 0;
     let hasFeature = false;
+    let archiveTitlePending = false;
     lines.forEach((line, index) => {
       if (/^#{1,4}\s*$/.test(line)) formatError("Heading has no title.", index + 1);
+      if (/^\s*#Archive\s*$/i.test(line)) {
+        archiveTitlePending = true;
+        return;
+      }
       const heading = line.match(/^(#{1,3})\s+(.+?)\s*#*\s*$/);
-      if (!heading) return;
+      if (!heading) {
+        if (line.trim()) archiveTitlePending = false;
+        return;
+      }
       const level = heading[1].length;
+      if (level === 1 && archiveTitlePending) {
+        archiveTitlePending = false;
+        return;
+      }
+      archiveTitlePending = false;
       if (level === 1) {
         projectHeading += 1;
         if (projectHeading > 1) formatError("Second project title found.", index + 1);
@@ -148,7 +161,7 @@ window.MDManager = window.MDManager || {};
     const newline = markdown.includes("\r\n") ? "\r\n" : "\n";
     const lines = markdown.replace(/\r\n?/g, "\n").split("\n");
     /** @type {MDProject} */
-    const project = { title: "Untitled Project", newline, beforeFeatures: [], features: [], warnings: [] };
+    const project = { title: "Untitled Project", newline, beforeFeatures: [], features: [], warnings: [], hasArchive: false, archiveTitle: "Archive" };
     /** @type {MDFeature | null} */
     let feature = null;
     /** @type {MDTask | null} */
@@ -156,11 +169,15 @@ window.MDManager = window.MDManager || {};
     /** @type {"version" | "date" | "info" | "warn" | null} */
     let featureMetadata = null;
     let pendingBacklog = false;
+    let inArchive = false;
+    let archiveTitlePending = false;
     let pendingIgnore = false;
     /** @type {{lineNumber: number} | null} */
     let pendingPin = null;
     let pinCount = 0;
     let hasPinnedFeature = false;
+    /** @type {Map<MDFeature, number>} */
+    const archivedFeatureLines = new Map();
 
     for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
       const line = lines[lineIndex];
@@ -169,7 +186,22 @@ window.MDManager = window.MDManager || {};
         continue;
       }
       if (/^\s*#Backlog\s*$/i.test(line)) {
+        if (inArchive) formatError("#Backlog cannot appear after the #Archive section has begun.", lineIndex + 1);
         pendingBacklog = true;
+        continue;
+      }
+      if (/^\s*#Archive\s*$/i.test(line)) {
+        if (inArchive) formatError("File contains multiple #Archive sections.", lineIndex + 1);
+        if (pendingPin) project.warnings.push({ lineNumber: pendingPin.lineNumber, message: "#Pin is only supported directly before a feature heading and was ignored." });
+        project.hasArchive = true;
+        inArchive = true;
+        archiveTitlePending = true;
+        feature = null;
+        task = null;
+        featureMetadata = null;
+        pendingBacklog = false;
+        pendingIgnore = false;
+        pendingPin = null;
         continue;
       }
       if (/^\s*#Pin\s*$/i.test(line)) {
@@ -182,21 +214,31 @@ window.MDManager = window.MDManager || {};
       if (heading) {
         const level = heading[1].length;
         const title = heading[2].trim();
-        const pinned = level === 2 && Boolean(pendingPin) && !pendingBacklog && !hasPinnedFeature;
+        if (level === 1 && inArchive && archiveTitlePending) {
+          project.archiveTitle = title;
+          archiveTitlePending = false;
+          continue;
+        }
+        archiveTitlePending = false;
+        const pinned = level === 2 && Boolean(pendingPin) && !pendingBacklog && !inArchive && !hasPinnedFeature;
         if (pendingPin && level !== 2) project.warnings.push({ lineNumber: pendingPin.lineNumber, message: "#Pin is only supported directly before a feature heading and was ignored." });
         if (pendingPin && level === 2 && pendingBacklog) project.warnings.push({ lineNumber: pendingPin.lineNumber, message: "#Pin cannot be used on the backlog and was ignored." });
+        if (pendingPin && level === 2 && inArchive) project.warnings.push({ lineNumber: pendingPin.lineNumber, message: "#Pin cannot be used on an archived feature and was ignored." });
         if (level === 1) {
           project.title = title;
           project.beforeFeatures.push(line);
           pendingIgnore = false;
         } else if (level === 2) {
-          feature = { title, headerLines: [], version: "", dates: [], notes: [], tasks: [], isBacklog: pendingBacklog, isPinned: pinned, ignored: pendingIgnore };
+          feature = { title, headerLines: [], version: "", dates: [], notes: [], tasks: [], isBacklog: pendingBacklog, isArchived: inArchive, isPinned: pinned, ignored: pendingIgnore };
           project.features.push(feature);
+          if (inArchive) archivedFeatureLines.set(feature, lineIndex + 1);
           if (pinned) hasPinnedFeature = true;
           task = null;
           featureMetadata = null;
           pendingBacklog = false;
           pendingIgnore = false;
+        } else if (level === 3 && inArchive && !feature) {
+          formatError("Individual tasks are not allowed directly in the #Archive section. Archive complete features instead.", lineIndex + 1);
         } else if (level === 3 && feature) {
           task = { title, lines: [], ignored: pendingIgnore };
           feature.tasks.push(task);
@@ -213,6 +255,10 @@ window.MDManager = window.MDManager || {};
         pendingPin = null;
       }
 
+      if (inArchive && !feature && line.trim()) {
+        archiveTitlePending = false;
+        formatError("Only complete feature cards are allowed in the #Archive section.", lineIndex + 1);
+      }
       if (task) task.lines.push(line);
       else if (feature) {
         feature.headerLines.push(line);
@@ -242,7 +288,17 @@ window.MDManager = window.MDManager || {};
       } else project.beforeFeatures.push(line);
     }
     if (pendingPin) project.warnings.push({ lineNumber: pendingPin.lineNumber, message: "#Pin is only supported directly before a feature heading and was ignored." });
-    project.features = [...project.features.filter(feature => !feature.isBacklog), ...project.features.filter(feature => feature.isBacklog)];
+    for (const archivedFeature of project.features.filter(item => item.isArchived)) {
+      const todos = archivedFeature.tasks.filter(item => !item.ignored).flatMap(item => taskContent(item).todos);
+      if (!todos.length || todos.some(todo => !todo.checked)) {
+        formatError(`Archived feature "${archivedFeature.title}" is not 100% complete.`, archivedFeatureLines.get(archivedFeature));
+      }
+    }
+    project.features = [
+      ...project.features.filter(feature => !feature.isBacklog && !feature.isArchived),
+      ...project.features.filter(feature => feature.isBacklog),
+      ...project.features.filter(feature => feature.isArchived)
+    ];
     return project;
   }
 
@@ -307,12 +363,54 @@ window.MDManager = window.MDManager || {};
     });
   }
 
+  /** @param {MDFeature} feature */
+  function archiveSortKey(feature) {
+    const version = feature.version?.trim().match(/^v?(\d+(?:\.\d+)*)(?:[-+].*)?$/i);
+    if (version) return { kind: 0, parts: version[1].split(".").map(Number), value: 0 };
+    const date = feature.dates?.map(range => archiveDateValue(range.from)).find(value => value !== null);
+    if (date !== undefined) return { kind: 1, parts: [], value: date };
+    return { kind: 2, parts: [], value: 0 };
+  }
+
+  /** @param {string} value @returns {number | null} */
+  function archiveDateValue(value) {
+    const source = value.trim();
+    const iso = source.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    const european = source.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+    if (!iso && !european) return null;
+    const year = Number(iso?.[1] || european?.[3]);
+    const month = Number(iso?.[2] || european?.[2]);
+    const day = Number(iso?.[3] || european?.[1]);
+    const time = Date.UTC(year, month - 1, day);
+    const date = new Date(time);
+    return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day ? time : null;
+  }
+
+  /** @param {MDFeature} left @param {MDFeature} right */
+  function compareArchivedFeatures(left, right) {
+    const a = archiveSortKey(left);
+    const b = archiveSortKey(right);
+    if (a.kind !== b.kind) return a.kind - b.kind;
+    if (a.kind === 0) {
+      const length = Math.max(a.parts.length, b.parts.length);
+      for (let index = 0; index < length; index++) {
+        const difference = (a.parts[index] || 0) - (b.parts[index] || 0);
+        if (difference) return difference;
+      }
+      return 0;
+    }
+    return a.value - b.value;
+  }
+
   /** @param {MDProject} project @returns {string} */
   function serialize(project) {
     const lines = project.beforeFeatures.slice();
     const titleIndex = lines.findIndex(line => /^#\s+/.test(line));
     if (titleIndex >= 0) lines[titleIndex] = `# ${project.title}`;
-    const orderedFeatures = [...project.features.filter(feature => !feature.isBacklog), ...project.features.filter(feature => feature.isBacklog)];
+    const regularFeatures = project.features.filter(feature => !feature.isBacklog && !feature.isArchived);
+    const backlogFeatures = project.features.filter(feature => feature.isBacklog);
+    const archivedFeatures = project.features.filter(feature => feature.isArchived).sort(compareArchivedFeatures);
+    const orderedFeatures = [...regularFeatures, ...backlogFeatures];
     for (const feature of orderedFeatures) {
       if (feature.isBacklog) lines.push("#Backlog");
       if (feature.isPinned && !feature.isBacklog) lines.push("#Pin");
@@ -323,16 +421,28 @@ window.MDManager = window.MDManager || {};
         lines.push(`### ${task.title}`, ...serializeTaskLines(task));
       }
     }
+    if (project.hasArchive || archivedFeatures.length) {
+      lines.push("#Archive");
+      lines.push(`# ${project.archiveTitle || "Archive"}`);
+      for (const feature of archivedFeatures) {
+        if (feature.ignored) lines.push("#Ignore");
+        lines.push(`## ${feature.title}`, ...feature.headerLines);
+        for (const task of feature.tasks) {
+          if (task.ignored) lines.push("#Ignore");
+          lines.push(`### ${task.title}`, ...serializeTaskLines(task));
+        }
+      }
+    }
     const cleaned = lines;
     const normalized = [];
     for (let index = 0; index < cleaned.length; index++) {
       const line = cleaned[index];
       const heading = /^#{1,3}\s+/.test(line);
       const label = /^####\s+.+?\s*#*\s*$/.test(line);
-      const featureMarker = /^\s*#(?:Backlog|Pin)\s*$/i.test(line);
+      const featureMarker = /^\s*#(?:Backlog|Archive|Pin)\s*$/i.test(line);
       if (featureMarker) {
         while (normalized.at(-1)?.trim() === "") normalized.pop();
-        if (normalized.length && !/^#(?:Backlog|Pin)$/i.test(normalized.at(-1)?.trim() || "")) normalized.push("");
+        if (normalized.length && !/^#(?:Backlog|Archive|Pin)$/i.test(normalized.at(-1)?.trim() || "")) normalized.push("");
         normalized.push(line);
         continue;
       }
@@ -342,7 +452,7 @@ window.MDManager = window.MDManager || {};
       }
 
       while (normalized.at(-1)?.trim() === "") normalized.pop();
-      if (normalized.length && !/^#(?:Backlog|Pin|Ignore)$/i.test(normalized.at(-1)?.trim() || "")) normalized.push("");
+      if (normalized.length && !/^#(?:Backlog|Archive|Pin|Ignore)$/i.test(normalized.at(-1)?.trim() || "")) normalized.push("");
       normalized.push(line);
 
       while (cleaned[index + 1]?.trim() === "") index++;

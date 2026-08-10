@@ -45,6 +45,7 @@ Ut enim ad minim veniam.
 - [x] ~Verify version `1.0.0`~
 - [x] ~Archive the signed lorem report~
 
+#Pin
 ## Editor Experience
 
 #Version
@@ -71,6 +72,7 @@ Quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequa
 Unsaved lorem ipsum content only lives for the current dialog session.
 
 This active task mixes completed and open work to exercise progress calculation.
+It also renders ~obsolete wording~ as explicit strikethrough content.
 
 #### Formatting toolbar
 Duis aute irure dolor in reprehenderit.
@@ -140,6 +142,18 @@ Use this task as the visible lorem ipsum example for note-only content.
 
 ### Empty state fixture
 
+#Ignore
+## Hidden Feature Fixture
+
+This complete feature is retained in Markdown but hidden from the application.
+
+### Hidden feature task
+
+#### Preservation
+- [x] ~Keep the ignored feature source intact~
+
+## Empty Feature Fixture
+
 #Backlog
 ## Backlog
 
@@ -163,3 +177,44 @@ Neque porro quisquam est qui dolorem ipsum quia dolor sit amet.
 - [ ] Remove only explicitly approved files
 
 ### Empty backlog entry
+
+#Archive
+# Archive
+
+## Archived Version Fixture
+
+#Version
+- 0.8.0
+
+#Info
+- Archived by semantic version metadata.
+
+### Version archive task
+
+#### Archived checklist
+- [x] ~Complete the version-based archive fixture~
+
+## Archived Date Fixture
+
+#Date
+- 2025-10-01 - 2025-10-31
+
+#Warn
+This archived card verifies date-based ordering and retained warnings.
+
+### Date archive task
+
+#Info
+- The complete task body remains available in Markdown.
+
+#### Archived validation
+- [x] ~Complete the date-based archive fixture~
+
+## Archived Metadata-free Fixture
+
+### Metadata-free archive task
+
+This complete card has no sortable version or date metadata.
+
+#### Archived fallback
+- [x] ~Place metadata-free archive cards last~

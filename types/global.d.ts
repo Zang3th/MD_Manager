@@ -50,11 +50,16 @@ type MDFeature = {
   notes: MDNote[];
   tasks: MDTask[];
   isBacklog: boolean;
+  isArchived?: boolean;
   isPinned?: boolean;
   ignored?: boolean;
 };
 type MDMarkdownWarning = { lineNumber: number; message: string };
-type MDProject = { title: string; newline: string; beforeFeatures: string[]; features: MDFeature[]; warnings: MDMarkdownWarning[] };
+type MDProject = { title: string; newline: string; beforeFeatures: string[]; features: MDFeature[]; warnings: MDMarkdownWarning[]; hasArchive?: boolean; archiveTitle?: string };
+type MDArchiveScale = "day" | "week" | "month" | "year";
+type MDArchiveTimelineEntry = { feature: MDFeature; date: { value: string; time: number; year: number; month: number; day: number } };
+type MDArchiveTimelineGroup = { key: string; label: string; entries: MDArchiveTimelineEntry[] };
+type MDArchiveTimeline = { scale: MDArchiveScale; from: string; to: string; groups: MDArchiveTimelineGroup[]; versioned: MDFeature[]; undated: MDFeature[] };
 type MDUndoAction = {
   label: string;
   undo(): void;
@@ -79,10 +84,13 @@ type MDOpenedFile = {handle: MDFileHandle; markdown: string; stamp?: string};
 type MDViewState = {
   tasks: boolean[];
   featureNotes: boolean[];
+  archiveOpen: boolean;
+  archiveExpandedFeature?: number;
   backlogOpen: boolean;
   featureScrolls: Array<{left: number; top: number}>;
   contentScrollLeft: number;
   contentScrollTop: number;
+  archiveScrollTop: number;
   backlogScrollLeft: number;
   backlogScrollTop: number;
   focusSelector?: string;

@@ -43,6 +43,12 @@ async function openFixture(page, markdown = fixture) {
 async function toggleBacklogFromView(page) {
   await page.locator("#toggleViewMenu").click();
   await page.locator("#toggleBacklog").click();
+  await expect(page.locator("#viewOptions")).toBeHidden();
+}
+
+async function toggleArchiveFromView(page) {
+  await page.locator("#toggleViewMenu").click();
+  await page.locator("#toggleArchive").click();
   await page.locator("#toggleViewMenu").click();
 }
 
@@ -527,6 +533,8 @@ test("View uses an overflow button to the right of the theme control", async ({ 
   await expect(view).toHaveAttribute("aria-label", "View");
   await expect(view.locator('.dots-icon use')).toHaveAttribute("href", "#icon-dots");
   expect(await theme.evaluate(node => node.getBoundingClientRect().x)).toBeLessThan(await view.evaluate(node => node.getBoundingClientRect().x));
+  await view.click();
+  await expect(page.locator("#viewOptions")).toHaveCSS("width", "128px");
 });
 
 test("feature actions use a consistent overflow menu", async ({ page }) => {
@@ -536,6 +544,7 @@ test("feature actions use a consistent overflow menu", async ({ page }) => {
   const menuButton = feature.locator(".feature-menu-button");
   const options = feature.locator(".feature-option");
   await expect(menuButton).toHaveAttribute("aria-expanded", "true");
+  await expect(feature.locator(".feature-options")).toHaveCSS("width", "128px");
   await expect(feature.locator(".release-header")).toHaveCSS("border-top-left-radius", "8px");
   await expect(feature.locator(".release-header")).toHaveCSS("border-top-right-radius", "8px");
   await expect(menuButton.locator('use')).toHaveAttribute("href", "#icon-dots");
@@ -551,15 +560,44 @@ test("feature actions use a consistent overflow menu", async ({ page }) => {
   await expect(deleteOption).toHaveCSS("background-color", regularHover.background);
   await expect(feature).toHaveCSS("border-color", "rgb(254, 128, 25)");
   await expect(feature.locator(".release-content")).toHaveCSS("opacity", "0.55");
-  await options.filter({ hasText: "Archive" }).click();
-  await expect(feature).toBeAttached();
-  await expect(feature.locator(".feature-options")).toBeHidden();
-  await openFeatureActions(feature);
   await options.filter({ hasText: "Pin" }).click();
   await expect(feature).toBeAttached();
   await expect(feature.locator(".feature-options")).toBeHidden();
   await expect(feature).toHaveClass(/pinned/);
   await expect(feature.locator(".feature-pin")).toHaveCSS("color", "rgb(131, 165, 152)");
+  await openFeatureActions(feature);
+  await options.filter({ hasText: "Archive" }).click();
+  await expect(page.locator("#content > .release .release-title")).toHaveText(["Active Feature", "Open Feature"]);
+  await expect(page.locator(".notification-title").last()).toHaveText("Feature not archived");
+  await expect(page.locator(".notification-body").last()).toHaveText("Active Feature is not 100% complete.");
+});
+
+test("archive action persists the complete feature at the end and undo restores it", async ({ page }) => {
+  await openFixture(page);
+  await page.locator(".card-header").first().click();
+  await page.locator(".card").first().locator(".checkbox").nth(1).click();
+  await page.keyboard.press("Control+s");
+  const feature = page.locator("#content > .release").first();
+  await openFeatureActions(feature);
+  await feature.getByRole("button", { name: "Archive feature" }).click();
+  await expect(page.locator("#content > .release .release-title")).toHaveText(["Open Feature"]);
+  await expect(page.locator("#projectStats .archive-stat")).toHaveText(["Archive", "1", "2", "3"]);
+  await expect(page.locator(".notification-title").last()).toHaveText("Feature archived");
+  await expect(page.locator(".notification-body").last()).toHaveText("Active Feature archived.");
+  await page.locator("#undoChange").click();
+  await expect(page.locator("#content > .release .release-title")).toHaveText(["Active Feature", "Open Feature"]);
+  await expect(page.locator("#saveFile")).not.toHaveClass(/dirty/);
+  await page.locator("#redoChange").click();
+  await expect(page.locator("#content > .release .release-title")).toHaveText(["Open Feature"]);
+  await page.keyboard.press("Control+s");
+  const saved = await page.evaluate(() => window.__savedMarkdown);
+  expect(saved.indexOf("#Archive")).toBeGreaterThan(saved.indexOf("#Backlog"));
+  expect(saved.slice(saved.indexOf("#Archive"))).toContain("## Active Feature");
+  expect(saved.slice(saved.indexOf("#Archive"))).toContain("### Started Task");
+  expect(saved.trim().endsWith("- [x] ~first~")).toBe(true);
+  await page.locator("#undoChange").click();
+  await expect(page.locator("#content > .release .release-title")).toHaveText(["Active Feature", "Open Feature"]);
+  await expect(page.locator("#saveFile")).toHaveClass(/dirty/);
 });
 
 test("empty features stay compact and show their complete action menu", async ({ page }) => {
@@ -1532,6 +1570,13 @@ test("backlog opens as a separate pane and closes from its framed button", async
   await openFixture(page);
   await toggleBacklogFromView(page);
   await expect(page.locator("#backlog")).toBeVisible();
+  await page.locator("#toggleViewMenu").click();
+  await expect(page.locator("#viewOptions")).toBeVisible();
+  expect(await page.locator("#toggleBacklog").evaluate(node => {
+    const bounds = node.getBoundingClientRect();
+    return document.elementFromPoint(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2)?.closest("#toggleBacklog") === node;
+  })).toBe(true);
+  await page.locator("#toggleViewMenu").click();
   await expect(page.locator(".backlog-title")).toHaveText("Later");
   const backlogPane = page.locator(".backlog-pane");
   await expect(backlogPane).toHaveCSS("width", "280px");
@@ -1562,27 +1607,115 @@ test("backlog opens as a separate pane and closes from its framed button", async
   await expect(page.locator("#backlog")).toBeHidden();
 });
 
-test("opening the backlog scrolls the board to its right edge", async ({ page }) => {
+test("archive opens on the left as a read-only adaptive timeline with one expanded feature", async ({ page }) => {
+  const archived = `${fixture}\n\n#Archive\n# Finished Releases\n\n## First release\n#Version\n- 1.0.0\n#Date\n- 15.01.2024\n### First task\n- [x] ~done detail~\n### Second task\n- [x] ~another detail~\n\n## Later release\n#Date\n- 01.02.2025\n### Later task\n- [x] ~hidden todo~\n\n## Versioned only\n#Version\n- 2.0.0\n### Version task\n- [x] ~version detail~\n\n## Metadata free\n### Last task\n- [x] ~last detail~`;
+  await openFixture(page, archived);
+  await toggleArchiveFromView(page);
+  const archive = page.locator("#archive");
+  await expect(archive).toBeVisible();
+  await expect(page.locator(".archive-title")).toHaveText("Finished Releases");
+  await expect(page.locator(".archive-range")).toContainText("15.01.2024 – 01.02.2025");
+  await expect(page.locator(".archive-range span")).toHaveText("Monthly");
+  await expect(page.locator(".archive-period-title")).toHaveText(["January 2024", "February 2025", "Versions", "Without date"]);
+  await expect(page.locator(".archive-feature-title")).toHaveText(["First release", "Later release", "Versioned only", "Metadata free"]);
+  await expect(archive.locator(".archive-drop-zone")).toHaveText("Drag complete features here");
+  const archiveSpacing = await archive.evaluate(node => ({
+    featureGap: getComputedStyle(node.querySelector(".archive-period-features")).gap,
+    dropMargin: getComputedStyle(node.querySelector(".archive-drop-zone")).marginTop,
+    featurePadding: getComputedStyle(node.querySelector(".archive-feature-toggle")).paddingLeft,
+    dropPadding: getComputedStyle(node.querySelector(".archive-drop-zone")).paddingLeft
+  }));
+  expect(archiveSpacing.dropMargin).toBe(archiveSpacing.featureGap);
+  expect(archiveSpacing.dropPadding).toBe(archiveSpacing.featurePadding);
+  await expect(archive.locator(".todo-item,.checkbox,.edit-btn,.delete-btn,.feature-menu,a")).toHaveCount(0);
+  await expect(archive).not.toContainText("done detail");
+  await archive.locator(".archive-feature-toggle").first().click();
+  await expect(archive.locator(".archive-tasks").first()).toContainText("First task");
+  await expect(archive.locator(".archive-tasks").first()).toContainText("Second task");
+  await expect(archive).not.toContainText("done detail");
+  await archive.locator(".archive-feature-toggle").nth(1).click();
+  expect(await archive.locator(".archive-feature-toggle").evaluateAll(buttons => buttons.map(button => button.getAttribute("aria-expanded")))).toEqual(["false", "true", "false", "false"]);
+  await page.keyboard.press("b");
+  await expect(page.locator("#backlog")).toBeVisible();
+  const archiveBounds = await page.locator(".archive-pane").boundingBox();
+  const backlogBounds = await page.locator(".backlog-pane").boundingBox();
+  expect(archiveBounds.x).toBe(0);
+  expect(backlogBounds.x + backlogBounds.width).toBeCloseTo(page.viewportSize().width, 0);
+  await page.locator("#toggleGridView").click();
+  await expect(archive).toBeVisible();
+  await expect(page.locator("#backlog")).toBeVisible();
+  await expect(archive.locator(".archive-feature-toggle").nth(1)).toHaveAttribute("aria-expanded", "true");
+  await page.keyboard.press("A");
+  await expect(archive).toBeHidden();
+});
+
+test("incomplete features cannot be dragged into the archive", async ({ page }) => {
+  await openFixture(page);
+  await page.keyboard.press("a");
+  const archive = page.locator("#archive");
+  const dropZone = archive.locator(".archive-drop-zone");
+  const openFeature = page.locator("#content > .release").nth(1);
+  const from = await openFeature.locator(".release-header").boundingBox();
+  const to = await dropZone.boundingBox();
+  await page.mouse.move(from.x + from.width / 2, from.y + 20);
+  await page.mouse.down();
+  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 12 });
+  await page.mouse.up();
+  await expect(page.locator(".notification-title").last()).toHaveText("Feature not archived");
+  await expect(page.locator("#content > .release .release-title")).toHaveText(["Active Feature", "Open Feature"]);
+});
+
+test("complete features drag into the archive and archived features drag back to the board", async ({ page }) => {
+  await openFixture(page, "# Drag Test\n\n## Spacer Feature\n### Open Task\n- [ ] open\n\n## Complete Feature\n### Done Task\n- [x] ~done~\n\n#Backlog\n## Later");
+  const completeFeature = page.locator("#content > .release").nth(1);
+  await page.keyboard.press("a");
+  const archive = page.locator("#archive");
+  const fromBoard = await completeFeature.locator(".release-header").boundingBox();
+  const dropZone = await archive.locator(".archive-drop-zone").boundingBox();
+  await page.mouse.move(fromBoard.x + fromBoard.width / 2, fromBoard.y + 20);
+  await page.mouse.down();
+  await page.mouse.move(dropZone.x + dropZone.width / 2, dropZone.y + dropZone.height / 2, { steps: 12 });
+  await page.mouse.up();
+  await expect(page.locator(".notification-title").last()).toHaveText("Feature archived");
+  await expect(page.locator(".notification-body").last()).toHaveText("Complete Feature archived.");
+  await expect(archive.locator(".archive-feature-title")).toHaveText("Complete Feature");
+  await expect(page.locator("#content > .release .release-title")).toHaveText(["Spacer Feature"]);
+
+  const archivedFeature = archive.locator(".archive-feature");
+  const from = await archivedFeature.boundingBox();
+  const board = await page.locator("#content").boundingBox();
+  await page.mouse.move(from.x + from.width / 2, from.y + 20);
+  await page.mouse.down();
+  await page.mouse.move(board.x + 320, board.y + 60, { steps: 12 });
+  await page.mouse.up();
+  await expect(page.locator(".notification-title").last()).toHaveText("Feature unarchived");
+  await expect(page.locator(".notification-body").last()).toHaveText("Complete Feature unarchived.");
+  await expect(page.locator("#content > .release .release-title")).toHaveText(["Spacer Feature", "Complete Feature"]);
+  await expect(archive.locator(".archive-feature")).toHaveCount(0);
+});
+
+test("archive and backlog overlay without shifting the board while it remains scrollable", async ({ page }) => {
   const features = Array.from({ length: 5 }, (_, index) => `## Feature ${index + 1}\n### Task\n- [ ] pending`).join("\n\n");
   await page.setViewportSize({ width: 900, height: 720 });
   await openFixture(page, `# Scroll Test\n\n${features}\n\n#Backlog\n## Backlog\n### Deferred\n- [ ] later`);
   const content = page.locator("#content");
   await expect.poll(() => content.evaluate(node => node.scrollWidth - node.clientWidth)).toBeGreaterThan(0);
   await expect.poll(() => content.evaluate(node => node.scrollLeft)).toBe(0);
-  await content.evaluate(node => {
-    node.dataset.scrollFinished = "false";
-    node.addEventListener("scrollend", () => { node.dataset.scrollFinished = "true"; }, { once: true });
-  });
-  await page.locator("#toggleViewMenu").click();
-  await page.locator("#toggleBacklog").click();
-  await page.waitForFunction(node => node.scrollLeft > 0 && node.scrollLeft < node.scrollWidth - node.clientWidth, await content.elementHandle());
-  await expect(content).toHaveAttribute("data-scroll-finished", "true");
-  expect(await content.evaluate(node => {
-    const animatedPosition = node.scrollLeft;
+  const contentBefore = await content.boundingBox();
+  const firstFeatureBefore = await content.locator(":scope > .release").first().boundingBox();
+  await page.keyboard.press("a");
+  await page.keyboard.press("b");
+  await expect(page.locator("#archive")).toBeVisible();
+  await expect(page.locator("#backlog")).toBeVisible();
+  expect(await content.boundingBox()).toEqual(contentBefore);
+  expect(await content.locator(":scope > .release").first().boundingBox()).toEqual(firstFeatureBefore);
+  await expect.poll(() => content.evaluate(node => node.scrollLeft)).toBe(0);
+  const scrolled = await content.evaluate(node => {
     node.scrollLeft = node.scrollWidth;
-    return Math.abs(animatedPosition - node.scrollLeft);
-  })).toBeLessThanOrEqual(1);
-  await page.locator("#toggleViewMenu").click();
+    return node.scrollLeft;
+  });
+  expect(scrolled).toBeGreaterThan(0);
+  await expect.poll(() => content.evaluate(node => node.scrollLeft)).toBe(scrolled);
 });
 
 test("statistics can close and reopen in board and grid", async ({ page }) => {
@@ -1591,7 +1724,9 @@ test("statistics can close and reopen in board and grid", async ({ page }) => {
   const content = page.locator("#content");
   const firstRelease = page.locator("#content > .release").first();
   await expect(stats).toBeVisible();
-  await expect(stats).toHaveCSS("width", "280px");
+  await expect(stats).toHaveCSS("width", "360px");
+  await expect(stats.locator("thead th")).toHaveText(["", "Archive", "Done", "Active", "Open", "Backlog"]);
+  await expect(stats.locator(".archive-stat").first()).toHaveCSS("color", "rgb(131, 165, 152)");
   await expect(stats).toHaveCSS("border-top-width", "0px");
   expect(await stats.evaluate(node => getComputedStyle(node, "::before").content)).toBe("none");
   await expect(stats).toHaveCSS("border-radius", "10px");
@@ -1606,8 +1741,8 @@ test("statistics can close and reopen in board and grid", async ({ page }) => {
   await page.locator("#toggleStats").click();
   await page.locator("#toggleGridView").click();
   await expect(stats).toBeVisible();
-  await expect(stats).toHaveCSS("width", "260px");
-  await expect(stats.locator("td").first()).toHaveCSS("font-size", "11px");
+  await expect(stats).toHaveCSS("width", "360px");
+  await expect(stats.locator("td").first()).toHaveCSS("font-size", "12px");
   await expect.poll(() => stats.evaluate(node => node.getBoundingClientRect().bottom)).toBe(page.viewportSize().height - 8);
   await expect.poll(async () => (await stats.boundingBox()).x).toBe((await firstRelease.boundingBox()).x);
 });
@@ -1919,6 +2054,9 @@ test("help popover documents shortcuts and Markdown and closes predictably", asy
   await expect(help).toContainText("#Backlog");
   await expect(help).toContainText("#Pin");
   await expect(help).toContainText("#Ignore");
+  await expect(help.locator(".shortcut-list > div").filter({ hasText: "Toggle archive" }).locator("kbd")).toHaveText("A");
+  await expect(help.locator(".shortcut-list > div").filter({ hasText: "Toggle backlog" }).locator("kbd")).toHaveText("B");
+  await expect(help.locator(".shortcut-list > div").filter({ hasText: "Toggle statistics" }).locator("kbd")).toHaveText("S");
   await expect(help).toContainText("Jump to pinned feature");
   const structure = help.locator(".markdown-reference").first();
   await expect(structure).toContainText("#### Label");
@@ -2111,6 +2249,8 @@ test("deleting a task updates the model and undo restores it", async ({ page }) 
   await task.locator(".card-header").hover();
   await task.locator('[data-delete="task"]').click();
   await expect(page.locator("#content .card")).toHaveCount(2);
+  await expect(page.locator(".notification-title").last()).toHaveText("Task deleted");
+  await expect(page.locator(".notification-body").last()).toHaveText("Started Task deleted.");
   await page.locator("#undoChange").click();
   await expect(page.locator("#content .card")).toHaveCount(3);
 });
@@ -2129,6 +2269,8 @@ test("adding and immediately deleting a task or feature returns to the saved sta
   await addedTask.locator(".card-header").hover();
   await addedTask.locator('[data-delete="task"]').click();
   await expect(firstFeature.locator(".card")).toHaveCount(initialTaskCount);
+  await expect(page.locator(".notification-title").last()).toHaveText("Task deleted");
+  await expect(page.locator(".notification-body").last()).toHaveText("New Task deleted.");
   await expect(save).not.toHaveClass(/dirty/);
   await expect(page.locator("#undoChange")).toBeEnabled();
 
@@ -2138,6 +2280,8 @@ test("adding and immediately deleting a task or feature returns to the saved sta
   const addedFeature = page.locator("#content > .release").last();
   await addedFeature.locator('[data-delete="feature"]').evaluate(button => button.click());
   await expect(page.locator("#content > .release")).toHaveCount(2);
+  await expect(page.locator(".notification-title").last()).toHaveText("Feature deleted");
+  await expect(page.locator(".notification-body").last()).toHaveText("New Feature deleted.");
   await expect(save).not.toHaveClass(/dirty/);
   await expect(page.locator("#undoChange")).toBeEnabled();
 });
@@ -2146,15 +2290,48 @@ test("view menu, keyboard shortcut, and accessibility states stay synchronized",
   await openFixture(page);
   await page.locator("#toggleViewMenu").click();
   await expect(page.locator("#toggleViewMenu")).toHaveAttribute("aria-expanded", "true");
-  await expect(page.locator("#viewOptions > button")).toHaveText(["Backlog", "Clock", "Metadata", "Statistics"]);
+  await expect(page.locator("#viewOptions > button")).toHaveText(["Archive", "Backlog", "Clock", "Metadata", "Statistics"]);
   await expect(page.locator("#toggleBacklog")).toHaveCSS("color", "rgb(235, 219, 178)");
   await expect(page.locator("#toggleBacklog")).toHaveAttribute("aria-pressed", "false");
   await page.keyboard.press("Escape");
   await expect(page.locator("#viewOptions")).toBeHidden();
+  await page.keyboard.press("b");
+  await expect(page.locator("#toggleBacklog")).toHaveAttribute("aria-pressed", "true");
   await page.keyboard.press("Control+b");
   await expect(page.locator("#toggleBacklog")).toHaveAttribute("aria-pressed", "true");
   await page.keyboard.press("Meta+b");
+  await expect(page.locator("#toggleBacklog")).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.press("B");
   await expect(page.locator("#toggleBacklog")).toHaveAttribute("aria-pressed", "false");
+  await page.keyboard.press("s");
+  await expect(page.locator("#toggleStats")).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator("#projectStats")).toBeHidden();
+  await page.keyboard.press("Control+s");
+  await expect(page.locator("#toggleStats")).toHaveAttribute("aria-pressed", "false");
+  await page.keyboard.press("S");
+  await expect(page.locator("#toggleStats")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("#projectStats")).toBeVisible();
+});
+
+test("letter shortcuts are disabled in edit dialogs", async ({ page }) => {
+  await openFixture(page);
+  const task = page.locator(".card").first();
+  await task.locator(".card-header").hover();
+  await task.locator('[data-edit="task"]').click();
+  await expect(page.locator("#taskEditor")).toBeFocused();
+  await page.evaluate(() => {
+    window.__dialogShortcutDefaults = [];
+    window.addEventListener("keydown", event => {
+      if (["a", "b", "p", "s"].includes(event.key.toLowerCase())) window.__dialogShortcutDefaults.push(event.defaultPrevented);
+    });
+  });
+  await page.keyboard.press("a");
+  await page.keyboard.press("b");
+  await page.keyboard.press("p");
+  await page.keyboard.press("s");
+  await expect(page.locator("#toggleBacklog")).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator("#toggleStats")).toHaveAttribute("aria-pressed", "true");
+  expect(await page.evaluate(() => window.__dialogShortcutDefaults)).toEqual([false, false, false, false]);
 });
 
 test("long titles remain clipped to their headers and scroll only on hover", async ({ page }) => {
@@ -2220,6 +2397,9 @@ test("fixed grid uses 260px columns and backlog overlays without shifting it", a
   const backlog = await page.locator(".backlog-pane").boundingBox();
   const content = await page.locator("#content").boundingBox();
   expect(backlog.width).toBe(280);
+  await expect(page.locator(".backlog-header")).toHaveCSS("min-height", "52px");
+  await expect(page.locator(".backlog-title")).toHaveCSS("font-size", "16px");
+  await expect(page.locator(".backlog-count")).toHaveCSS("font-size", "12px");
   await expect.poll(() => page.locator("#projectStats").evaluate(node => node.getBoundingClientRect().bottom)).toBe(page.viewportSize().height - 8);
   expect(backlog.x + backlog.width).toBeCloseTo(content.x + content.width, 0);
 

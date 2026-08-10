@@ -58,18 +58,14 @@ An example is stored locally in [`data/parsing/Layout.md`](https://github.com/Za
 - File handles for the five most recently opened projects are stored in IndexedDB.
   - Project content remains in its Markdown file.
 
-The supported document hierarchy is:
+The document base structure is:
 
 ```text
 # Project
-├── ## Feature
-│   └── ### Task
-│       ├── #### Grouping
-│       └── - [ ] Todo
-└── #Backlog
-    └── ## Backlog feature
-        ├── ### Backlog task
-        └── ...
+└── ## Feature
+    └── ### Task
+        ├── #### Grouping
+        └── - [ ] Todo
 ```
 
 Supported tags:
@@ -77,7 +73,9 @@ Supported tags:
 - `#Version` and `#Date` define release metadata.
 - `#Info` and `#Warn` add contextual notes to features and tasks.
 - `#Ignore` preserves the following feature or task in Markdown while hiding it from the application.
-- `#Backlog` starts the backlog section.
+- `#Archive` start the archive section. Only finished features can be archived.
+- `#Backlog` starts the backlog section. Only tasks can be put in the backlog.
+- `#Pin` marks a single feature for fast navigation and highlighting.
 
 Supported formatting:
 

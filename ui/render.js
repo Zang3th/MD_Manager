@@ -187,6 +187,46 @@ window.MDManager = window.MDManager || {};
       </div>`;
   }
 
+  /** @param {MDProject} project @param {MDFeature} feature @param {string} date @param {number | undefined} expandedFeature */
+  function archiveFeatureMarkup(project, feature, date, expandedFeature) {
+    const featureIndex = project.features.indexOf(feature);
+    const expanded = featureIndex === expandedFeature;
+    const visibleTasks = feature.tasks.filter(task => !task.ignored);
+    const metadata = [date, feature.version ? `v${feature.version}` : ""].filter(Boolean);
+    return `<article class="archive-feature${expanded ? " expanded" : ""}" data-feature="${featureIndex}">
+      <button class="archive-feature-toggle" type="button" aria-expanded="${expanded}" aria-controls="archiveTasks${featureIndex}">
+        <span class="archive-feature-title">${escapeHtml(feature.title)}</span>
+        ${metadata.length ? `<span class="archive-feature-meta">${metadata.map(escapeHtml).join(" · ")}</span>` : ""}
+      </button>
+      <div class="archive-tasks" id="archiveTasks${featureIndex}"${expanded ? "" : " hidden"}>${visibleTasks.length ? `<ul>${visibleTasks.map(task => `<li>${escapeHtml(task.title)}</li>`).join("")}</ul>` : '<p class="archive-no-tasks">No tasks</p>'}</div>
+    </article>`;
+  }
+
+  /** @param {MDProject} project @param {MDFeature[]} features @param {number | undefined} expandedFeature */
+  function archiveContents(project, features, expandedFeature) {
+    /** @type {MDArchiveTimeline} */
+    const timeline = app.archive.timeline(features);
+    const count = features.length;
+    /** @type {Record<MDArchiveScale, string>} */
+    const scaleLabels = { day: "Daily", week: "Weekly", month: "Monthly", year: "Yearly" };
+    const scaleLabel = scaleLabels[timeline.scale];
+    const range = timeline.from ? `<p class="archive-range">${escapeHtml(timeline.from)}${timeline.to !== timeline.from ? ` – ${escapeHtml(timeline.to)}` : ""}<span>${scaleLabel}</span></p>` : "";
+    const groups = timeline.groups.map(group => `<section class="archive-period" data-period="${escapeHtml(group.key)}">
+      <h3 class="archive-period-title"><span>${escapeHtml(group.label)}</span></h3>
+      <div class="archive-period-features">${group.entries.map(entry => archiveFeatureMarkup(project, entry.feature, entry.date.value, expandedFeature)).join("")}</div>
+    </section>`).join("");
+    const versioned = timeline.versioned.length ? `<section class="archive-period archive-versioned" data-period="versioned">
+      <h3 class="archive-period-title"><span>Versions</span></h3>
+      <div class="archive-period-features">${timeline.versioned.map(feature => archiveFeatureMarkup(project, feature, "", expandedFeature)).join("")}</div>
+    </section>` : "";
+    const undated = timeline.undated.length ? `<section class="archive-period archive-undated" data-period="undated">
+      <h3 class="archive-period-title"><span>Without date</span></h3>
+      <div class="archive-period-features">${timeline.undated.map(feature => archiveFeatureMarkup(project, feature, "", expandedFeature)).join("")}</div>
+    </section>` : "";
+    return `<header class="archive-header"><div class="archive-heading"><h2 class="archive-title">${escapeHtml(project.archiveTitle || "Archive")}</h2><span class="archive-count">${count} ${count === 1 ? "Feature" : "Features"}</span></div><button class="archive-close" type="button" aria-label="Close archive" data-tooltip="Close archive">${deleteIcon}</button></header>
+      <div class="archive-content">${range}<div class="archive-timeline">${groups}${versioned}${undated}${count ? "" : '<p class="archive-empty">No archived features.</p>'}<div class="archive-drop-zone"><span>Drag complete features here</span></div></div></div>`;
+  }
+
   /** @param {MDFeature} feature */
   function featureProgress(feature) {
     return app.status.progress(feature.tasks.filter(task => !task.ignored).flatMap(todos));
@@ -195,9 +235,9 @@ window.MDManager = window.MDManager || {};
   /** @param {MDProject} project */
   function statisticsMarkup(project) {
     const counts = app.status.statistics(project.features, todos);
-    /** @param {string} label @param {{done: number, active: number, open: number, backlog: number}} counts */
-    const row = (label, counts) => `<tr><th scope="row">${label}</th><td class="done">${counts.done}</td><td class="active">${counts.active}</td><td class="open">${counts.open}</td><td class="backlog-stat">${counts.backlog}</td></tr>`;
-    return `<div class="stats-header"><span class="stats-title">Statistics</span><button class="stats-close" type="button" aria-label="Close statistics" data-tooltip="Close statistics">${deleteIcon}</button></div><table><thead><tr><th></th><th class="done" scope="col">Done</th><th class="active" scope="col">Active</th><th class="open" scope="col">Open</th><th class="backlog-stat" scope="col">Backlog</th></tr></thead><tbody>${row("Features", counts.features)}${row("Tasks", counts.tasks)}${row("Todos", counts.entries)}</tbody></table>`;
+    /** @param {string} label @param {{done: number, active: number, open: number, backlog: number, archive: number}} counts */
+    const row = (label, counts) => `<tr><th scope="row">${label}</th><td class="archive-stat">${counts.archive}</td><td class="done">${counts.done}</td><td class="active">${counts.active}</td><td class="open">${counts.open}</td><td class="backlog-stat">${counts.backlog}</td></tr>`;
+    return `<div class="stats-header"><span class="stats-title">Statistics</span><button class="stats-close" type="button" aria-label="Close statistics" data-tooltip="Close statistics">${deleteIcon}</button></div><table><thead><tr><th></th><th class="archive-stat" scope="col">Archive</th><th class="done" scope="col">Done</th><th class="active" scope="col">Active</th><th class="open" scope="col">Open</th><th class="backlog-stat" scope="col">Backlog</th></tr></thead><tbody>${row("Features", counts.features)}${row("Tasks", counts.tasks)}${row("Todos", counts.entries)}</tbody></table>`;
   }
 
   /** @param {MDProject} project @param {MDViewState | undefined} viewState @param {string} fileName */
@@ -212,23 +252,17 @@ window.MDManager = window.MDManager || {};
     document.getElementById("appVersion").hidden = true;
     document.getElementById("watermark").hidden = true;
     document.getElementById("projectTitle").textContent = project.title;
-    const regularFeatures = project.features.filter(feature => !feature.isBacklog && !feature.ignored);
+    const regularFeatures = project.features.filter(feature => !feature.isBacklog && !feature.isArchived && !feature.ignored);
     const backlogFeature = project.features.find(feature => feature.isBacklog && !feature.ignored);
+    const archivedFeatures = project.features.filter(feature => feature.isArchived && !feature.ignored);
     const stats = document.getElementById("projectStats");
     stats.hidden = false;
     stats.innerHTML = statisticsMarkup(project);
     document.title = `MD_Manager - ${fileName}`;
     const content = document.getElementById("content");
-    if (!project.features.length) {
-      document.getElementById("toggleBacklog").disabled = true;
-      document.getElementById("toggleBacklog").setAttribute("aria-pressed", "false");
-      document.getElementById("backlog").hidden = true;
-      document.getElementById("backlog").innerHTML = "";
+    if (!regularFeatures.length && !backlogFeature) {
       content.innerHTML = '<div class="empty">No features found. At least one level <code>##</code> heading is required.</div>';
-      return;
-    }
-
-    content.innerHTML = regularFeatures.map(feature => {
+    } else content.innerHTML = regularFeatures.map(feature => {
       const featureIndex = project.features.indexOf(feature);
       const { complete, inProgress, percentage } = featureProgress(feature);
       return `<section class="release${complete ? " complete" : ""}${inProgress ? " in-progress" : ""}${feature.isPinned ? " pinned" : ""}" data-feature="${featureIndex}">
@@ -247,6 +281,15 @@ window.MDManager = window.MDManager || {};
         </div>
       </section>`;
     }).join("");
+    const archive = document.getElementById("archive");
+    const archiveButton = document.getElementById("toggleArchive");
+    const archiveAvailable = true;
+    const archiveOpen = Boolean(archiveAvailable && viewState?.archiveOpen);
+    archiveButton.disabled = !archiveAvailable;
+    archiveButton.setAttribute("aria-pressed", String(archiveOpen));
+    archive.innerHTML = archiveAvailable ? archiveContents(project, archivedFeatures, viewState?.archiveExpandedFeature) : "";
+    archive.hidden = !archiveOpen;
+    archive.setAttribute("aria-label", project.archiveTitle || "Archive");
     const backlog = document.getElementById("backlog");
     const backlogButton = document.getElementById("toggleBacklog");
     const backlogOpen = viewState ? viewState.backlogOpen : false;
@@ -316,6 +359,10 @@ window.MDManager = window.MDManager || {};
     document.getElementById("appVersion").hidden = false;
     document.getElementById("appClock").hidden = true;
     document.getElementById("projectStats").hidden = true;
+    document.getElementById("toggleArchive").disabled = true;
+    document.getElementById("toggleArchive").setAttribute("aria-pressed", "false");
+    document.getElementById("archive").hidden = true;
+    document.getElementById("archive").innerHTML = "";
     document.getElementById("toggleBacklog").disabled = true;
     document.getElementById("toggleBacklog").setAttribute("aria-pressed", "false");
     document.getElementById("backlog").hidden = true;

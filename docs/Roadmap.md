@@ -1,5 +1,293 @@
 # MD_Manager
 
+## Erstes offizielles Release
+
+#Version
+- 0.1.0
+
+#Date
+- 27.07.2026
+
+### Vereinheitlichtes Layout
+
+- [x] ~Abmessungen von Board-Karten und Seitenleisten vereinheitlichen~
+- [x] ~Abmessungen kompakter Grid-Karten und Seitenleisten vereinheitlichen~
+- [x] ~Typografie, Abstände, Steuerelemente, Dialoge und Scrollbars abstimmen~
+
+## QoL-Verbesserungen
+
+#Version
+- 0.2.0
+
+#Date
+- 28.07.2026 - 29.07.2026
+
+### Formatanpassungen
+
+- [x] ~Fließtext unter Labels parsen können~
+
+### Clock
+
+- [x] ~Clock implementieren~
+- [x] ~Liegt oben in der Mitte~
+
+### Notifications
+
+- [x] ~Notificationsystem bauen (UI ähnlich zu Neovim)~
+- [x] ~Notifications ergänzen~
+- [x] ~Sounds ergänzen~
+
+### Kopieren
+
+- [x] ~Copy/Paste im UI von Features und Tasks~
+- [x] ~Steuerung per Maus (Rechtsklick) und Tastatur (STRG + C/V)~
+- [x] ~Smooth mit UI-Feedback~
+- [x] ~Anzeige von gefülltem Zwischenspeicher~
+- [x] ~Entsprechende Notification~
+
+## Markdown besser editieren
+
+#Version
+- 0.3.0
+
+#Date
+- 30.07.2026
+
+### Markdown-Features
+
+- [x] ~Bold~
+- [x] ~Kursiv~
+- [x] ~Strikethrough~
+- [x] ~URLs~
+- [x] ~Quellcode~
+- [x] ~####~
+- [x] ~Einfach eingerückte Stichpunkte unterstützen~
+
+### Edit-Dialog
+
+- [x] ~Clunkyness verbessern~
+- [x] ~Fokus, Navigation, Tastatursteuerung verbessern~
+- [x] ~Editierfunktion ausbauen und komfortabler machen~
+- [x] ~Tags in den normalen Markdown-Body integrieren~
+
+### Tests
+
+- [x] ~Ausbau von Layout.md mit Pseudodaten und allen unterstützten Features~
+
+### Help
+
+- [x] ~Im Edit-Dialog ergänzen~
+- [x] ~Quick-Reference an die neuen Features anpassen~
+
+## Dateisystem
+
+#Version
+- 0.4.0
+
+#Date
+- 03.08.2026
+
+### Undo-System
+
+- [x] ~Ein richtiges, vollständiges Undo-System integrieren~
+- [x] ~Aktionsbasierte, reversible Domain-Transaktionen~
+- [x] ~Korrektes Verwerfen von Redo-Zweigen~
+- [x] ~Wiederherstellung von Ansichten~
+
+### Externe Dateiänderungen
+
+- [x] ~Detection~
+- [x] ~Reload~
+- [x] ~Overwrite~
+
+### Vorlagen
+
+- [x] ~"Create File"-Button auf der Startseite~
+- [x] ~Lokale Templates für Tasks anbieten~
+
+## Plattformunabhängigkeit
+
+#Version
+- 0.5.0
+
+#Date
+- 03.08.2026
+
+### Vereinheitlichung
+
+- [x] ~Plattformabhängige Stellen rausarbeiten und vereinheitlichen~
+- [x] ~Lokale Monospace-Schrift ergänzen~
+- [x] ~Normalisierung von Controls, Fokus, Selektion und Dialogen~
+- [x] ~Stabilisierung von Scrollbars und Layoutmessungen~
+
+### Tests
+
+- [x] ~Windows-/Linux-/macOS-Testmatrix inklusive Geometrie- und Screenshottests~
+
+### Symbole
+
+- [x] ~Deterministische, rasterbasierte Symbole definieren~
+- [x] ~Symbole lokal ablegen und Optik finalisieren~
+
+### Logo
+
+- [x] ~Neues Logo erstellen~
+- [x] ~Überall einpflegen~
+
+## Polishing
+
+#Version
+- 0.6.0
+
+#Date
+- 04.08.2026 - 07.08.2026
+
+### UI
+
+- [x] ~Headerbar anpassen~
+- [x] ~Controls überall anpassen~
+- [x] ~Größe von Sidebar und Stats~
+- [x] ~Startseite anpassen~
+
+### Interaktion
+
+- [x] ~Klick auf Logo returned zur Startseite~
+
+### Github
+
+- [x] ~Ordentliche README im Stil der anderen Projekte erstellen~
+- [x] ~Repository pflegen~
+- [x] ~Release + Deployment neuer Versionen automatisieren~
+
+## Pinning und Archivierung
+
+#Version
+- 0.7.0
+
+#Date
+- 07.08.2026 - 10.08.2026
+
+### Bugs und Verbesserungen
+
+#### Browserkompatibilität
+- [x] ~Error-Notifications persistent machen + Kopieren der Meldung anbieten~
+- [x] ~Ordentliche Fehlermeldungen anzeigen, wenn der Browser nicht unterstützt wird~
+
+#### Hochkantmodus
+- [x] ~Im Edit-Dialog werden Zeilenenden nicht korrekt umgebrochen und dargestellt~
+- [x] ~Edit-Dialoge breiter machen~
+
+#### Darstellung & Rendering
+- [x] ~ToDo-Gruppierungen zeigen Trennlinie nur an, wenn zuvor ein ToDo im Task dargestellt wurde~
+- [x] ~Stats und Backlog im Grid genau wie im Board rendern~
+- [x] ~Golden Parsing-File an neue Features anpassen~
+
+#### Leere Features/Tasks
+- [x] ~Unnötige Leerzeilen entfernen => Drap-and-Drop muss weiter funktionieren~
+
+### Feature-Karten
+
+- [x] ~Edit- und Close-Button in Dot-Submenü packen, da weitere Buttons hinzukommen~
+
+### Pinning
+
+- [x] ~Anpinnen/Lösen von einem einzelnen Feature erlauben~
+- [x] ~Neues Tag integrieren (+ Symbol)~
+- [x] ~Springen zum Pin via Keyboard~
+- [x] ~README ergänzen~
+
+### Archiv
+
+- [x] ~Archivierung von Features anbieten~
+- [x] ~Neues Tag integrieren (+ Symbol)~
+- [x] ~In Stats nachpflegen~
+- [x] ~Anzeige und Toggle ähnlich zum Backlog~
+- [x] ~README ergänzen~
+
+#Pin
+## Zeitstrahl und Suche
+
+#Version
+- 0.7.1
+
+#Date
+- 11.08.2026 - TBD
+
+### Bugs und Verbesserungen
+
+#### Darstellung & Rendering
+- [ ] Tabs im Help-Menü
+- [ ] Board => Workspace
+- [ ] Grid => Wird abgeschafft und durchs Archiv ersetzt
+- [ ] Breite des Backlogs anpassen
+
+### Archiv
+
+- [ ] Prototypischen Zeitstrahl zu einer vollwertigen Seite umbauen
+- [ ] "Pseudo"-3D + visuell ansprechend
+- [ ] README updaten
+
+### Suche
+
+- [ ] Fuzzy-Finding mit Echtzeitfilter
+- [ ] Enter führt zu Navigation zur richtigen Stelle
+
+## Markdown-Erweiterungen
+
+#Version
+- 0.8.0
+
+#Date
+- TBD
+
+### Markdown-Features
+
+- [ ] Referenzen herstellen + hervorheben können
+- [ ] Bilder unterstützen können
+- [ ] Auch einen Umgang mit anderen Markdown-Features + Inline-HTML finden
+- [ ] Live-Parsing mit Fehlermeldungen
+
+### Markdown-Linting
+
+- [ ] Nach Linting-Regeln importieren/exportieren
+- [ ] Schalter im UI (Default = False)
+
+## Erweiterungen
+
+#Version
+- 0.9.0
+
+#Date
+- TBD
+
+### Import/Export
+
+- [ ] PDF-Report
+- [ ] json
+
+### Keyboard-Controls
+
+- [ ] Ausbauen und vervollständigen
+
+#Backlog
+## Backlog
+
+### Hosting und Deployment
+
+- [ ] Anwendung zentral hosten
+
+### Monetarisierung
+
+- [ ] Coffee auf der Startseite
+- [ ] Hosting/Deployment in der Premiumversion
+
+### Mobile
+
+- [ ] Mobilunterstützung ausarbeiten
+
+#Archive
+# Archive
+
 ## Prototyp
 
 #Version
@@ -238,263 +526,3 @@
 - [x] ~Tastaturkürzel in einer kompakten Hilfeansicht dokumentieren~
 - [x] ~Feature-Tags, Metadaten, Labels und Backlog-Syntax erklären~
 - [x] ~Ignore-Tags für Features und Aufgaben unterstützen~
-
-## Erstes offizielles Release
-
-#Version
-- 0.1.0
-
-#Date
-- 27.07.2026
-
-### Vereinheitlichtes Layout
-
-- [x] ~Abmessungen von Board-Karten und Seitenleisten vereinheitlichen~
-- [x] ~Abmessungen kompakter Grid-Karten und Seitenleisten vereinheitlichen~
-- [x] ~Typografie, Abstände, Steuerelemente, Dialoge und Scrollbars abstimmen~
-
-## QoL-Verbesserungen
-
-#Version
-- 0.2.0
-
-#Date
-- 28.07.2026 - 29.07.2026
-
-### Formatanpassungen
-
-- [x] ~Fließtext unter Labels parsen können~
-
-### Clock
-
-- [x] ~Clock implementieren~
-- [x] ~Liegt oben in der Mitte~
-
-### Notifications
-
-- [x] ~Notificationsystem bauen (UI ähnlich zu Neovim)~
-- [x] ~Notifications ergänzen~
-- [x] ~Sounds ergänzen~
-
-### Kopieren
-
-- [x] ~Copy/Paste im UI von Features und Tasks~
-- [x] ~Steuerung per Maus (Rechtsklick) und Tastatur (STRG + C/V)~
-- [x] ~Smooth mit UI-Feedback~
-- [x] ~Anzeige von gefülltem Zwischenspeicher~
-- [x] ~Entsprechende Notification~
-
-## Markdown besser editieren
-
-#Version
-- 0.3.0
-
-#Date
-- 30.07.2026
-
-### Markdown-Features
-
-- [x] ~Bold~
-- [x] ~Kursiv~
-- [x] ~Strikethrough~
-- [x] ~URLs~
-- [x] ~Quellcode~
-- [x] ~####~
-- [x] ~Einfach eingerückte Stichpunkte unterstützen~
-
-### Edit-Dialog
-
-- [x] ~Clunkyness verbessern~
-- [x] ~Fokus, Navigation, Tastatursteuerung verbessern~
-- [x] ~Editierfunktion ausbauen und komfortabler machen~
-- [x] ~Tags in den normalen Markdown-Body integrieren~
-
-### Tests
-
-- [x] ~Ausbau von Layout.md mit Pseudodaten und allen unterstützten Features~
-
-### Help
-
-- [x] ~Im Edit-Dialog ergänzen~
-- [x] ~Quick-Reference an die neuen Features anpassen~
-
-## Dateisystem
-
-#Version
-- 0.4.0
-
-#Date
-- 03.08.2026
-
-### Undo-System
-
-- [x] ~Ein richtiges, vollständiges Undo-System integrieren~
-- [x] ~Aktionsbasierte, reversible Domain-Transaktionen~
-- [x] ~Korrektes Verwerfen von Redo-Zweigen~
-- [x] ~Wiederherstellung von Ansichten~
-
-### Externe Dateiänderungen
-
-- [x] ~Detection~
-- [x] ~Reload~
-- [x] ~Overwrite~
-
-### Vorlagen
-
-- [x] ~"Create File"-Button auf der Startseite~
-- [x] ~Lokale Templates für Tasks anbieten~
-
-## Plattformunabhängigkeit
-
-#Version
-- 0.5.0
-
-#Date
-- 03.08.2026
-
-### Vereinheitlichung
-
-- [x] ~Plattformabhängige Stellen rausarbeiten und vereinheitlichen~
-- [x] ~Lokale Monospace-Schrift ergänzen~
-- [x] ~Normalisierung von Controls, Fokus, Selektion und Dialogen~
-- [x] ~Stabilisierung von Scrollbars und Layoutmessungen~
-
-### Tests
-
-- [x] ~Windows-/Linux-/macOS-Testmatrix inklusive Geometrie- und Screenshottests~
-
-### Symbole
-
-- [x] ~Deterministische, rasterbasierte Symbole definieren~
-- [x] ~Symbole lokal ablegen und Optik finalisieren~
-
-### Logo
-
-- [x] ~Neues Logo erstellen~
-- [x] ~Überall einpflegen~
-
-## Polishing
-
-#Version
-- 0.6.0
-
-#Date
-- 04.08.2026 - 07.08.2026
-
-### UI
-
-- [x] ~Headerbar anpassen~
-- [x] ~Controls überall anpassen~
-- [x] ~Größe von Sidebar und Stats~
-- [x] ~Startseite anpassen~
-
-### Interaktion
-
-- [x] ~Klick auf Logo returned zur Startseite~
-
-### Github
-
-- [x] ~Ordentliche README im Stil der anderen Projekte erstellen~
-- [x] ~Repository pflegen~
-- [x] ~Release + Deployment neuer Versionen automatisieren~
-
-#Pin
-## Archivierung und Suche
-
-#Version
-- 0.7.0
-
-#Date
-- 07.08.2026 - TBD
-
-### Bugs
-
-#### Browserkompatibilität
-- [x] ~Error-Notifications persistent machen + Kopieren der Meldung anbieten~
-- [x] ~Ordentliche Fehlermeldungen anzeigen, wenn der Browser nicht unterstützt wird~
-
-#### Hochkantmodus
-- [x] ~Im Edit-Dialog werden Zeilenenden nicht korrekt umgebrochen und dargestellt~
-- [x] ~Edit-Dialoge breiter machen~
-
-#### Markdown-Rendering
-- [x] ~ToDo-Gruppierungen zeigen Trennlinie nur an, wenn zuvor ein ToDo im Task dargestellt wurde~
-
-#### Leere Features/Tasks
-- [x] ~Unnötige Leerzeilen entfernen => Drap-and-Drop muss weiter funktionieren~
-
-### Feature-Karten
-
-- [x] ~Edit- und Close-Button in Dot-Submenü packen, da weitere Buttons hinzukommen~
-
-### Pinning
-
-- [x] ~Anpinnen/Lösen von einem einzelnen Feature erlauben~
-- [x] ~Neues Tag integrieren (+ Symbol)~
-- [x] ~Springen zum Pin via Keyboard~
-
-### Archiv
-
-- [ ] Archivierung von Features anbieten
-- [ ] Neues Tag integrieren (+ Symbol)
-- [ ] In Stats nachpflegen
-- [ ] Wie das Backlog togglen können (auch via Keyboard)
-- [ ] Keyboard-Shortcuts implementieren
-
-### Suche
-
-- [ ] Fuzzy-Finding mit Echtzeitfilter
-- [ ] Enter führt zu Navigation zur richtigen Stelle
-
-## Markdown-Erweiterungen
-
-#Version
-- 0.8.0
-
-#Date
-- TBD
-
-### Markdown-Features
-
-- [ ] Referenzen herstellen + hervorheben können
-- [ ] Bilder unterstützen können
-- [ ] Auch einen Umgang mit anderen Markdown-Features + Inline-HTML finden
-- [ ] Live-Parsing mit Fehlermeldungen
-
-### Markdown-Linting
-
-- [ ] Nach Linting-Regeln importieren/exportieren
-- [ ] Schalter im UI (Default = False)
-
-## Erweiterungen
-
-#Version
-- 0.9.0
-
-#Date
-- TBD
-
-### Import/Export
-
-- [ ] PDF-Report
-- [ ] json
-
-### Keyboard-Controls
-
-- [ ] Ausbauen und vervollständigen
-
-#Backlog
-## Backlog
-
-### Hosting und Deployment
-
-- [ ] Anwendung zentral hosten
-
-### Monetarisierung
-
-- [ ] Coffee auf der Startseite
-- [ ] Hosting/Deployment in der Premiumversion
-
-### Mobile
-
-- [ ] Mobilunterstützung ausarbeiten

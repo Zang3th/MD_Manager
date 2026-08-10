@@ -22,11 +22,15 @@ test("counts aggregates item states", () => {
 test("statistics separates regular work from backlog totals", () => {
   const features = [
     { tasks: [{ entries: [{ checked: true }] }, { entries: [{ checked: false }] }] },
-    { isBacklog: true, tasks: [{ entries: [{ checked: false }, { checked: false }] }] }
+    { isBacklog: true, tasks: [{ entries: [{ checked: false }, { checked: false }] }] },
+    { isArchived: true, tasks: [{ entries: [{ checked: true }] }] }
   ];
   const statistics = status.statistics(features, task => task.entries);
   assert.equal(statistics.features.done, 0);
   assert.equal(statistics.tasks.done, 1);
   assert.equal(statistics.entries.open, 1);
   assert.equal(statistics.entries.backlog, 2);
+  assert.equal(statistics.features.archive, 1);
+  assert.equal(statistics.tasks.archive, 1);
+  assert.equal(statistics.entries.archive, 1);
 });

@@ -73,8 +73,7 @@ window.MDManager = window.MDManager || {};
 
   /** @param {MDFeature} feature */
   function featureComplete(feature) {
-    const todos = feature.tasks.filter(task => !task.ignored).flatMap(task => app.markdown.taskContent(task).todos);
-    return app.status.progress(todos).complete;
+    return app.domain.featureComplete(feature);
   }
 
   /** @param {number} seconds */
@@ -457,6 +456,12 @@ window.MDManager = window.MDManager || {};
       if (expandedBeforeGrid) restoreExpandedState(expandedBeforeGrid);
     }
     if (active) collapseAll();
+    if (active) {
+      const content = document.getElementById("content");
+      const initialHeight = Math.max(0, ...[...content.querySelectorAll(":scope > .release")].map(feature => feature.offsetHeight));
+      content.style.setProperty("--grid-feature-height", `${initialHeight}px`);
+      document.body.style.setProperty("--grid-feature-height", `${initialHeight}px`);
+    }
     app.layout.layoutGrid();
     const stateBeforeGrid = expandedBeforeGrid;
     if (!active && stateBeforeGrid) requestAnimationFrame(() => restoreScrollState(stateBeforeGrid));
@@ -465,6 +470,9 @@ window.MDManager = window.MDManager || {};
   /** @returns {MDViewState} */
   function captureViewState() {
     const content = document.getElementById("content");
+    const archive = document.getElementById("archive");
+    const archiveContent = archive.querySelector(".archive-content");
+    const expandedArchiveFeature = archive.querySelector('.archive-feature-toggle[aria-expanded="true"]')?.closest(".archive-feature");
     const backlog = document.getElementById("backlog");
     const backlogContent = backlog.querySelector(".backlog-content");
     const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -476,10 +484,13 @@ window.MDManager = window.MDManager || {};
     return {
       tasks: [...document.querySelectorAll(".card")].map(task => task.getAttribute("aria-expanded") === "true"),
       featureNotes: [...document.querySelectorAll(".feature-note")].map(note => note.getAttribute("aria-expanded") === "true"),
+      archiveOpen: !archive.hidden,
+      archiveExpandedFeature: expandedArchiveFeature ? Number(expandedArchiveFeature.dataset.feature) : undefined,
       backlogOpen: !backlog.hidden,
       contentScrollLeft: content.scrollLeft,
       contentScrollTop: content.scrollTop,
       featureScrolls: [...content.querySelectorAll(":scope > .release > .release-content")].map(featureContent => ({ left: featureContent.scrollLeft, top: featureContent.scrollTop })),
+      archiveScrollTop: archiveContent?.scrollTop || 0,
       backlogScrollLeft: backlogContent?.scrollLeft || 0,
       backlogScrollTop: backlogContent?.scrollTop || 0,
       focusSelector
@@ -519,6 +530,7 @@ window.MDManager = window.MDManager || {};
   /** @param {MDViewState} viewState */
   function restoreScrollState(viewState) {
     const content = document.getElementById("content");
+    const archiveContent = document.querySelector("#archive > .archive-content");
     const backlog = document.getElementById("backlog");
     const backlogContent = backlog.querySelector(".backlog-content");
     content.scrollLeft = viewState.contentScrollLeft;
@@ -527,10 +539,22 @@ window.MDManager = window.MDManager || {};
       featureContent.scrollLeft = viewState.featureScrolls[index]?.left || 0;
       featureContent.scrollTop = viewState.featureScrolls[index]?.top || 0;
     });
+    if (archiveContent) archiveContent.scrollTop = viewState.archiveScrollTop || 0;
     if (backlogContent) {
       backlogContent.scrollLeft = viewState.backlogScrollLeft;
       backlogContent.scrollTop = viewState.backlogScrollTop;
     }
+  }
+
+  function toggleArchive() {
+    const archive = document.getElementById("archive");
+    const button = document.getElementById("toggleArchive");
+    if (button.disabled) return;
+    const open = archive.hidden;
+    archive.hidden = !open;
+    button.setAttribute("aria-pressed", String(open));
+    connectSortable();
+    app.layout.contentOverflowChanged();
   }
 
   /** @param {MDViewState | undefined} viewState */
@@ -549,17 +573,17 @@ window.MDManager = window.MDManager || {};
     const backlog = document.getElementById("backlog");
     const button = document.getElementById("toggleBacklog");
     if (button.disabled) return;
+    closeViewMenu();
     const open = backlog.hidden;
     backlog.hidden = !open;
     button.setAttribute("aria-pressed", String(open));
     if (open) app.layout.fitTitles(backlog.querySelectorAll(".backlog-title, .card-title"));
     app.layout.contentOverflowChanged();
-    if (open && !document.body.classList.contains("toggle-grid-view")) {
-      const content = document.getElementById("content");
-      requestAnimationFrame(() => {
-        if (!backlog.hidden) content.scrollTo({ left: content.scrollWidth, behavior: reducedMotion.matches ? "auto" : "smooth" });
-      });
-    }
+  }
+
+  function toggleStats() {
+    const active = document.body.classList.toggle("hide-stats") === false;
+    document.getElementById("toggleStats").setAttribute("aria-pressed", String(active));
   }
 
   function jumpToPinnedFeature() {
@@ -596,6 +620,11 @@ window.MDManager = window.MDManager || {};
     sortables = [];
   }
 
+  /** @param {any} event */
+  function restoreDroppedItem(event) {
+    event.from.insertBefore(event.item, event.from.children[event.oldIndex] || null);
+  }
+
   /** @param {HTMLElement | null} task */
   function setTodoDropPreview(task) {
     if (todoDropPreview === task) return;
@@ -607,9 +636,11 @@ window.MDManager = window.MDManager || {};
   function connectSortable() {
     resetSortables();
     if (!project) return;
+    const activeProject = project;
     const content = document.getElementById("content");
 
     sortables.push(Sortable.create(content, {
+      group: "features",
       animation: reducedMotion.matches ? 0 : 150,
       easing: "cubic-bezier(.2,0,0,1)",
       draggable: "> .release",
@@ -619,15 +650,75 @@ window.MDManager = window.MDManager || {};
       ghostClass: "sortable-ghost",
       chosenClass: "sortable-chosen",
       dragClass: "sortable-drag",
+      forceFallback: true,
+      fallbackOnBody: true,
       onStart() { dragViewState = captureViewState(); },
       /** @param {any} event */
       onEnd(event) {
+        if (!project) return;
         const beforeViewState = dragViewState || captureViewState();
         const afterViewState = captureViewState();
         dragViewState = null;
+        if (event.to.closest("#archive")) {
+          const featureIndex = Number(event.item.dataset.feature);
+          const feature = activeProject.features[featureIndex];
+          if (!app.domain.canArchiveFeature(feature)) {
+            restoreDroppedItem(event);
+            requestAnimationFrame(connectSortable);
+            app.notifications.show("warning", "Feature not archived", [{ value: feature.title }, " is not 100% complete."]);
+            return;
+          }
+          const pinned = Boolean(feature.isPinned);
+          const hadArchive = Boolean(activeProject.hasArchive);
+          const archived = perform("Feature archived", () => app.domain.archiveFeature(activeProject, activeProject.features.indexOf(feature)), () => {
+            app.domain.restoreArchivedFeature(activeProject, feature, featureIndex, pinned, hadArchive);
+          }, beforeViewState, afterViewState);
+          if (archived) app.notifications.show("info", "Feature archived", [{ value: feature.title }, " archived."]);
+          return;
+        }
         perform("Feature moved", () => app.domain.moveFeature(project, event.oldIndex, event.newIndex), () => { app.domain.moveFeature(project, event.newIndex, event.oldIndex); }, beforeViewState, afterViewState);
       }
     }));
+
+    const archiveLists = document.getElementById("archive").hidden ? [] : document.querySelectorAll(".archive-period-features, .archive-drop-zone");
+    archiveLists.forEach(archiveList => {
+      sortables.push(Sortable.create(archiveList, {
+        group: "features",
+        animation: reducedMotion.matches ? 0 : 150,
+        easing: "cubic-bezier(.2,0,0,1)",
+        draggable: "> .archive-feature",
+        handle: ".archive-feature-toggle",
+        emptyInsertThreshold: 30,
+        ghostClass: "sortable-ghost",
+        chosenClass: "sortable-chosen",
+        dragClass: "sortable-drag",
+        forceFallback: true,
+        fallbackOnBody: true,
+        onStart() { dragViewState = captureViewState(); },
+        /** @param {any} event */
+        onEnd(event) {
+          if (!project) return;
+          if (event.to !== content) {
+            restoreDroppedItem(event);
+            dragViewState = null;
+            requestAnimationFrame(connectSortable);
+            return;
+          }
+          const beforeViewState = dragViewState || captureViewState();
+          const afterViewState = captureViewState();
+          dragViewState = null;
+          const featureIndex = Number(event.item.dataset.feature);
+          const feature = activeProject.features[featureIndex];
+          const followingFeature = [...content.children].slice(event.newIndex + 1).find(element => element.matches(".release"));
+          const boundary = activeProject.features.findIndex(item => item.isBacklog || item.isArchived);
+          const toIndex = followingFeature ? Number(followingFeature.dataset.feature) : boundary < 0 ? activeProject.features.length : boundary;
+          const unarchived = perform("Feature unarchived", () => app.domain.unarchiveFeature(activeProject, activeProject.features.indexOf(feature), toIndex), () => {
+            app.domain.archiveFeature(activeProject, activeProject.features.indexOf(feature));
+          }, beforeViewState, afterViewState);
+          if (unarchived) app.notifications.show("info", "Feature unarchived", [{ value: feature.title }, " unarchived."]);
+        }
+      }));
+    });
 
     document.querySelectorAll(".board").forEach(board => {
       sortables.push(Sortable.create(board, {
@@ -648,6 +739,12 @@ window.MDManager = window.MDManager || {};
           if (!project) return;
           const fromFeature = Number(event.from.closest(".release").dataset.feature);
           const toFeature = Number(event.to.closest(".release").dataset.feature);
+          if (project.features[toFeature]?.isArchived) {
+            event.from.insertBefore(event.item, event.from.children[event.oldIndex] || null);
+            dragViewState = null;
+            app.notifications.show("warning", "Task not archived", "Individual tasks cannot be moved to the archive. Archive the complete feature instead.");
+            return;
+          }
           const beforeViewState = dragViewState || captureViewState();
           const afterViewState = captureViewState();
           dragViewState = null;
@@ -794,10 +891,31 @@ window.MDManager = window.MDManager || {};
     if (pendingFeatureAction) {
       event.stopPropagation();
       closeFeatureMenus();
-      if (pendingFeatureAction.dataset.featureAction === "pin") {
-        const activeProject = project;
-        const featureElement = requiredClosest(pendingFeatureAction, ".release");
-        const featureIndex = Number(featureElement.dataset.feature);
+      const activeProject = project;
+      const featureElement = requiredClosest(pendingFeatureAction, ".release");
+      const featureIndex = Number(featureElement.dataset.feature);
+      if (pendingFeatureAction.dataset.featureAction === "archive") {
+        const feature = activeProject.features[featureIndex];
+        if (!app.domain.canArchiveFeature(feature)) {
+          app.notifications.show("warning", "Feature not archived", [{ value: feature.title }, " is not 100% complete."]);
+          return;
+        }
+        const pinned = Boolean(feature.isPinned);
+        const hadArchive = Boolean(activeProject.hasArchive);
+        const beforeViewState = captureViewState();
+        const afterViewState = copyViewState(beforeViewState);
+        const firstTask = [...document.querySelectorAll(".card")].indexOf(featureElement.querySelector(".card"));
+        if (firstTask >= 0) afterViewState.tasks.splice(firstTask, featureElement.querySelectorAll(".card").length);
+        const firstNote = [...document.querySelectorAll(".feature-note")].indexOf(featureElement.querySelector(".feature-note"));
+        if (firstNote >= 0) afterViewState.featureNotes.splice(firstNote, featureElement.querySelectorAll(".feature-note").length);
+        const renderedFeatureIndex = [...document.querySelectorAll("#content > .release")].indexOf(featureElement);
+        if (renderedFeatureIndex >= 0) afterViewState.featureScrolls.splice(renderedFeatureIndex, 1);
+        await animateRemoval(featureElement);
+        const archived = perform("Feature archived", () => app.domain.archiveFeature(activeProject, activeProject.features.indexOf(feature)), () => {
+          app.domain.restoreArchivedFeature(activeProject, feature, featureIndex, pinned, hadArchive);
+        }, beforeViewState, afterViewState, undefined, 1);
+        if (archived) app.notifications.show("info", "Feature archived", [{ value: feature.title }, " archived."]);
+      } else if (pendingFeatureAction.dataset.featureAction === "pin") {
         const pinned = Boolean(activeProject.features[featureIndex].isPinned);
         const pinnedBefore = activeProject.features.map(feature => Boolean(feature.isPinned));
         const viewState = captureViewState();
@@ -887,13 +1005,15 @@ window.MDManager = window.MDManager || {};
         const renderedFeatureIndex = [...document.querySelectorAll("#content > .release")].indexOf(featureElement);
         if (renderedFeatureIndex >= 0) viewState.featureScrolls.splice(renderedFeatureIndex, 1);
         const feature = project.features[featureIndex];
-        perform("Feature deleted", () => app.domain.deleteFeature(project, featureIndex), () => { app.domain.insertFeature(project, featureIndex, feature); }, beforeViewState, viewState, undefined, feature.title.length + feature.headerLines.join("\n").length + feature.tasks.reduce((size, task) => size + task.title.length + task.lines.join("\n").length, 0));
+        const deleted = perform("Feature deleted", () => app.domain.deleteFeature(project, featureIndex), () => { app.domain.insertFeature(project, featureIndex, feature); }, beforeViewState, viewState, undefined, feature.title.length + feature.headerLines.join("\n").length + feature.tasks.reduce((size, task) => size + task.title.length + task.lines.join("\n").length, 0));
+        if (deleted) app.notifications.show("info", "Feature deleted", [{ value: feature.title }, " deleted."]);
       } else if (deleteButton.dataset.delete === "task") {
         const taskElement = requiredClosest(deleteButton, ".card");
         viewState.tasks.splice([...document.querySelectorAll(".card")].indexOf(taskElement), 1);
         const taskIndex = Number(taskElement.dataset.task);
         const task = project.features[featureIndex].tasks[taskIndex];
-        perform("Task deleted", () => app.domain.deleteTask(project, featureIndex, taskIndex), () => { app.domain.insertTask(project, featureIndex, taskIndex, task); }, beforeViewState, viewState, undefined, task.title.length + task.lines.join("\n").length);
+        const deleted = perform("Task deleted", () => app.domain.deleteTask(project, featureIndex, taskIndex), () => { app.domain.insertTask(project, featureIndex, taskIndex, task); }, beforeViewState, viewState, undefined, task.title.length + task.lines.join("\n").length);
+        if (deleted) app.notifications.show("info", "Task deleted", [{ value: task.title }, " deleted."]);
       } else {
         const taskElement = requiredClosest(deleteButton, ".card");
         const task = project.features[featureIndex].tasks[Number(taskElement.dataset.task)];
@@ -1012,6 +1132,31 @@ window.MDManager = window.MDManager || {};
     container.addEventListener("mouseover", handleTitleEnter);
     container.addEventListener("mouseout", handleTitleLeave);
   });
+  document.getElementById("archive").addEventListener("click", event => {
+    const target = eventElement(event);
+    if (target.closest(".archive-close")) {
+      toggleArchive();
+      return;
+    }
+    const button = target.closest(".archive-feature-toggle");
+    if (!button) return;
+    const open = button.getAttribute("aria-expanded") !== "true";
+    document.querySelectorAll("#archive .archive-feature-toggle").forEach(toggle => {
+      const featureElement = toggle.closest(".archive-feature");
+      if (!featureElement) return;
+      toggle.setAttribute("aria-expanded", "false");
+      featureElement.classList.remove("expanded");
+      featureElement.querySelector(".archive-tasks").hidden = true;
+    });
+    if (open) {
+      const featureElement = button.closest(".archive-feature");
+      if (!featureElement) return;
+      button.setAttribute("aria-expanded", "true");
+      featureElement.classList.add("expanded");
+      featureElement.querySelector(".archive-tasks").hidden = false;
+    }
+  });
+  document.getElementById("toggleArchive").addEventListener("click", toggleArchive);
   document.getElementById("toggleBacklog").addEventListener("click", toggleBacklog);
   document.getElementById("addFeature").addEventListener("click", () => {
     if (!project) return;
@@ -1023,8 +1168,8 @@ window.MDManager = window.MDManager || {};
       const metadata = app.markdown.composeFeatureMetadata(draft);
       const tasks = seed.tasks.map((/** @type {MDTask} */ task) => app.domain.copyTask(task));
       const feature = { ...metadata, title: draft.title, tasks, isBacklog: false };
-      const backlogIndex = activeProject.features.findIndex(item => item.isBacklog);
-      const featureIndex = backlogIndex < 0 ? activeProject.features.length : backlogIndex;
+      const boundaryIndex = activeProject.features.findIndex(item => item.isBacklog || item.isArchived);
+      const featureIndex = boundaryIndex < 0 ? activeProject.features.length : boundaryIndex;
       const afterViewState = copyViewState(beforeViewState);
       const taskIndex = document.querySelectorAll("#content .card").length;
       afterViewState.tasks.splice(taskIndex, 0, ...tasks.map(() => false));
@@ -1068,6 +1213,7 @@ window.MDManager = window.MDManager || {};
     const target = eventElement(event);
     const editsText = target.matches("input,textarea,[contenteditable='true']");
     const key = event.key.toLowerCase();
+    const letterShortcut = !event.ctrlKey && !event.metaKey && !event.altKey && !editsText && !document.querySelector("dialog[open]");
     if (event.key === "Escape") {
       closeFeatureMenus();
       closeViewMenu();
@@ -1096,13 +1242,21 @@ window.MDManager = window.MDManager || {};
       event.preventDefault();
       redo?.();
     }
-    if (shortcut && !event.shiftKey && !editsText && key === "b" && !document.getElementById("toggleBacklog").disabled) {
+    if (letterShortcut && key === "a") {
+      event.preventDefault();
+      toggleArchive();
+    }
+    if (letterShortcut && key === "b" && !document.getElementById("toggleBacklog").disabled) {
       event.preventDefault();
       toggleBacklog();
     }
-    if (!event.ctrlKey && !event.metaKey && !event.altKey && !editsText && !document.querySelector("dialog[open]") && key === "p") {
+    if (letterShortcut && key === "p") {
       event.preventDefault();
       jumpToPinnedFeature();
+    }
+    if (letterShortcut && key === "s") {
+      event.preventDefault();
+      toggleStats();
     }
   });
 
@@ -1113,10 +1267,7 @@ window.MDManager = window.MDManager || {};
     app.layout.layoutGrid();
   });
 
-  document.getElementById("toggleStats").addEventListener("click", event => {
-    const active = document.body.classList.toggle("hide-stats") === false;
-    (/** @type {HTMLElement} */ (event.currentTarget)).setAttribute("aria-pressed", String(active));
-  });
+  document.getElementById("toggleStats").addEventListener("click", toggleStats);
   document.getElementById("toggleClock").addEventListener("click", event => {
     const clock = document.getElementById("appClock");
     const active = clock.hidden;

@@ -66,6 +66,48 @@ test("tasks move within and between features", () => {
   assert.deepEqual(value.features[1].tasks.map(x => x.title), ["B1", "A1"]);
 });
 
+test("archiving moves complete features behind the backlog and rejects individual task moves", () => {
+  const value = project();
+  value.features[0].version = "10.0.0";
+  value.features[1].version = "2.0.0";
+  value.features[0].tasks[0].lines = ["- [x] ~one~", "#### Next", "- [x] ~two~"];
+  value.features[1].tasks[0].lines = ["- [x] ~three~"];
+  assert.equal(domain.archiveFeature(value, 0), true);
+  assert.equal(domain.archiveFeature(value, 0), true);
+  assert.deepEqual(value.features.map(feature => feature.title), ["Backlog", "B", "A"]);
+  assert.deepEqual(value.features.map(feature => Boolean(feature.isArchived)), [false, true, true]);
+  assert.equal(value.hasArchive, true);
+  const before = value.features[2].tasks.length;
+  assert.equal(domain.moveTask(value, 1, 0, 2, before), false);
+  assert.equal(value.features[1].tasks.length, 1);
+  assert.equal(value.features[2].tasks.length, before);
+  assert.equal(domain.restoreArchivedFeature(value, value.features[2], 0, true, false), true);
+  assert.deepEqual(value.features.map(feature => feature.title), ["A", "Backlog", "B"]);
+  assert.equal(value.features[0].isPinned, true);
+  assert.equal(value.hasArchive, false);
+});
+
+test("unarchiving restores an archived feature at the requested board position", () => {
+  const value = project();
+  value.features[0].tasks[0].lines = ["- [x] ~one~", "#### Next", "- [x] ~two~"];
+  const archived = value.features[0];
+  assert.equal(domain.archiveFeature(value, 0), true);
+  assert.equal(domain.unarchiveFeature(value, value.features.indexOf(archived), 1), true);
+  assert.deepEqual(value.features.map(feature => feature.title), ["B", "A", "Backlog"]);
+  assert.equal(archived.isArchived, false);
+  assert.equal(value.hasArchive, true);
+  assert.equal(domain.unarchiveFeature(value, 0, 0), false);
+});
+
+test("incomplete features cannot be archived", () => {
+  const value = project();
+  assert.equal(domain.canArchiveFeature(value.features[0]), false);
+  assert.equal(domain.archiveFeature(value, 0), false);
+  assert.deepEqual(value.features.map(feature => feature.title), ["A", "B", "Backlog"]);
+  value.features[0].tasks[0].lines = ["- [x] ~one~", "#### Next", "- [x] ~two~"];
+  assert.equal(domain.canArchiveFeature(value.features[0]), true);
+});
+
 test("delete operations remove only their target", () => {
   const value = project();
   domain.deleteTodo(value.features[0].tasks[0], 0);
