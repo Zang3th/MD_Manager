@@ -55,7 +55,7 @@
 - Implement the specification in small ordered steps that each leave the project working. Update the specification before expanding scope; never improvise unrecorded product behavior.
 - Map every acceptance criterion to deterministic evidence. Use unit tests for DOM-independent rules, Playwright for browser behavior, visual baselines for stable layout contracts, and explicit measurements for material performance claims.
 - Finish with a review packet containing changed files and reasons, acceptance evidence, regression coverage, exact commands and results, manual verification when relevant, and remaining risks or skipped evidence.
-- After completion, archive the reviewed specification under `docs/work/history/` and reset `docs/work/current.md`. The archive is evidence, not a second roadmap; `docs/Roadmap.md` remains user-owned and changes only on explicit request.
+- After completion, reset `docs/work/current.md` to its defined empty state. `docs/Roadmap.md` remains user-owned and changes only on explicit request.
 
 ## User Experience
 
