@@ -1,9 +1,10 @@
-const { test, expect } = require("@playwright/test");
+const { test, expect } = require("./fixtures");
 const path = require("node:path");
 
 const appUrl = `file:///${path.resolve(__dirname, "../../MD_Manager.html").replaceAll("\\", "/")}`;
 const initialMarkdown = "# Local Project\n\n## Feature\n### Task\n- [ ] Todo";
 
+/** @param {import("@playwright/test").Page} page */
 async function openMutableFile(page) {
   await page.goto(appUrl);
   await page.evaluate(markdown => {
@@ -23,7 +24,7 @@ async function openMutableFile(page) {
       async createWritable() {
         let value = "";
         return {
-          async write(markdownValue) { value = markdownValue; },
+      async write(/** @type {string} */ markdownValue) { value = markdownValue; },
           async close() {
             if (window.__holdWrite) await new Promise(resolve => { window.__finishWrite = resolve; });
             window.__diskMarkdown = value;
@@ -38,6 +39,7 @@ async function openMutableFile(page) {
   await page.locator("#openFile").click();
 }
 
+/** @param {import("@playwright/test").Page} page @param {string} markdown */
 async function changeDisk(page, markdown) {
   await page.evaluate(value => {
     window.__diskMarkdown = value;

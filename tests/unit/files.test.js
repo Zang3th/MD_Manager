@@ -7,23 +7,26 @@ const vm = require("node:vm");
 function loadFiles() {
   const records = new Map();
   let now = 0;
+  /** @type {any} */
   const database = {
     createObjectStore() {},
     close() {},
     transaction() {
+      /** @type {any} */
       const transaction = {
         objectStore() {
           return {
             getAll() {
+              /** @type {any} */
               const request = {};
               queueMicrotask(() => { request.result = [...records.values()]; request.onsuccess(); });
               return request;
             },
-            put(record) {
+            put(/** @type {any} */ record) {
               records.set(record.id, record);
               queueMicrotask(() => transaction.oncomplete());
             },
-            delete(id) {
+            delete(/** @type {string} */ id) {
               records.delete(id);
               queueMicrotask(() => transaction.oncomplete());
             }
@@ -33,8 +36,10 @@ function loadFiles() {
       return transaction;
     }
   };
+  /** @type {any} */
   const indexedDB = {
     open() {
+      /** @type {any} */
       const request = {};
       queueMicrotask(() => {
         request.result = database;
@@ -52,11 +57,12 @@ function loadFiles() {
 
 test("save serializes writes", async () => {
   const { files } = loadFiles();
+  /** @type {string[]} */
   const events = [];
   const handle = {
     async createWritable() {
       return {
-        async write(value) { events.push(`write:${value}`); },
+        async write(/** @type {string} */ value) { events.push(`write:${value}`); },
         async close() { events.push("close"); }
       };
     }
@@ -69,7 +75,7 @@ test("a failed save does not block the next save", async () => {
   const { files } = loadFiles();
   await assert.rejects(files.save({ async createWritable() { throw new Error("failed"); } }, "one"));
   let written = "";
-  await files.save({ async createWritable() { return { async write(value) { written = value; }, async close() {} }; } }, "two");
+  await files.save({ async createWritable() { return { async write(/** @type {string} */ value) { written = value; }, async close() {} }; } }, "two");
   assert.equal(written, "two");
 });
 
@@ -91,15 +97,15 @@ test("createProject writes a minimal Markdown project through the save picker", 
   const handle = {
     name: "Project.md",
     async createWritable() {
-      return { async write(value) { written = value; }, async close() {} };
+      return { async write(/** @type {string} */ value) { written = value; }, async close() {} };
     },
     async getFile() { return { lastModified: 7, size: written.length }; }
   };
-  window.showSaveFilePicker = async options => { pickerOptions = options; return handle; };
+  window.showSaveFilePicker = async (/** @type {any} */ options) => { pickerOptions = options; return handle; };
   const opened = await files.createProject();
 
-  assert.equal(pickerOptions.suggestedName, "Project.md");
-  assert.equal(pickerOptions.id, "md-manager-files");
+  assert.equal(/** @type {any} */ (pickerOptions).suggestedName, "Project.md");
+  assert.equal(/** @type {any} */ (pickerOptions).id, "md-manager-files");
   assert.equal(written, "# New Project\n");
   assert.equal(opened.handle, handle);
   assert.equal(opened.markdown, written);
@@ -108,14 +114,14 @@ test("createProject writes a minimal Markdown project through the save picker", 
 test("recent entries are sorted, deduplicated, limited, and removable", async () => {
   const { files, records } = loadFiles();
   for (let index = 0; index < 6; index++) {
-    const handle = { name: `${index}.md`, async isSameEntry(other) { return other.name === this.name; } };
+    const handle = { name: `${index}.md`, async isSameEntry(/** @type {{name: string}} */ other) { return other.name === this.name; } };
     await files.remember(handle);
   }
   const recent = await files.recent();
   assert.equal(recent.length, 5);
   assert.equal(recent[0].name, "5.md");
   const newestId = recent[0].id;
-  await files.remember({ name: "5.md", async isSameEntry(other) { return other.name === this.name; } }, "Project Five");
+  await files.remember({ name: "5.md", async isSameEntry(/** @type {{name: string}} */ other) { return other.name === this.name; } }, "Project Five");
   assert.equal(records.size, 5);
   assert.equal((await files.recent())[0].projectTitle, "Project Five");
   await files.forget(newestId);

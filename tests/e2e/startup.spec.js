@@ -1,4 +1,4 @@
-const { test, expect } = require("@playwright/test");
+const { test, expect } = require("./fixtures");
 const path = require("node:path");
 
 const appUrl = `file:///${path.resolve(__dirname, "../../MD_Manager.html").replaceAll("\\", "/")}`;
@@ -10,7 +10,7 @@ test("missing File System Access API blocks unsupported browsers with concise vi
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: undefined });
     document.execCommand = command => {
       if (command !== "copy") return false;
-      window.__fallbackCopy = document.querySelector("body > textarea[readonly]")?.value || "";
+      window.__fallbackCopy = (/** @type {HTMLTextAreaElement | null} */ (document.querySelector("body > textarea[readonly]")))?.value || "";
       return true;
     };
   });
@@ -45,7 +45,7 @@ test("missing runtime files block startup and identify the failed component", as
     Object.defineProperty(window, "Sortable", { configurable: true, get: () => undefined, set() {} });
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
-      value: { writeText: async value => { window.__copiedStartupError = value; } }
+      value: { writeText: async (/** @type {string} */ value) => { window.__copiedStartupError = value; } }
     });
   });
   await page.goto(appUrl);
@@ -61,10 +61,11 @@ test("missing runtime files block startup and identify the failed component", as
 });
 
 test("missing local resources block startup with the affected path", async ({ page }) => {
+  test.info().annotations.push({ type: "allow-browser-error", description: "^console: Failed to load resource: net::ERR_FAILED$" });
   await page.addInitScript(() => {
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
-      value: { writeText: async value => { window.__copiedStartupError = value; } }
+      value: { writeText: async (/** @type {string} */ value) => { window.__copiedStartupError = value; } }
     });
   });
   await page.route("**/res/logo/Logo.svg", route => route.abort("failed"));

@@ -1,4 +1,4 @@
-const { test, expect } = require("@playwright/test");
+const { test, expect } = require("./fixtures");
 const path = require("node:path");
 
 const appUrl = `file:///${path.resolve(__dirname, "../../MD_Manager.html").replaceAll("\\", "/")}`;
@@ -17,7 +17,7 @@ test("a failed save stays dirty, reports the error, and allows a later save", as
     };
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
-      value: { writeText: async value => { window.__copiedError = value; } }
+      value: { writeText: async (/** @type {string} */ value) => { window.__copiedError = value; } }
     });
   });
   await page.locator("#openFile").click();
@@ -44,7 +44,7 @@ test("read and unsupported Markdown failures produce error notifications", async
   await page.evaluate(() => {
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
-      value: { writeText: async value => { window.__copiedError = value; } }
+      value: { writeText: async (/** @type {string} */ value) => { window.__copiedError = value; } }
     });
     window.MDManager.files.open = async () => { throw new Error("Device read failed"); };
   });
@@ -61,7 +61,7 @@ test("read and unsupported Markdown failures produce error notifications", async
   await page.evaluate(() => {
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
-      value: { writeText: async value => { window.__copiedError = value; } }
+      value: { writeText: async (/** @type {string} */ value) => { window.__copiedError = value; } }
     });
     const handle = { name: "Broken.md" };
     window.MDManager.files.open = async () => ({ handle, markdown: "# Project\ninvalid\u0000content" });
@@ -84,21 +84,24 @@ test("recent-file failures keep the start content and use error notifications", 
       requestPermission: async () => "granted",
       getFile: async () => { throw new Error("Recent file unavailable"); }
     };
+    /** @type {any} */
     const database = {
       close() {},
       transaction() {
         return { objectStore: () => ({ getAll: () => {
+          /** @type {any} */
           const request = { result: [{ id: "recent", name: handle.name, projectTitle: "Recent project", openedAt: Date.now(), handle }] };
           queueMicrotask(() => request.onsuccess());
           return request;
         } }) };
       }
     };
-    indexedDB.open = () => {
+    indexedDB.open = /** @type {any} */ (() => {
+      /** @type {any} */
       const request = { result: database };
       queueMicrotask(() => request.onsuccess());
       return request;
-    };
+    });
   });
   await page.goto(appUrl);
   await page.locator(".recent-file-open").click();

@@ -47,6 +47,16 @@
 - Use compositor-friendly animations where possible and avoid animating properties that repeatedly trigger layout or expensive paint without a demonstrated need.
 - Measure representative small and large projects in a real browser. Optimize demonstrated bottlenecks, but prevent obvious algorithmic, allocation, and layout problems during design rather than waiting for a benchmark to expose them.
 
+## Work Specification
+
+- For non-trivial behavior, architecture, performance, or harness changes, keep the active specification in `docs/work/current.md`. Trivial localized corrections may use a proportionally shorter specification, but must still identify the intended outcome and regression evidence.
+- Keep exactly one active work item. State the outcome, scope boundaries, affected contracts, observable acceptance criteria, planned regression coverage, and relevant performance impact before implementation.
+- Red-team the specification before changing code: check unhappy paths, missing contracts, scope creep, oversized steps, test gaps, cross-platform effects, accessibility, persistence, undo/redo, and repeated-work or layout costs.
+- Implement the specification in small ordered steps that each leave the project working. Update the specification before expanding scope; never improvise unrecorded product behavior.
+- Map every acceptance criterion to deterministic evidence. Use unit tests for DOM-independent rules, Playwright for browser behavior, visual baselines for stable layout contracts, and explicit measurements for material performance claims.
+- Finish with a review packet containing changed files and reasons, acceptance evidence, regression coverage, exact commands and results, manual verification when relevant, and remaining risks or skipped evidence.
+- After completion, archive the reviewed specification under `docs/work/history/` and reset `docs/work/current.md`. The archive is evidence, not a second roadmap; `docs/Roadmap.md` remains user-owned and changes only on explicit request.
+
 ## User Experience
 
 - Deliver a modern, consistent, cross-platform experience with immediate and predictable feedback.
@@ -62,11 +72,13 @@
 
 ## Development Harness
 
-- The harness consists of strict TypeScript checking for JavaScript with JSDoc, ESLint with zero warnings, the architecture checker, `node:test`, and Playwright Test.
+- The harness consists of strict TypeScript checking for production and harness JavaScript with JSDoc, ESLint with zero warnings, the workflow doctor, the architecture checker and its regression tests, `node:test`, and Playwright Test.
 - `npm run verify` runs all checks in that order, fails fast, and is the only Definition of Done for local development, agents, and CI.
 - Keep the harness deterministic, isolated, non-interactive, offline during verification, and independent of machine-specific paths or user state.
 - Treat `data/parsing/Layout.md` as the parsing golden file and preserve all existing tests, assertions, and architecture rules.
 - Extend checks and regression coverage with behavior changes; never weaken the harness to make a change pass.
+- Keep production-file discovery recursive so new nested files cannot escape architecture checks or script-wiring validation.
+- Do not commit focused, skipped, fixme, or todo tests. Browser tests fail on unexpected console errors and uncaught page errors.
 
 ## Tests
 

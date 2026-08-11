@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const load = require("./load-classic");
 
 const { domain } = load("domain/project.js");
+/** @returns {{features: any[], hasArchive?: boolean}} */
 const project = () => ({ features: [
   { title: "A", tasks: [{ title: "A1", lines: ["- [ ] one", "#### Next", "- [ ] two"] }] },
   { title: "B", tasks: [{ title: "B1", lines: ["- [ ] three"] }] },
@@ -34,7 +35,7 @@ test("features are added before the backlog and tasks at the end of their featur
   domain.addFeature(value, { title: "C", headerLines: [], version: "", dates: [], notes: [], tasks: [], isBacklog: false });
   domain.addTask(value, 0, { title: "A2", lines: ["- [ ] added"] });
   assert.deepEqual(value.features.map(feature => feature.title), ["A", "B", "C", "Backlog"]);
-  assert.deepEqual(value.features[0].tasks.map(task => task.title), ["A1", "A2"]);
+  assert.deepEqual(value.features[0].tasks.map((/** @type {any} */ task) => task.title), ["A1", "A2"]);
 });
 
 test("copied features and tasks reset completed todos and insert at requested positions", () => {
@@ -47,7 +48,7 @@ test("copied features and tasks reset completed todos and insert at requested po
   assert.deepEqual(taskCopy.lines, ["- [ ] one", "#### Next", "- [ ] two"]);
   assert.deepEqual(featureCopy.tasks[0].lines, ["- [ ] one", "#### Next", "- [ ] two"]);
   assert.deepEqual(value.features.map(feature => feature.title), ["A", "A", "B", "Backlog"]);
-  assert.deepEqual(value.features[2].tasks.map(task => task.title), ["A1", "B1"]);
+  assert.deepEqual(value.features[2].tasks.map((/** @type {any} */ task) => task.title), ["A1", "B1"]);
 });
 
 test("feature titles and complete task drafts update only their target", () => {
@@ -63,7 +64,7 @@ test("tasks move within and between features", () => {
   const value = project();
   domain.moveTask(value, 0, 0, 1, 1);
   assert.equal(value.features[0].tasks.length, 0);
-  assert.deepEqual(value.features[1].tasks.map(x => x.title), ["B1", "A1"]);
+  assert.deepEqual(value.features[1].tasks.map((/** @type {any} */ x) => x.title), ["B1", "A1"]);
 });
 
 test("archiving moves complete features behind the backlog and rejects individual task moves", () => {

@@ -36,7 +36,7 @@ test("history bounds retained snapshots by entry count and total size", () => {
   for (let index = 1; index <= 120; index++) history.record(countLimited, String(index));
   assert.equal(countLimited.entries.length, 100);
   assert.equal(countLimited.entries[0], "21");
-  assert.equal(countLimited.totalSize, countLimited.entries.reduce((size, entry) => size + entry.length, 0));
+  assert.equal(countLimited.totalSize, countLimited.entries.reduce((/** @type {number} */ size, /** @type {string} */ entry) => size + entry.length, 0));
 
   const chunk = "x".repeat(1024 * 1024);
   const sizeLimited = history.create(`${chunk}0`);

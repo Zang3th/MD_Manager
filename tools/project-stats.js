@@ -13,6 +13,7 @@ const sourceFiles = {
   ]
 };
 
+/** @param {string} directory @returns {string[]} */
 function javascriptFiles(directory) {
   return fs.readdirSync(directory, { withFileTypes: true })
     .filter(entry => entry.isFile() && entry.name.endsWith(".js"))
@@ -20,6 +21,7 @@ function javascriptFiles(directory) {
     .sort();
 }
 
+/** @param {string} file @param {string} language */
 function sourceLines(file, language) {
   const lines = fs.readFileSync(file, "utf8").split(/\r?\n/);
   const blockStart = language === "HTML" ? "<!--" : "/*";
@@ -54,6 +56,7 @@ function sourceLines(file, language) {
   }).length;
 }
 
+/** @param {string} directory @returns {string[]} */
 function testFiles(directory) {
   return fs.readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
     const target = path.join(directory, entry.name);

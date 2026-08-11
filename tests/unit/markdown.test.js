@@ -6,6 +6,14 @@ const load = require("./load-classic");
 
 const { markdown } = load("io/markdown.js");
 
+/** @param {unknown} error @param {RegExp} [message] */
+function isMarkdownError(error, message) {
+  return typeof error === "object" && error !== null &&
+    "name" in error && error.name === "MarkdownFormatError" &&
+    "message" in error && typeof error.message === "string" && Boolean(error.message) &&
+    (!message || message.test(error.message));
+}
+
 test("rejects Markdown that cannot be interpreted safely", () => {
   const invalid = [
     "",
@@ -16,7 +24,7 @@ test("rejects Markdown that cannot be interpreted safely", () => {
     "# Project\ntext\u0000after"
   ];
   for (const source of invalid) {
-    assert.throws(() => markdown.parse(source), error => error.name === "MarkdownFormatError" && Boolean(error.message));
+    assert.throws(() => markdown.parse(source), error => isMarkdownError(error));
   }
 });
 
@@ -69,18 +77,18 @@ test("task editor separates Markdown, info, and warn without trailing blank line
 
 test("info and warn are limited to one marker per task and feature", () => {
   const taskLines = markdown.composeTaskLines({ markdown: "- [ ] todo\n#Info\n- embedded\n#Warn\n- embedded warning", info: "- explicit", warn: "- explicit warning" });
-  assert.equal(Array.from(taskLines).filter(line => line === "#Info").length, 1);
-  assert.equal(Array.from(taskLines).filter(line => line === "#Warn").length, 1);
+  assert.equal(Array.from(taskLines).filter((/** @type {string} */ line) => line === "#Info").length, 1);
+  assert.equal(Array.from(taskLines).filter((/** @type {string} */ line) => line === "#Warn").length, 1);
   const task = markdown.taskContent({ lines: ["#Info", "first", "#Info", "second", "#Warn", "one", "#Warn", "two"] });
-  assert.equal(task.blocks.filter(block => block.type === "note" && block.noteType === "info").length, 1);
-  assert.equal(task.blocks.filter(block => block.type === "note" && block.noteType === "warn").length, 1);
+  assert.equal(task.blocks.filter((/** @type {any} */ block) => block.type === "note" && block.noteType === "info").length, 1);
+  assert.equal(task.blocks.filter((/** @type {any} */ block) => block.type === "note" && block.noteType === "warn").length, 1);
 
   const feature = markdown.composeFeatureMetadata({ metadata: "#Version\n- 1.0.0\n#Info\n- embedded\n#Warn\n- embedded warning", info: "- explicit", warn: "- explicit warning" });
-  assert.equal(feature.headerLines.filter(line => line === "#Info").length, 1);
-  assert.equal(feature.headerLines.filter(line => line === "#Warn").length, 1);
+  assert.equal(feature.headerLines.filter((/** @type {string} */ line) => line === "#Info").length, 1);
+  assert.equal(feature.headerLines.filter((/** @type {string} */ line) => line === "#Warn").length, 1);
   const parsed = markdown.parse("# P\n## F\n#Info\n- first\n#Info\n- second\n#Warn\n- one\n#Warn\n- two");
-  assert.equal(parsed.features[0].notes.filter(note => note.type === "info").length, 1);
-  assert.equal(parsed.features[0].notes.filter(note => note.type === "warn").length, 1);
+  assert.equal(parsed.features[0].notes.filter((/** @type {any} */ note) => note.type === "info").length, 1);
+  assert.equal(parsed.features[0].notes.filter((/** @type {any} */ note) => note.type === "warn").length, 1);
 });
 
 test("feature metadata Markdown keeps source lines and derives supported fields", () => {
@@ -165,8 +173,8 @@ test("archive is optional, may be empty, and round-trips complete features at th
 
 test("backlog and archive tags define behavior independently of their display names", () => {
   const project = markdown.parse("# P\n\n#Backlog\n## Later queue\n### Deferred\n- [ ] pending\n\n#Archive\n# Finished history\n\n## Shipped release\n### Done\n- [x] complete");
-  const backlog = project.features.find(feature => feature.isBacklog);
-  const archived = project.features.find(feature => feature.isArchived);
+  const backlog = project.features.find((/** @type {any} */ feature) => feature.isBacklog);
+  const archived = project.features.find((/** @type {any} */ feature) => feature.isArchived);
   assert.equal(backlog.title, "Later queue");
   assert.equal(archived.title, "Shipped release");
   assert.equal(project.archiveTitle, "Finished history");
@@ -176,9 +184,9 @@ test("backlog and archive tags define behavior independently of their display na
 test("docs/Roadmap.md uses the supported tagged archive section shape", () => {
   const source = fs.readFileSync(path.join(__dirname, "../../docs/Roadmap.md"), "utf8");
   const project = markdown.parse(source);
-  assert.equal(project.features.find(feature => feature.isBacklog).title, "Backlog");
+  assert.equal(project.features.find((/** @type {any} */ feature) => feature.isBacklog).title, "Backlog");
   assert.equal(project.archiveTitle, "Archive");
-  assert.equal(project.features.find(feature => feature.isArchived).title, "Prototyp");
+  assert.equal(project.features.find((/** @type {any} */ feature) => feature.isArchived).title, "Prototyp");
 });
 
 test("archive serialization sorts versions and ISO or European dates before missing metadata", () => {
@@ -192,15 +200,15 @@ test("archive serialization sorts versions and ISO or European dates before miss
 test("archive rejects individual tasks and sections following it", () => {
   assert.throws(
     () => markdown.parse("# P\n\n## Current\n### Work\n- [ ] open\n\n#Archive\n### Orphan\n- [ ] forbidden"),
-    error => error.name === "MarkdownFormatError" && /individual tasks/i.test(error.message)
+    error => isMarkdownError(error, /individual tasks/i)
   );
   assert.throws(
     () => markdown.parse("# P\n\n#Archive\n\n#Backlog\n## Later"),
-    error => error.name === "MarkdownFormatError" && /cannot appear after/i.test(error.message)
+    error => isMarkdownError(error, /cannot appear after/i)
   );
   assert.throws(
     () => markdown.parse("# P\n\n#Archive\n## Incomplete\n### Open\n- [ ] pending"),
-    error => error.name === "MarkdownFormatError" && /not 100% complete/i.test(error.message)
+    error => isMarkdownError(error, /not 100% complete/i)
   );
 });
 
@@ -209,23 +217,27 @@ test("data/parsing/Layout.md is the parsing golden file and round-trips without 
   const first = markdown.parse(source);
   const serialized = markdown.serialize(first);
   const second = markdown.parse(serialized);
+  const serializedAgain = markdown.serialize(second);
+  const third = markdown.parse(serializedAgain);
 
-  const regularFeatures = first.features.filter(feature => !feature.isBacklog && !feature.isArchived);
-  const backlog = first.features.find(feature => feature.isBacklog);
-  const archivedFeatures = first.features.filter(feature => feature.isArchived);
+  const regularFeatures = first.features.filter((/** @type {any} */ feature) => !feature.isBacklog && !feature.isArchived);
+  const backlog = first.features.find((/** @type {any} */ feature) => feature.isBacklog);
+  const archivedFeatures = first.features.filter((/** @type {any} */ feature) => feature.isArchived);
   assert.equal(regularFeatures.length, 5);
   assert.equal(backlog.tasks.length, 3);
   assert.equal(first.hasArchive, true);
   assert.equal(first.archiveTitle, "Archive");
+  assert.equal(first.newline, "\n");
+  assert.doesNotMatch(serialized, /\r\n/);
   assert.deepEqual(Array.from(archivedFeatures, feature => feature.title), ["Archived Version Fixture", "Archived Date Fixture", "Archived Metadata-free Fixture"]);
   assert.equal(archivedFeatures[0].version, "0.8.0");
   assert.equal(archivedFeatures[1].dates[0].from, "2025-10-01");
   assert.equal(archivedFeatures[2].version, "");
   assert.equal(archivedFeatures[2].dates.length, 0);
-  assert.equal(regularFeatures.find(feature => feature.title === "Editor Experience").isPinned, true);
-  assert.equal(regularFeatures.find(feature => feature.title === "Hidden Feature Fixture").ignored, true);
-  assert.equal(regularFeatures.find(feature => feature.title === "Empty Feature Fixture").tasks.length, 0);
-  assert.equal(regularFeatures[1].tasks.find(task => task.title === "Internal migration fixture").ignored, true);
+  assert.equal(regularFeatures.find((/** @type {any} */ feature) => feature.title === "Editor Experience").isPinned, true);
+  assert.equal(regularFeatures.find((/** @type {any} */ feature) => feature.title === "Hidden Feature Fixture").ignored, true);
+  assert.equal(regularFeatures.find((/** @type {any} */ feature) => feature.title === "Empty Feature Fixture").tasks.length, 0);
+  assert.equal(regularFeatures[1].tasks.find((/** @type {any} */ task) => task.title === "Internal migration fixture").ignored, true);
   assert.match(source, /^#### Formatting toolbar$/m);
   assert.match(source, /\*\*bold context\*\*/);
   assert.match(source, /\*italic nuance\*/);
@@ -239,5 +251,16 @@ test("data/parsing/Layout.md is the parsing golden file and round-trips without 
   }
   assert.match(serialized, /#Archive[\s\S]+Archived Metadata-free Fixture[\s\S]*$/);
   assert.deepEqual(second, first);
-  assert.equal(markdown.serialize(second), serialized);
+  assert.equal(serializedAgain, serialized);
+  assert.deepEqual(third, second);
+});
+
+test("serialization remains stable across repeated LF and CRLF round trips", () => {
+  for (const newline of ["\n", "\r\n"]) {
+    const source = ["# Project", "", "## Feature", "### Task", "- [ ] Todo"].join(newline);
+    const first = markdown.serialize(markdown.parse(source));
+    const second = markdown.serialize(markdown.parse(first));
+    assert.equal(second, first);
+    assert.equal(markdown.parse(second).newline, newline);
+  }
 });

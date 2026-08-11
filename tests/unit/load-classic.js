@@ -2,6 +2,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
+/** @param {...string} files @returns {any} */
 module.exports = function loadClassic(...files) {
   const context = vm.createContext({ window: { MDManager: {} } });
   for (const file of files) {

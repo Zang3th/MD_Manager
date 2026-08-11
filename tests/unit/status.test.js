@@ -13,7 +13,7 @@ test("progress distinguishes open, active, and complete entries", () => {
 
 test("counts aggregates item states", () => {
   const items = [[true], [true, false], [false], []];
-  const counts = status.counts(items, values => values.map(checked => ({ checked })));
+  const counts = status.counts(items, (/** @type {boolean[]} */ values) => values.map((/** @type {boolean} */ checked) => ({ checked })));
   assert.equal(counts.done, 1);
   assert.equal(counts.active, 1);
   assert.equal(counts.open, 2);
@@ -25,7 +25,7 @@ test("statistics separates regular work from backlog totals", () => {
     { isBacklog: true, tasks: [{ entries: [{ checked: false }, { checked: false }] }] },
     { isArchived: true, tasks: [{ entries: [{ checked: true }] }] }
   ];
-  const statistics = status.statistics(features, task => task.entries);
+  const statistics = status.statistics(features, (/** @type {any} */ task) => task.entries);
   assert.equal(statistics.features.done, 0);
   assert.equal(statistics.tasks.done, 1);
   assert.equal(statistics.entries.open, 1);

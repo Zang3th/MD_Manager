@@ -1,17 +1,21 @@
 {
   "private": true,
   "scripts": {
-    "check:types": "tsc -p jsconfig.json",
+    "check:types": "npm run check:types:production && npm run check:types:harness",
+    "check:types:production": "tsc -p jsconfig.json",
+    "check:types:harness": "tsc -p jsconfig.harness.json",
     "check:lint": "eslint . --max-warnings=0",
+    "check:doctor": "node tools/check-harness.js",
     "check:architecture": "node tools/check-architecture.js",
     "test": "npm run test:unit && npm run test:e2e",
     "test:unit": "node --test tests/unit/*.test.js",
     "test:e2e": "playwright test",
-    "verify": "npm run check:types && npm run check:lint && npm run check:architecture && npm run test:unit && npm run test:e2e"
+    "verify": "npm run check:types && npm run check:lint && npm run check:doctor && npm run check:architecture && npm run test:unit && npm run test:e2e"
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
     "@playwright/test": "^1.55.0",
+    "@types/node": "^24.13.3",
     "eslint": "^9.32.0",
     "globals": "^16.3.0",
     "typescript": "^5.9.2"

@@ -1,4 +1,4 @@
-const { test, expect } = require("@playwright/test");
+const { test, expect } = require("./fixtures");
 const path = require("node:path");
 
 const appUrl = `file:///${path.resolve(__dirname, "../../MD_Manager.html").replaceAll("\\", "/")}`;
@@ -28,35 +28,40 @@ const fixture = `# Test Project
 ### Deferred Task
 - [ ] someday`;
 
+/** @param {import("@playwright/test").Page} page @param {string} markdown */
 async function openFixture(page, markdown = fixture) {
   await page.goto(appUrl);
   await page.evaluate(value => {
     const handle = { name: "Fixture.md" };
     window.MDManager.files.open = async () => ({ handle, markdown: value });
     window.MDManager.files.remember = async () => {};
-    window.MDManager.files.save = async (_handle, value) => { window.__savedMarkdown = value; };
+    window.MDManager.files.save = async (/** @type {unknown} */ _handle, /** @type {string} */ value) => { window.__savedMarkdown = value; };
   }, markdown);
   await page.getByRole("button", { name: "Open File", exact: true }).click();
-  await expect(page.locator("#projectTitle")).toHaveText(markdown.match(/^#\s+(.+)$/m)[1]);
+  await expect(page.locator("#projectTitle")).toHaveText(markdown.match(/^#\s+(.+)$/m)?.[1] || "");
 }
 
+/** @param {import("@playwright/test").Page} page */
 async function toggleBacklogFromView(page) {
   await page.locator("#toggleViewMenu").click();
   await page.locator("#toggleBacklog").click();
   await expect(page.locator("#viewOptions")).toBeHidden();
 }
 
+/** @param {import("@playwright/test").Page} page */
 async function toggleArchiveFromView(page) {
   await page.locator("#toggleViewMenu").click();
   await page.locator("#toggleArchive").click();
   await page.locator("#toggleViewMenu").click();
 }
 
+/** @param {import("@playwright/test").Locator} feature */
 async function openFeatureActions(feature) {
   await feature.locator(".release-heading").hover();
   await feature.locator(".feature-menu-button").click();
 }
 
+/** @param {import("@playwright/test").Page} page */
 async function expandAllProjectContent(page) {
   const collapsible = page.locator(".card, .feature-note");
   for (let index = 0; index < await collapsible.count(); index += 1) {
@@ -68,6 +73,7 @@ async function expandAllProjectContent(page) {
   await expect.poll(() => collapsible.evaluateAll(items => items.every(item => item.getAttribute("aria-expanded") === "true"))).toBe(true);
 }
 
+/** @param {import("@playwright/test").Locator} parent @param {import("@playwright/test").Locator} child @param {"both" | "vertical" | "horizontal"} axes */
 async function expectCentered(parent, child, axes = "both") {
   const offset = await parent.evaluate((container, childElement) => {
     const outer = container.getBoundingClientRect();
@@ -81,6 +87,7 @@ async function expectCentered(parent, child, axes = "both") {
   if (axes !== "horizontal") expect(Math.abs(offset.y)).toBeLessThanOrEqual(0.01);
 }
 
+/** @param {import("@playwright/test").Page} page */
 async function expectVisibleIconButtonsCentered(page) {
   const offsets = await page.locator("button svg, button img").evaluateAll(graphics => graphics.flatMap(graphic => {
     const button = graphic.closest("button");
@@ -100,12 +107,14 @@ async function expectVisibleIconButtonsCentered(page) {
   }
 }
 
+/** @param {import("@playwright/test").Locator} button @param {import("@playwright/test").Locator} svg */
 async function expectSvgInkCentered(button, svg) {
   const offset = await button.evaluate((container, graphic) => {
+    const svgGraphic = /** @type {SVGSVGElement} */ (/** @type {unknown} */ (graphic));
     const outer = container.getBoundingClientRect();
-    const inner = graphic.getBoundingClientRect();
-    const ink = graphic.getBBox();
-    const viewBox = graphic.viewBox.baseVal;
+    const inner = svgGraphic.getBoundingClientRect();
+    const ink = svgGraphic.getBBox();
+    const viewBox = svgGraphic.viewBox.baseVal;
     return {
       x: inner.left + (ink.x + ink.width / 2 - viewBox.x) * inner.width / viewBox.width - (outer.left + outer.width / 2),
       y: inner.top + (ink.y + ink.height / 2 - viewBox.y) * inner.height / viewBox.height - (outer.top + outer.height / 2)
@@ -322,7 +331,7 @@ test("symbols, progress values, and the clock stay optically aligned in their co
   await expect(page.locator("#toggleGridView")).toHaveCSS("height", "32px");
   const rasterContract = await page.evaluate(() => {
     const namespace = "http://www.w3.org/2000/svg";
-    const visibleInk = (use, symbol) => {
+    const visibleInk = (/** @type {SVGUseElement} */ use, /** @type {SVGSymbolElement} */ symbol) => {
       const bounds = use.getBBox();
       const strokeWidth = symbol.getAttribute("fill") === "none" ? Math.max(0, ...Array.from(symbol.children, child => parseFloat(child.getAttribute("stroke-width") || "0"))) : 0;
       const expansion = strokeWidth / 2;
@@ -336,7 +345,7 @@ test("symbols, progress values, and the clock stay optically aligned in their co
       use.setAttribute("href", `#${symbol.id}`);
       svg.append(use);
       document.body.append(svg);
-      const ink = visibleInk(use, symbol);
+      const ink = visibleInk(/** @type {SVGUseElement} */ (use), /** @type {SVGSymbolElement} */ (symbol));
       svg.remove();
       return { id: symbol.id, ink: [ink.x, ink.y, ink.width, ink.height], center: [ink.x + ink.width / 2, ink.y + ink.height / 2] };
     });
@@ -359,9 +368,11 @@ test("symbols, progress values, and the clock stay optically aligned in their co
       if (!button || button.innerText.trim() || !use || !bounds.width || !bounds.height) return [];
       const outer = button.getBoundingClientRect();
       const style = getComputedStyle(button);
-      const symbol = document.querySelector(use.getAttribute("href"));
+      const href = use.getAttribute("href");
+      if (!href) return [];
+      const symbol = document.querySelector(href);
       if (!(symbol instanceof SVGSymbolElement)) return [];
-      const ink = visibleInk(use, symbol);
+      const ink = visibleInk(/** @type {SVGUseElement} */ (/** @type {unknown} */ (use)), symbol);
       const inner = [outer.width - parseFloat(style.borderLeftWidth) - parseFloat(style.borderRightWidth), outer.height - parseFloat(style.borderTopWidth) - parseFloat(style.borderBottomWidth)];
       const renderedInk = [ink.width * bounds.width / 32, ink.height * bounds.height / 32];
       return [{ href: use.getAttribute("href"), canvas: [bounds.width, bounds.height], gaps: [(inner[0] - renderedInk[0]) / 2, (inner[1] - renderedInk[1]) / 2] }];
@@ -713,7 +724,7 @@ test("features can be pinned, reached with P, persisted, and unpinned", async ({
   await last.getByRole("button", { name: "Pin feature" }).click();
   await content.evaluate(element => { element.scrollLeft = 0; });
   await page.keyboard.press("p");
-  await expect.poll(() => content.evaluate(element => Math.abs(element.scrollWidth - element.offsetWidth - element.scrollLeft))).toBeLessThanOrEqual(1);
+  await expect.poll(() => content.evaluate(element => { const html = /** @type {HTMLElement} */ (element); return Math.abs(html.scrollWidth - html.offsetWidth - html.scrollLeft); })).toBeLessThanOrEqual(1);
 
   await openFeatureActions(last);
   const unpin = last.getByRole("button", { name: "Unpin feature" });
@@ -826,7 +837,7 @@ test("inline code wraps at punctuation and case transitions", async ({ page }) =
   await expect(code).toHaveText(source);
   await expect(code.locator("wbr")).toHaveCount(8);
   await expect(code).toHaveCSS("overflow-wrap", "break-word");
-  await code.evaluate(element => { element.parentElement.style.width = "8rem"; });
+  await code.evaluate(element => { if (!element.parentElement) throw new Error("Code parent missing"); element.parentElement.style.width = "8rem"; });
   await expect.poll(() => code.evaluate(element => element.getClientRects().length)).toBeGreaterThan(1);
 });
 
@@ -1074,14 +1085,15 @@ test("Markdown toolbars format defaults and selected text in the active field", 
   await expect(toolbar.getByRole("button", { name: "URL" })).toHaveText("URL");
   await expect(toolbar.getByRole("button", { name: "URL" }).locator("svg")).toHaveCount(0);
   await expect(toolbar.getByRole("button", { name: "Bold" })).toBeDisabled();
-  await textarea.evaluate(element => element.setSelectionRange(element.value.length, element.value.length));
+  await textarea.evaluate(element => { const input = /** @type {HTMLTextAreaElement} */ (element); input.setSelectionRange(input.value.length, input.value.length); });
   await title.focus();
   await title.press("Tab");
   await expect(textarea).toBeFocused();
-  await expect.poll(() => textarea.evaluate(element => [element.selectionStart, element.selectionEnd])).toEqual([0, 0]);
+  await expect.poll(() => textarea.evaluate(element => { const input = /** @type {HTMLTextAreaElement} */ (element); return [input.selectionStart, input.selectionEnd]; })).toEqual([0, 0]);
   expect(await toolbar.evaluate(node => node.parentElement?.querySelector("textarea")?.id)).toBe("taskEditorMarkdown");
   expect(await toolbar.evaluate(node => {
     const toolbarBounds = node.getBoundingClientRect();
+    if (!node.nextElementSibling) throw new Error("Editor sibling missing");
     const editorBounds = node.nextElementSibling.getBoundingClientRect();
     return Math.abs(toolbarBounds.bottom - editorBounds.top);
   })).toBeLessThanOrEqual(1);
@@ -1101,10 +1113,11 @@ test("Markdown toolbars format defaults and selected text in the active field", 
   await expect(editorStack).toHaveCSS("border-left-color", "rgb(235, 219, 178)");
   await textarea.fill("word next");
   await textarea.evaluate(element => {
-    element.setSelectionRange(2, 2);
-    element.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0, detail: 2 }));
+    const input = /** @type {HTMLTextAreaElement} */ (element);
+    input.setSelectionRange(2, 2);
+    input.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0, detail: 2 }));
   });
-  await expect.poll(() => textarea.evaluate(element => [element.selectionStart, element.selectionEnd])).toEqual([0, 4]);
+  await expect.poll(() => textarea.evaluate(element => { const input = /** @type {HTMLTextAreaElement} */ (element); return [input.selectionStart, input.selectionEnd]; })).toEqual([0, 4]);
   const helpButton = toolbar.getByRole("button", { name: "Formatting help" });
   await helpButton.click();
   const formattingHelp = toolbar.locator(".help-popover");
@@ -1243,13 +1256,13 @@ test("Markdown fields continue and finish lists while formatting shortcuts wrap 
 
   const beforeContinuedList = "- [ ] selected";
   await textarea.fill(beforeContinuedList);
-  await textarea.evaluate(element => element.setSelectionRange(6, element.value.length));
+  await textarea.evaluate(element => { const input = /** @type {HTMLTextAreaElement} */ (element); input.setSelectionRange(6, input.value.length); });
   await textarea.press("End");
   await textarea.press("Enter");
   await expect(textarea).toHaveValue(`${beforeContinuedList}\n- [ ] `);
   await textarea.press("Control+z");
   await expect(textarea).toHaveValue(beforeContinuedList);
-  await expect.poll(() => textarea.evaluate(element => [element.selectionStart, element.selectionEnd])).toEqual([beforeContinuedList.length, beforeContinuedList.length]);
+  await expect.poll(() => textarea.evaluate(element => { const input = /** @type {HTMLTextAreaElement} */ (element); return [input.selectionStart, input.selectionEnd]; })).toEqual([beforeContinuedList.length, beforeContinuedList.length]);
 
   const shortcuts = [
     ["Control+b", "**text**"],
@@ -1291,10 +1304,11 @@ test("dialog undo and redo include all fields and reset when the dialog reopens"
   await expect(undo).toBeDisabled();
   await expect(redo).toBeDisabled();
   await title.evaluate(element => {
-    element.setSelectionRange(2, 2);
-    element.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0, detail: 2 }));
+    const input = /** @type {HTMLInputElement} */ (element);
+    input.setSelectionRange(2, 2);
+    input.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0, detail: 2 }));
   });
-  await expect.poll(() => title.evaluate(element => element.selectionEnd)).toBe(originalTitle.indexOf(" "));
+  await expect.poll(() => title.evaluate(element => /** @type {HTMLInputElement} */ (element).selectionEnd)).toBe(originalTitle.indexOf(" "));
 
   await title.fill("Temporary title");
   await title.fill(originalTitle);
@@ -1338,11 +1352,11 @@ test("merged feature Markdown highlights syntax and inserts tags", async ({ page
   const metadata = page.locator("#featureEditorMetadata");
   const highlight = page.locator("#featureMarkdownHighlight");
   await expect(page.getByText("#Version, #Date, #Info and #Warn", { exact: true })).toHaveCount(0);
-  await metadata.evaluate(element => element.setSelectionRange(element.value.length, element.value.length));
+  await metadata.evaluate(element => { const input = /** @type {HTMLTextAreaElement} */ (element); input.setSelectionRange(input.value.length, input.value.length); });
   await page.locator("#featureEditorTitle").focus();
   await page.locator("#featureEditorTitle").press("Tab");
   await expect(metadata).toBeFocused();
-  await expect.poll(() => metadata.evaluate(element => [element.selectionStart, element.selectionEnd])).toEqual([0, 0]);
+  await expect.poll(() => metadata.evaluate(element => { const input = /** @type {HTMLTextAreaElement} */ (element); return [input.selectionStart, input.selectionEnd]; })).toEqual([0, 0]);
   await expect(metadata).toHaveValue(/#Info/);
   await expect(highlight.locator(".markdown-syntax-info")).toHaveText("#Info");
   await expect(highlight.locator(".markdown-syntax-info")).toHaveCSS("color", "rgb(131, 165, 152)");
@@ -1402,7 +1416,7 @@ test("New button and task buttons create features and tasks through existing edi
   await page.evaluate(() => {
     const serialize = window.MDManager.markdown.serialize;
     window.__serializationCount = 0;
-    window.MDManager.markdown.serialize = project => {
+    window.MDManager.markdown.serialize = (/** @type {unknown} */ project) => {
       window.__serializationCount += 1;
       return serialize(project);
     };
@@ -1800,7 +1814,7 @@ test("notifications keep errors actionable while transient severities disappear 
   await page.evaluate(message => {
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
-      value: { writeText: async value => { window.__copiedError = value; } }
+      value: { writeText: async (/** @type {string} */ value) => { window.__copiedError = value; } }
     });
     window.MDManager.notifications.show("error", "Long error", "The operation failed.", undefined, message, "MDM-999");
   }, longMessage);
@@ -2185,7 +2199,7 @@ test("checking a todo updates progress, dirty state, save output, undo, and redo
   await page.evaluate(() => {
     const serialize = window.MDManager.markdown.serialize;
     window.__serializationCount = 0;
-    window.MDManager.markdown.serialize = project => {
+    window.MDManager.markdown.serialize = (/** @type {unknown} */ project) => {
       window.__serializationCount += 1;
       return serialize(project);
     };
@@ -2278,7 +2292,7 @@ test("adding and immediately deleting a task or feature returns to the saved sta
   await page.locator("#saveFeatureEditor").click();
   await expect(save).toHaveClass(/dirty/);
   const addedFeature = page.locator("#content > .release").last();
-  await addedFeature.locator('[data-delete="feature"]').evaluate(button => button.click());
+  await addedFeature.locator('[data-delete="feature"]').evaluate(button => /** @type {HTMLElement} */ (button).click());
   await expect(page.locator("#content > .release")).toHaveCount(2);
   await expect(page.locator(".notification-title").last()).toHaveText("Feature deleted");
   await expect(page.locator(".notification-body").last()).toHaveText("New Feature deleted.");

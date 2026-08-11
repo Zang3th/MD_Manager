@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const load = require("./load-classic");
 
 const { archive } = load("domain/project.js");
+/** @param {string} title @param {string} from @param {string} to @param {string} version */
 const feature = (title, from, to = "", version = "") => ({ title, version, dates: from ? [{ from, to }] : [], tasks: [] });
 
 test("archive timeline derives its scale from the first and last parsed metadata dates", () => {
@@ -26,8 +27,8 @@ test("archive timeline includes range endpoints, groups starts, and leaves inval
   assert.equal(timeline.scale, "year");
   assert.equal(timeline.from, "15.01.2024");
   assert.equal(timeline.to, "01.04.2026");
-  assert.deepEqual(Array.from(timeline.groups, group => group.label), ["2024", "2025"]);
-  assert.deepEqual(Array.from(timeline.groups.flatMap(group => group.entries), entry => entry.feature.title), ["Range", "Later"]);
+  assert.deepEqual(Array.from(timeline.groups, (/** @type {any} */ group) => group.label), ["2024", "2025"]);
+  assert.deepEqual(Array.from(timeline.groups.flatMap((/** @type {any} */ group) => group.entries), (/** @type {any} */ entry) => entry.feature.title), ["Range", "Later"]);
   assert.deepEqual(Array.from(timeline.versioned, item => item.title), ["Version two", "Version ten"]);
   assert.deepEqual(Array.from(timeline.undated, item => item.title), ["Unknown"]);
 });
