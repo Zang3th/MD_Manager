@@ -6,6 +6,7 @@ window.MDManager = window.MDManager || {};
   const editIcon = '<svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-edit"></use></svg>';
   const addIcon = '<svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-plus"></use></svg>';
   const archiveIcon = '<svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-archive"></use></svg>';
+  const unarchiveIcon = '<svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-undo"></use></svg>';
   const dotsIcon = '<svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-dots"></use></svg>';
   const pinIcon = '<svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-pin"></use></svg>';
   let taskContentCache = new WeakMap();
@@ -187,44 +188,94 @@ window.MDManager = window.MDManager || {};
       </div>`;
   }
 
-  /** @param {MDProject} project @param {MDFeature} feature @param {string} date @param {number | undefined} expandedFeature */
-  function archiveFeatureMarkup(project, feature, date, expandedFeature) {
+  /** @param {MDProject} project @param {MDFeature} feature @param {MDArchiveOrder} order @param {Set<number>} expandedFeatures */
+  function archiveFeatureMarkup(project, feature, order, expandedFeatures) {
     const featureIndex = project.features.indexOf(feature);
-    const expanded = featureIndex === expandedFeature;
+    const expanded = expandedFeatures.has(featureIndex);
     const visibleTasks = feature.tasks.filter(task => !task.ignored);
-    const metadata = [date, feature.version ? `v${feature.version}` : ""].filter(Boolean);
+    const version = feature.version ? (/^v/i.test(feature.version.trim()) ? feature.version.trim() : `v${feature.version.trim()}`) : "";
+    const firstDate = feature.dates.find(date => date.from || date.to);
+    const date = firstDate ? [firstDate.from, firstDate.to && firstDate.to !== firstDate.from ? firstDate.to : ""].filter(Boolean).join(" – ") : "";
+    const metadata = order === "date" ? version : date;
     return `<article class="archive-feature${expanded ? " expanded" : ""}" data-feature="${featureIndex}">
       <button class="archive-feature-toggle" type="button" aria-expanded="${expanded}" aria-controls="archiveTasks${featureIndex}">
         <span class="archive-feature-title">${escapeHtml(feature.title)}</span>
-        ${metadata.length ? `<span class="archive-feature-meta">${metadata.map(escapeHtml).join(" · ")}</span>` : ""}
+        ${metadata ? `<span class="archive-feature-meta">${escapeHtml(metadata)}</span>` : ""}
       </button>
       <div class="archive-tasks" id="archiveTasks${featureIndex}"${expanded ? "" : " hidden"}>${visibleTasks.length ? `<ul>${visibleTasks.map(task => `<li>${escapeHtml(task.title)}</li>`).join("")}</ul>` : '<p class="archive-no-tasks">No tasks</p>'}</div>
+      <button class="archive-unarchive" data-unarchive-feature="${featureIndex}" type="button" aria-label="Move to Workspace" data-tooltip="Move to Workspace">${unarchiveIcon}</button>
     </article>`;
   }
 
-  /** @param {MDProject} project @param {MDFeature[]} features @param {number | undefined} expandedFeature */
-  function archiveContents(project, features, expandedFeature) {
+  /** @param {MDProject} project @param {MDFeature[]} features @param {MDArchiveOrder} order @param {MDArchiveResolution} resolution @param {number[]} expandedFeatureIndices */
+  function archiveTimelineContents(project, features, order, resolution, expandedFeatureIndices) {
     /** @type {MDArchiveTimeline} */
-    const timeline = app.archive.timeline(features);
-    const count = features.length;
+    const timeline = app.archive.timeline(features, order, resolution);
+    const expandedFeatures = new Set(expandedFeatureIndices);
     /** @type {Record<MDArchiveScale, string>} */
     const scaleLabels = { day: "Daily", week: "Weekly", month: "Monthly", year: "Yearly" };
-    const scaleLabel = scaleLabels[timeline.scale];
-    const range = timeline.from ? `<p class="archive-range">${escapeHtml(timeline.from)}${timeline.to !== timeline.from ? ` – ${escapeHtml(timeline.to)}` : ""}<span>${scaleLabel}</span></p>` : "";
+    const resolutionLabel = scaleLabels[timeline.scale];
+    const range = timeline.from ? `<p class="archive-range">${escapeHtml(timeline.from)}${timeline.to !== timeline.from ? ` – ${escapeHtml(timeline.to)}` : ""}</p>` : '<p class="archive-range archive-range-empty">No matching metadata</p>';
     const groups = timeline.groups.map(group => `<section class="archive-period" data-period="${escapeHtml(group.key)}">
       <h3 class="archive-period-title"><span>${escapeHtml(group.label)}</span></h3>
-      <div class="archive-period-features">${group.entries.map(entry => archiveFeatureMarkup(project, entry.feature, entry.date.value, expandedFeature)).join("")}</div>
+      <span class="archive-period-dot" aria-hidden="true"></span>
+      <div class="archive-period-features">${group.entries.map(entry => archiveFeatureMarkup(project, entry.feature, order, expandedFeatures)).join("")}</div>
     </section>`).join("");
-    const versioned = timeline.versioned.length ? `<section class="archive-period archive-versioned" data-period="versioned">
-      <h3 class="archive-period-title"><span>Versions</span></h3>
-      <div class="archive-period-features">${timeline.versioned.map(feature => archiveFeatureMarkup(project, feature, "", expandedFeature)).join("")}</div>
+    const unmatched = timeline.unmatched.length ? `<section class="archive-period archive-unmatched" data-period="unmatched">
+      <h3 class="archive-period-title"><span>Without ${order}</span></h3>
+      <span class="archive-period-dot" aria-hidden="true"></span>
+      <div class="archive-period-features">${timeline.unmatched.map(feature => archiveFeatureMarkup(project, feature, order, expandedFeatures)).join("")}</div>
     </section>` : "";
-    const undated = timeline.undated.length ? `<section class="archive-period archive-undated" data-period="undated">
-      <h3 class="archive-period-title"><span>Without date</span></h3>
-      <div class="archive-period-features">${timeline.undated.map(feature => archiveFeatureMarkup(project, feature, "", expandedFeature)).join("")}</div>
-    </section>` : "";
-    return `<header class="archive-header"><div class="archive-heading"><h2 class="archive-title">${escapeHtml(project.archiveTitle || "Archive")}</h2><span class="archive-count">${count} ${count === 1 ? "Feature" : "Features"}</span></div><button class="archive-close" type="button" aria-label="Close archive" data-tooltip="Close archive">${deleteIcon}</button></header>
-      <div class="archive-content">${range}<div class="archive-timeline">${groups}${versioned}${undated}${count ? "" : '<p class="archive-empty">No archived features.</p>'}<div class="archive-drop-zone"><span>Drag complete features here</span></div></div></div>`;
+    return { range, resolutionLabel, timeline: `<svg class="archive-timeline-line" aria-hidden="true" focusable="false"><path class="archive-timeline-path" vector-effect="non-scaling-stroke"></path></svg>${groups}${unmatched}` };
+  }
+
+  /** @param {MDProject} project @param {MDFeature[]} features @param {Partial<MDViewState>} [viewState] */
+  function archiveContents(project, features, viewState) {
+    const order = viewState?.archiveOrder || "date";
+    const resolution = viewState?.archiveResolution || "day";
+    const count = features.length;
+    /** @type {MDArchiveScale[]} */
+    const resolutions = ["day", "week", "month", "year"];
+    const resolutionIndex = resolutions.indexOf(resolution);
+    const timelineContents = archiveTimelineContents(project, features, order, resolution, viewState?.archiveExpandedFeatures || []);
+    const stops = resolutions.map(() => '<span class="archive-resolution-stop"></span>').join("");
+    const controlsOpen = viewState?.archiveControlsOpen !== false;
+    const resolutionText = order === "version" ? "Unavailable with version sorting" : timelineContents.resolutionLabel;
+    const stage = count ? `<div class="archive-stage"><div class="archive-timeline">${timelineContents.timeline}</div></div>` : '<div class="archive-stage archive-stage-empty"><div class="empty start-screen archive-empty"><p class="recent-files-empty">No archived features yet.</p></div></div>';
+    return `<div class="archive-summary"><div class="archive-summary-line"><h2 class="archive-title">Archive</h2><span class="archive-summary-separator" aria-hidden="true">/</span><span class="archive-count">${count} ${count === 1 ? "Feature" : "Features"}</span></div>${count ? timelineContents.range : ""}</div>
+      <div class="archive-content">${stage}</div>
+      <aside class="archive-control-panel" aria-label="Timeline controls"${controlsOpen ? "" : " hidden"}><div class="archive-control-panel-header"><span>Timeline controls</span><button class="archive-controls-close" type="button" aria-label="Close timeline controls" data-tooltip="Close timeline controls">${deleteIcon}</button></div><div class="archive-controls">
+        <div class="archive-control-group"><span class="archive-control-label">Sort by</span><div class="archive-order" role="group" aria-label="Archive order"><button type="button" data-archive-order="date" aria-pressed="${order === "date"}">Date</button><button type="button" data-archive-order="version" aria-pressed="${order === "version"}">Version</button></div></div>
+        <label class="archive-resolution${order === "version" ? " archive-resolution-disabled" : ""}" for="archiveResolution"><span class="archive-control-label">Resolution</span><span class="archive-resolution-slider"><span class="archive-resolution-stops" aria-hidden="true">${stops}</span><input id="archiveResolution" type="range" min="0" max="3" step="1" value="${resolutionIndex}" aria-label="Timeline resolution" aria-valuetext="${escapeHtml(resolutionText)}"${order === "version" ? " disabled" : ""}></span><output id="archiveResolutionValue" for="archiveResolution">${escapeHtml(resolutionText)}</output></label>
+      </div></aside>`;
+  }
+
+  /** @param {MDProject} project @param {Partial<MDViewState>} [viewState] */
+  function renderArchive(project, viewState) {
+    const archivedFeatures = project.features.filter(feature => feature.isArchived && !feature.ignored);
+    const archive = document.getElementById("archive");
+    const resolution = viewState?.archiveResolution || app.archive.timeline(archivedFeatures, "date", "auto").scale;
+    archive.innerHTML = archiveContents(project, archivedFeatures, { ...viewState, archiveResolution: resolution });
+    archive.dataset.resolution = resolution;
+    archive.setAttribute("aria-label", project.archiveTitle || "Archive");
+    document.getElementById("toggleArchiveControls").setAttribute("aria-pressed", String(viewState?.archiveControlsOpen !== false));
+  }
+
+  /** @param {MDProject} project @param {MDViewState} viewState */
+  function updateArchiveTimeline(project, viewState) {
+    const archive = document.getElementById("archive");
+    const features = project.features.filter(feature => feature.isArchived && !feature.ignored);
+    const contents = archiveTimelineContents(project, features, viewState.archiveOrder, viewState.archiveResolution, viewState.archiveExpandedFeatures);
+    archive.querySelector(".archive-range")?.replaceWith(/** @type {HTMLElement} */ (document.createRange().createContextualFragment(contents.range).firstElementChild));
+    const timeline = archive.querySelector(".archive-timeline");
+    if (timeline) timeline.innerHTML = contents.timeline;
+    archive.dataset.resolution = viewState.archiveResolution;
+    const input = /** @type {HTMLInputElement | null} */ (archive.querySelector("#archiveResolution"));
+    const output = archive.querySelector("#archiveResolutionValue");
+    if (input) {
+      input.setAttribute("aria-valuetext", contents.resolutionLabel);
+    }
+    if (output) output.textContent = contents.resolutionLabel;
   }
 
   /** @param {MDFeature} feature */
@@ -254,14 +305,13 @@ window.MDManager = window.MDManager || {};
     document.getElementById("projectTitle").textContent = project.title;
     const regularFeatures = project.features.filter(feature => !feature.isBacklog && !feature.isArchived && !feature.ignored);
     const backlogFeature = project.features.find(feature => feature.isBacklog && !feature.ignored);
-    const archivedFeatures = project.features.filter(feature => feature.isArchived && !feature.ignored);
     const stats = document.getElementById("projectStats");
     stats.hidden = false;
     stats.innerHTML = statisticsMarkup(project);
     document.title = `MD_Manager - ${fileName}`;
     const content = document.getElementById("content");
-    if (!regularFeatures.length && !backlogFeature) {
-      content.innerHTML = '<div class="empty">No features found. At least one level <code>##</code> heading is required.</div>';
+    if (!regularFeatures.length) {
+      content.innerHTML = '<div class="empty start-screen"><p class="recent-files-empty">No features found. At least one level <code>##</code> heading is required.</p></div>';
     } else content.innerHTML = regularFeatures.map(feature => {
       const featureIndex = project.features.indexOf(feature);
       const { complete, inProgress, percentage } = featureProgress(feature);
@@ -281,15 +331,23 @@ window.MDManager = window.MDManager || {};
         </div>
       </section>`;
     }).join("");
+    const archiveActive = viewState?.view === "archive";
+    document.body.classList.toggle("archive-view-active", archiveActive);
+    document.getElementById("showWorkspaceView").setAttribute("aria-pressed", String(!archiveActive));
+    document.getElementById("showArchiveView").setAttribute("aria-pressed", String(archiveActive));
+    content.hidden = archiveActive;
     const archive = document.getElementById("archive");
-    const archiveButton = document.getElementById("toggleArchive");
-    const archiveAvailable = true;
-    const archiveOpen = Boolean(archiveAvailable && viewState?.archiveOpen);
-    archiveButton.disabled = !archiveAvailable;
-    archiveButton.setAttribute("aria-pressed", String(archiveOpen));
-    archive.innerHTML = archiveAvailable ? archiveContents(project, archivedFeatures, viewState?.archiveExpandedFeature) : "";
-    archive.hidden = !archiveOpen;
-    archive.setAttribute("aria-label", project.archiveTitle || "Archive");
+    renderArchive(project, viewState);
+    archive.hidden = !archiveActive;
+    document.getElementById("addFeature").hidden = archiveActive;
+    document.getElementById("toggleBacklog").hidden = archiveActive;
+    document.getElementById("toggleMetadata").hidden = archiveActive;
+    const statsButton = document.getElementById("toggleStats");
+    statsButton.hidden = archiveActive;
+    document.getElementById("toggleArchiveControls").hidden = !archiveActive;
+    const statsOpen = viewState ? viewState.statsOpen : true;
+    statsButton.setAttribute("aria-pressed", String(statsOpen));
+    document.body.classList.toggle("hide-stats", archiveActive || !statsOpen);
     const backlog = document.getElementById("backlog");
     const backlogButton = document.getElementById("toggleBacklog");
     const backlogOpen = viewState ? viewState.backlogOpen : false;
@@ -298,7 +356,7 @@ window.MDManager = window.MDManager || {};
     if (backlogFeature) {
       backlog.dataset.feature = String(project.features.indexOf(backlogFeature));
       backlog.innerHTML = backlogContents(backlogFeature);
-      backlog.hidden = !backlogOpen;
+      backlog.hidden = archiveActive || !backlogOpen;
     } else {
       backlog.removeAttribute("data-feature");
       backlog.innerHTML = "";
@@ -306,7 +364,7 @@ window.MDManager = window.MDManager || {};
     }
     restoreViewState(viewState);
     app.layout.equalizeReleaseHeaders();
-    app.layout.layoutGrid();
+    app.layout.layout();
   }
 
   /** @param {MDProject} project @param {number} featureIndex @param {number} taskIndex @param {number} lineIndex */
@@ -359,8 +417,9 @@ window.MDManager = window.MDManager || {};
     document.getElementById("appVersion").hidden = false;
     document.getElementById("appClock").hidden = true;
     document.getElementById("projectStats").hidden = true;
-    document.getElementById("toggleArchive").disabled = true;
-    document.getElementById("toggleArchive").setAttribute("aria-pressed", "false");
+    document.body.classList.remove("archive-view-active");
+    document.getElementById("showWorkspaceView").setAttribute("aria-pressed", "true");
+    document.getElementById("showArchiveView").setAttribute("aria-pressed", "false");
     document.getElementById("archive").hidden = true;
     document.getElementById("archive").innerHTML = "";
     document.getElementById("toggleBacklog").disabled = true;
@@ -386,12 +445,14 @@ window.MDManager = window.MDManager || {};
 
   app.render = {
     project: render,
+    archive: renderArchive,
+    archiveTimeline: updateArchiveTimeline,
     start: showStart,
     saveError: showSaveError,
     updateTodo,
     escapeHtml,
     equalizeReleaseHeaders: app.layout.equalizeReleaseHeaders,
-    layoutGrid: app.layout.layoutGrid,
+    layout: app.layout.layout,
     fitTitles: app.layout.fitTitles,
     startTitleScroll: app.layout.startTitleScroll,
     stopTitleScroll: app.layout.stopTitleScroll

@@ -336,7 +336,8 @@
                     <div><dt>Copy card</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>C</kbd><small>or Command C</small></dd></div>
                     <div><dt>Add/remove copy</dt><dd><kbd>Ctrl</kbd><span>+</span><small>Right-click</small><small>or Command Right-click</small></dd></div>
                     <div><dt>Paste card</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>V</kbd><small>or Command V</small></dd></div>
-                    <div><dt>Toggle archive</dt><dd><kbd>A</kbd></dd></div>
+                    <div><dt>Open workspace</dt><dd><kbd>W</kbd></dd></div>
+                    <div><dt>Open archive</dt><dd><kbd>A</kbd></dd></div>
                     <div><dt>Toggle backlog</dt><dd><kbd>B</kbd></dd></div>
                     <div><dt>Jump to pinned feature</dt><dd><kbd>P</kbd></dd></div>
                     <div><dt>Toggle statistics</dt><dd><kbd>S</kbd></dd></div>
@@ -356,7 +357,7 @@
                   <h4>Feature tags</h4>
                   <dl class="markdown-reference">
                     <div><dt><code class="help-tag">#Backlog</code></dt><dd>Begins backlog section</dd></div>
-                    <div><dt><code class="help-tag">#Archive</code></dt><dd>Begins read-only archive</dd></div>
+                    <div><dt><code class="help-tag">#Archive</code></dt><dd>Begins archive section</dd></div>
                     <div><dt><code class="help-tag">#Pin</code></dt><dd>Pins one feature</dd></div>
                   </dl>
                   <h5 class="help-subcategory">Metadata</h5>
@@ -387,8 +388,8 @@
             </aside>
           </div>
           <div class="view-mode" role="group" aria-label="View mode">
-            <button class="btn control-btn" id="showBoardView" type="button" aria-pressed="true">Board</button>
-            <button class="btn control-btn" id="toggleGridView" type="button" aria-pressed="false">Grid</button>
+            <button class="btn control-btn" id="showWorkspaceView" type="button" aria-pressed="true">Workspace</button>
+            <button class="btn control-btn" id="showArchiveView" type="button" aria-pressed="false">Archive</button>
           </div>
         </nav>
       </div>
@@ -400,21 +401,19 @@
       <div class="view-menu">
         <button class="btn control-btn toolbar-icon-btn more-button" id="toggleViewMenu" type="button" aria-label="View" data-tooltip="View" aria-expanded="false" aria-controls="viewOptions"><svg class="ui-icon dots-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-dots"></use></svg><svg class="ui-icon view-chevron" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-chevron"></use></svg></button>
         <div class="view-options" id="viewOptions" hidden>
-          <button class="view-option" id="toggleArchive" type="button" aria-pressed="false" disabled><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-check"></use></svg><span>Archive</span></button>
           <button class="view-option" id="toggleBacklog" type="button" aria-pressed="false" disabled><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-check"></use></svg><span>Backlog</span></button>
           <button class="view-option" id="toggleClock" type="button" aria-pressed="true"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-check"></use></svg><span>Clock</span></button>
           <button class="view-option" id="toggleMetadata" type="button" aria-pressed="true"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-check"></use></svg><span>Metadata</span></button>
           <button class="view-option" id="toggleStats" type="button" aria-pressed="true"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-check"></use></svg><span>Statistics</span></button>
+          <button class="view-option" id="toggleArchiveControls" type="button" aria-pressed="true" hidden><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-check"></use></svg><span>Controls</span></button>
         </div>
       </div>
     </div>
   </header>
   <div class="workspace">
-    <aside class="archive-pane" aria-label="Archive area">
-      <section class="archive" id="archive" aria-label="Archive" hidden></section>
-    </aside>
     <aside class="project-stats" id="projectStats" aria-label="Project status overview" hidden></aside>
     <main id="content" aria-live="polite"></main>
+    <section class="archive-view" id="archive" aria-label="Archive" aria-live="polite" hidden></section>
     <aside class="backlog-pane" aria-label="Backlog area">
       <section class="release backlog" id="backlog" aria-label="Backlog" hidden></section>
     </aside>

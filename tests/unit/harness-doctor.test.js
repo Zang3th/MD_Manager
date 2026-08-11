@@ -7,7 +7,7 @@ const path = require("node:path");
 const test = require("node:test");
 const { checkHarness } = require("../../tools/check-harness.js");
 
-const baselineNames = ["start-help-dark.png", "start-help-light.png", "board-expanded-backlog-dark.png", "board-expanded-backlog-light.png"];
+const baselineNames = ["start-help-dark.png", "start-help-light.png", "workspace-expanded-backlog-dark.png", "workspace-expanded-backlog-light.png"];
 
 /** @param {string} root @param {string} relative @param {string} content */
 function write(root, relative, content = "fixture\n") {

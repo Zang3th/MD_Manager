@@ -95,15 +95,50 @@ window.MDManager = window.MDManager || {};
     return match ? match[1].split(".").map(Number) : [];
   }
 
-  /** @param {MDFeature} left @param {MDFeature} right */
-  function compareUndated(left, right) {
-    const a = versionParts(left.version || "");
-    const b = versionParts(right.version || "");
-    if (!a.length || !b.length) return b.length - a.length;
+  /** @param {string} value */
+  function versionLabel(value) {
+    return /^v/i.test(value.trim()) ? value.trim() : `v${value.trim()}`;
+  }
+
+  /** @param {number[]} a @param {number[]} b */
+  function compareVersionParts(a, b) {
     const length = Math.max(a.length, b.length);
     for (let index = 0; index < length; index++) {
       const difference = (a[index] || 0) - (b[index] || 0);
       if (difference) return difference;
+    }
+    return 0;
+  }
+
+  /** @param {MDFeature} feature */
+  function earliestFeatureDate(feature) {
+    /** @type {ReturnType<typeof parsedArchiveDate>} */
+    let earliest = null;
+    for (const range of feature.dates || []) {
+      const date = parsedArchiveDate(range.from);
+      if (date && (!earliest || date.time < earliest.time)) earliest = date;
+    }
+    return earliest;
+  }
+
+  /** @param {MDProject} project @param {MDFeature} feature */
+  function unarchiveInsertionIndex(project, feature) {
+    const workspace = project.features.map((item, index) => ({ feature: item, index })).filter(item => !item.feature.isBacklog && !item.feature.isArchived);
+    const date = earliestFeatureDate(feature);
+    if (date) {
+      const dated = workspace.map(item => ({ ...item, date: earliestFeatureDate(item.feature) })).filter(item => item.date);
+      if (dated.length) {
+        const later = dated.find(item => /** @type {NonNullable<typeof item.date>} */ (item.date).time > date.time);
+        return later ? later.index : /** @type {typeof dated[number]} */ (dated.at(-1)).index + 1;
+      }
+    }
+    const version = versionParts(feature.version || "");
+    if (version.length) {
+      const versioned = workspace.map(item => ({ ...item, version: versionParts(item.feature.version || "") })).filter(item => item.version.length);
+      if (versioned.length) {
+        const later = versioned.find(item => compareVersionParts(item.version, version) > 0);
+        return later ? later.index : /** @type {typeof versioned[number]} */ (versioned.at(-1)).index + 1;
+      }
     }
     return 0;
   }
@@ -129,17 +164,21 @@ window.MDManager = window.MDManager || {};
     return { key: String(date.year), label: String(date.year) };
   }
 
-  /** @param {MDFeature[]} features @returns {MDArchiveTimeline} */
-  function archiveTimeline(features) {
+  /** @param {MDFeature[]} features @param {MDArchiveOrder} [order] @param {MDArchiveResolution} [resolution] @returns {MDArchiveTimeline} */
+  function archiveTimeline(features, order = "date", resolution = "auto") {
     /** @type {MDArchiveTimelineEntry[]} */
-    const dated = [];
+    const entries = [];
     /** @type {MDFeature[]} */
-    const versioned = [];
-    /** @type {MDFeature[]} */
-    const undated = [];
+    const unmatched = [];
     /** @type {Array<{value: string, time: number, year: number, month: number, day: number}>} */
     const rangeDates = [];
     for (const feature of features) {
+      if (order === "version") {
+        const parts = versionParts(feature.version || "");
+        if (parts.length) entries.push({ feature, label: versionLabel(feature.version || "") });
+        else unmatched.push(feature);
+        continue;
+      }
       /** @type {ReturnType<typeof parsedArchiveDate>} */
       let start = null;
       for (const range of feature.dates) {
@@ -151,23 +190,37 @@ window.MDManager = window.MDManager || {};
         }
         if (to) rangeDates.push(to);
       }
-      if (start) dated.push({ feature, date: start });
-      else if (versionParts(feature.version || "").length) versioned.push(feature);
-      else undated.push(feature);
+      if (start) entries.push({ feature, date: start, label: start.value });
+      else unmatched.push(feature);
+    }
+    if (order === "version") {
+      entries.sort((left, right) => compareVersionParts(versionParts(left.feature.version || ""), versionParts(right.feature.version || "")));
+      /** @type {Map<string, MDArchiveTimelineGroup>} */
+      const versionGroups = new Map();
+      for (const entry of entries) {
+        const parts = versionParts(entry.feature.version || "");
+        const key = parts.join(".");
+        let group = versionGroups.get(key);
+        if (!group) {
+          group = { key: `version-${key}`, label: entry.label, entries: [] };
+          versionGroups.set(key, group);
+        }
+        group.entries.push(entry);
+      }
+      return { order, scale: "day", from: entries[0]?.label || "", to: entries[entries.length - 1]?.label || "", groups: [...versionGroups.values()], unmatched };
     }
     rangeDates.sort((left, right) => left.time - right.time);
-    dated.sort((left, right) => left.date.time - right.date.time);
-    versioned.sort(compareUndated);
-    if (!rangeDates.length) return { scale: "day", from: "", to: "", groups: [], versioned, undated };
+    entries.sort((left, right) => /** @type {NonNullable<typeof left.date>} */ (left.date).time - /** @type {NonNullable<typeof right.date>} */ (right.date).time);
+    if (!rangeDates.length) return { order, scale: resolution === "auto" ? "day" : resolution, from: "", to: "", groups: [], unmatched };
     const first = /** @type {NonNullable<ReturnType<typeof parsedArchiveDate>>} */ (rangeDates[0]);
     const last = /** @type {NonNullable<ReturnType<typeof parsedArchiveDate>>} */ (rangeDates[rangeDates.length - 1]);
     const span = Math.round((last.time - first.time) / dayMs);
     /** @type {MDArchiveScale} */
-    const scale = span <= 31 ? "day" : span <= 183 ? "week" : span <= 731 ? "month" : "year";
+    const scale = resolution === "auto" ? span <= 31 ? "day" : span <= 183 ? "week" : span <= 731 ? "month" : "year" : resolution;
     /** @type {Map<string, MDArchiveTimelineGroup>} */
     const groups = new Map();
-    for (const entry of dated) {
-      const value = archivePeriod(scale, entry.date);
+    for (const entry of entries) {
+      const value = archivePeriod(scale, /** @type {NonNullable<typeof entry.date>} */ (entry.date));
       let group = groups.get(value.key);
       if (!group) {
         group = { ...value, entries: [] };
@@ -175,7 +228,7 @@ window.MDManager = window.MDManager || {};
       }
       group.entries.push(entry);
     }
-    return { scale, from: first.value, to: last.value, groups: [...groups.values()], versioned, undated };
+    return { order, scale, from: first.value, to: last.value, groups: [...groups.values()], unmatched };
   }
 
   /** @param {MDProject} project */
@@ -261,10 +314,11 @@ window.MDManager = window.MDManager || {};
       sortArchivedFeatures(project);
       return true;
     },
-    /** @param {MDProject} project @param {number} featureIndex @param {number} toIndex */
-    unarchiveFeature(project, featureIndex, toIndex) {
+    /** @param {MDProject} project @param {number} featureIndex */
+    unarchiveFeature(project, featureIndex) {
       const feature = project.features[featureIndex];
       if (!feature?.isArchived) return false;
+      const toIndex = unarchiveInsertionIndex(project, feature);
       project.features.splice(featureIndex, 1);
       feature.isArchived = false;
       project.features.splice(Math.max(0, Math.min(toIndex, featureBoundary(project))), 0, feature);

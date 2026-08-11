@@ -3,36 +3,35 @@
 <a href="https://github.com/Zang3th/MD_Manager/actions/workflows/verify.yml"><img src="https://img.shields.io/github/actions/workflow/status/Zang3th/MD_Manager/verify.yml?branch=master&amp;label=Build&amp;logo=github" alt="Build status"></a>
 <a href="https://github.com/Zang3th/MD_Manager/releases/latest"><img src="https://img.shields.io/github/v/release/Zang3th/MD_Manager?display_name=tag&amp;sort=semver&amp;label=Latest%20release&amp;logo=markdown&amp;color=blue" alt="Latest release"></a>
 
-MD_Manager is an interactive, fully local Markdown project board for humans, Git, automation, and AI agents. Plan visually while keeping your project data in an open, human-readable format.
+MD_Manager is an interactive, fully local Markdown project workspace for Git, automation, and AI agents. Plan visually while keeping your project data open, portable, and human-readable.
 
 ![MD_Manager main page](res/screenshots/Mainpage.png)
 
 ## Key features
 
-- Visual planning on board or grid layouts. Optimized for both landscape and portrait monitors.
+- Visual planning in a focused workspace. Optimized for both landscape and portrait monitors.
 - Releases, tasks, todos, backlog, metadata, and progress tracking.
 - Drag and drop, copy and paste, and keyboard controls.
 - Undo and redo with view-state restoration.
 - External-change detection, reload or overwrite resolution, and retryable saves.
 - Markdown editing with tags, templates, and inline formatting.
+- Archive timeline ordered by date or version, with selectable resolution.
 - Fully local and offline, with no cloud services, installation, build step, or web server.
 
 <table>
   <tr>
     <td width="50%"><img src="res/screenshots/Startpage.png" alt="Start page"></td>
-    <td width="50%"><img src="res/screenshots/Mainpage2.png" alt="Board view with backlog"></td>
+    <td width="50%"><img src="res/screenshots/Mainpage2.png" alt="Workspace with backlog"></td>
   </tr>
   <tr>
     <td align="center">Start page</td>
-    <td align="center">Board view with backlog</td>
+    <td align="center">Workspace with backlog</td>
   </tr>
   <tr>
-    <td width="50%"><img src="res/screenshots/GridView.png" alt="Grid view"></td>
-    <td width="50%"><img src="res/screenshots/EditDialog.png" alt="Markdown edit dialog"></td>
+    <td colspan="2"><img src="res/screenshots/EditDialog.png" alt="Markdown edit dialog"></td>
   </tr>
   <tr>
-    <td align="center">Grid view</td>
-    <td align="center">Markdown editor</td>
+    <td colspan="2" align="center">Markdown editor</td>
   </tr>
 </table>
 

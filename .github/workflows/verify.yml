@@ -28,7 +28,7 @@ jobs:
           node-version: 24
           cache: npm
       - name: Require platform visual baselines
-        if: ${{ hashFiles(format('tests/e2e/snapshots/{0}/start-help-dark.png', matrix.platform)) == '' || hashFiles(format('tests/e2e/snapshots/{0}/start-help-light.png', matrix.platform)) == '' || hashFiles(format('tests/e2e/snapshots/{0}/board-expanded-backlog-dark.png', matrix.platform)) == '' || hashFiles(format('tests/e2e/snapshots/{0}/board-expanded-backlog-light.png', matrix.platform)) == '' }}
+        if: ${{ hashFiles(format('tests/e2e/snapshots/{0}/start-help-dark.png', matrix.platform)) == '' || hashFiles(format('tests/e2e/snapshots/{0}/start-help-light.png', matrix.platform)) == '' || hashFiles(format('tests/e2e/snapshots/{0}/workspace-expanded-backlog-dark.png', matrix.platform)) == '' || hashFiles(format('tests/e2e/snapshots/{0}/workspace-expanded-backlog-light.png', matrix.platform)) == '' }}
         run: |
           echo "::error::Missing ${{ matrix.platform }} visual baselines. Run the 'Generate visual baselines' workflow, download the 'visual-baselines' artifact, and copy its contents into tests/e2e/snapshots/."
           exit 1

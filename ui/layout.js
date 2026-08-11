@@ -5,13 +5,12 @@ window.MDManager = window.MDManager || {};
   const textWidthCache = new Map();
   const titleStyleCache = new Map();
   const headerHeightCache = new Map();
-  const gridHeightCache = new Map();
   const measureContext = /** @type {CanvasRenderingContext2D} */ (document.createElement("canvas").getContext("2d"));
   let layoutFrame = 0;
-  let layoutNeeds = { titles: false, headers: false, gridHeight: false, scrollbars: false };
+  let layoutNeeds = { titles: false, headers: false, scrollbars: false, backlog: false, archive: false, archivePath: false };
 
   function layoutKey() {
-    return `${document.body.classList.contains("toggle-grid-view") ? "grid" : "board"}:${document.body.classList.contains("show-metadata") ? "metadata" : "plain"}`;
+    return `workspace:${document.body.classList.contains("show-metadata") ? "metadata" : "plain"}`;
   }
 
   /** @param {CSSStyleDeclaration} style */
@@ -111,57 +110,107 @@ window.MDManager = window.MDManager || {};
   }
 
   function applyHeaderHeights() {
+    const content = document.getElementById("content");
+    if (content.hidden) return;
     const titles = [...document.querySelectorAll("#content > .release .release-title")];
     const headers = [...document.querySelectorAll("#content > .release > .release-header")];
     const key = layoutKey();
-    const grid = document.body.classList.contains("toggle-grid-view");
     let cached = headerHeightCache.get(key);
     if (!cached) {
       titles.forEach(title => title.style.height = "auto");
       headers.forEach(header => header.style.height = "auto");
       const titleHeight = Math.max(0, ...titles.map(title => title.offsetHeight));
       titles.forEach(title => title.style.height = `${titleHeight}px`);
-      const headerHeight = grid ? Math.max(0, ...headers.map(header => header.offsetHeight)) : null;
-      cached = { titleHeight, headerHeight };
+      cached = { titleHeight };
       headerHeightCache.set(key, cached);
     }
     titles.forEach(title => title.style.height = `${cached.titleHeight}px`);
-    headers.forEach(header => header.style.height = cached.headerHeight === null ? "auto" : `${cached.headerHeight}px`);
+    headers.forEach(header => header.style.height = "auto");
+  }
+
+  function applyArchiveGrid() {
+    const archive = document.getElementById("archive");
+    const timeline = /** @type {HTMLElement | null} */ (archive.querySelector(".archive-timeline"));
+    const periods = /** @type {HTMLElement[]} */ ([...archive.querySelectorAll(".archive-period")]);
+    if (archive.hidden || !timeline || !periods.length) return;
+    const style = getComputedStyle(timeline);
+    const availableWidth = timeline.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+    const periodStyle = getComputedStyle(periods[0]);
+    const periodWidth = parseFloat(periodStyle.maxWidth) || periods[0].getBoundingClientRect().width;
+    const gap = parseFloat(style.columnGap) || 0;
+    const maximumColumns = Math.max(1, Math.min(periods.length, Math.floor((availableWidth + gap) / (periodWidth + gap))));
+    const remainder = periods.length % maximumColumns;
+    const columns = maximumColumns > 2 && remainder === 1 ? maximumColumns - 1 : maximumColumns;
+    timeline.style.setProperty("--archive-columns", String(columns));
+    timeline.dataset.columns = String(columns);
+    periods.forEach((period, index) => {
+      const row = Math.floor(index / columns);
+      const position = index % columns;
+      period.style.gridRow = String(row + 1);
+      period.style.gridColumn = String(row % 2 ? columns - position : position + 1);
+      period.style.removeProperty("min-height");
+      const leftTurnPoint = columns > 1 && (row % 2 ? position === columns - 1 : row > 0 && position === 0);
+      period.classList.toggle("archive-left-turn-point", leftTurnPoint);
+    });
+    const closedTasks = /** @type {HTMLElement[]} */ ([...timeline.querySelectorAll(".archive-tasks[hidden]")]);
+    closedTasks.forEach(tasks => { tasks.hidden = false; });
+    const expandedHeights = periods.map(period => period.scrollHeight);
+    closedTasks.forEach(tasks => { tasks.hidden = true; });
+    /** @type {number[]} */
+    const rowHeights = [];
+    expandedHeights.forEach((height, index) => {
+      const row = Math.floor(index / columns);
+      rowHeights[row] = Math.max(rowHeights[row] || 0, height);
+    });
+    periods.forEach((period, index) => { period.style.minHeight = `${rowHeights[Math.floor(index / columns)]}px`; });
+    schedule({ archivePath: true });
+  }
+
+  function applyArchivePath() {
+    const timeline = /** @type {HTMLElement | null} */ (document.querySelector("#archive .archive-timeline"));
+    const line = /** @type {SVGSVGElement | null} */ (timeline?.querySelector(".archive-timeline-line"));
+    const path = /** @type {SVGPathElement | null} */ (line?.querySelector(".archive-timeline-path"));
+    if (!timeline || !line || !path) return;
+    const timelineBounds = timeline.getBoundingClientRect();
+    const columns = Number(timeline.dataset.columns) || 1;
+    const leftTurn = 8;
+    const rightTurn = timelineBounds.width - 8;
+    const turnHandleScale = 2 / 3;
+    const points = [...timeline.querySelectorAll(".archive-period-dot")].map(dot => {
+      const bounds = dot.getBoundingClientRect();
+      return { x: bounds.left + bounds.width / 2 - timelineBounds.left, y: bounds.top + bounds.height / 2 - timelineBounds.top };
+    });
+    let data = points.length ? `M ${points[0].x} ${points[0].y}` : "";
+    let turnIndex = 0;
+    for (let index = 0; index < points.length - 1; index += 1) {
+      const start = points[index];
+      const end = points[index + 1];
+      if (Math.abs(start.y - end.y) < 1 || columns === 1) data += ` L ${end.x} ${end.y}`;
+      else {
+        const turnEdge = turnIndex % 2 ? leftTurn : rightTurn;
+        const turn = start.x + (turnEdge - start.x) * turnHandleScale;
+        data += ` C ${turn} ${start.y}, ${turn} ${end.y}, ${end.x} ${end.y}`;
+        turnIndex += 1;
+      }
+    }
+    line.setAttribute("viewBox", `0 0 ${timelineBounds.width} ${timelineBounds.height}`);
+    path.setAttribute("d", data);
   }
 
   function runLayout() {
     layoutFrame = 0;
     const needs = layoutNeeds;
-    layoutNeeds = { titles: false, headers: false, gridHeight: false, scrollbars: false };
-    const content = document.getElementById("content");
-    const grid = document.body.classList.contains("toggle-grid-view");
-    if (!grid) {
-      content.style.removeProperty("--grid-feature-height");
-      document.body.style.removeProperty("--grid-feature-height");
-    } else {
-      document.querySelectorAll(".title-hover").forEach(title => stopTitleScroll(/** @type {HTMLElement} */ (title)));
+    layoutNeeds = { titles: false, headers: false, scrollbars: false, backlog: false, archive: false, archivePath: false };
+    let backlogLeft = null;
+    if (needs.backlog) {
+      const viewMode = document.querySelector(".view-mode");
+      const workspace = document.querySelector(".workspace");
+      if (viewMode && workspace) backlogLeft = Math.max(0, viewMode.getBoundingClientRect().left - workspace.getBoundingClientRect().left);
     }
+    const backlogGeometryChanged = backlogLeft !== null;
     if (needs.headers) applyHeaderHeights();
-    if (needs.titles) fitTitles();
-    if (grid && needs.gridHeight) {
-      const key = layoutKey();
-      let height = gridHeightCache.get(key);
-      if (!height) {
-        const cards = [...content.querySelectorAll(".card:not(.bodyless-task)")].map(card => ({ card, expanded: card.getAttribute("aria-expanded"), body: card.querySelector(".card-body"), hidden: card.querySelector(".card-body").hidden }));
-        const notes = [...content.querySelectorAll(".feature-note")].map(note => ({ note, expanded: note.getAttribute("aria-expanded"), collapsed: note.classList.contains("collapsed") }));
-        cards.forEach(({ card, body }) => { card.setAttribute("aria-expanded", "false"); body.hidden = true; });
-        notes.forEach(({ note }) => { note.setAttribute("aria-expanded", "false"); note.classList.add("collapsed"); });
-        content.style.removeProperty("--grid-feature-height");
-        document.body.style.removeProperty("--grid-feature-height");
-        height = Math.max(0, ...[...content.querySelectorAll(":scope > .release")].map(feature => feature.offsetHeight));
-        gridHeightCache.set(key, height);
-        cards.forEach(({ card, body, expanded, hidden }) => { card.setAttribute("aria-expanded", expanded || "false"); body.hidden = hidden; });
-        notes.forEach(({ note, expanded, collapsed }) => { note.setAttribute("aria-expanded", expanded || "false"); note.classList.toggle("collapsed", collapsed); });
-      }
-      content.style.setProperty("--grid-feature-height", `${height}px`);
-      document.body.style.setProperty("--grid-feature-height", `${height}px`);
-    }
-    if (needs.scrollbars) {
+    if (needs.titles && !backlogGeometryChanged) fitTitles();
+    if (needs.scrollbars && !backlogGeometryChanged) {
       const scrollAreas = [...document.querySelectorAll("#content > .release > .release-content, #backlog > .backlog-content")];
       const overflows = scrollAreas.map(scrollArea => scrollArea.scrollHeight > scrollArea.clientHeight);
       const needsSpace = scrollAreas.map((scrollArea, index) => overflows[index] && scrollArea.offsetWidth - scrollArea.clientWidth < 9);
@@ -170,9 +219,15 @@ window.MDManager = window.MDManager || {};
         scrollArea.classList.toggle("needs-scrollbar-space", needsSpace[index]);
       });
     }
+    if (needs.archive) applyArchiveGrid();
+    if (needs.archivePath && !needs.archive) applyArchivePath();
+    if (backlogLeft !== null) {
+      document.documentElement.style.setProperty("--backlog-left", `${backlogLeft}px`);
+      schedule({ titles: needs.titles, scrollbars: needs.scrollbars });
+    }
   }
 
-  /** @param {Partial<Record<"titles" | "headers" | "gridHeight" | "scrollbars", boolean>>} needs */
+  /** @param {Partial<Record<"titles" | "headers" | "scrollbars" | "backlog" | "archive" | "archivePath", boolean>>} needs */
   function schedule(needs) {
     for (const [key, value] of Object.entries(needs)) {
       layoutNeeds[/** @type {keyof typeof layoutNeeds} */ (key)] ||= value;
@@ -184,8 +239,12 @@ window.MDManager = window.MDManager || {};
     schedule({ headers: true, titles: true });
   }
 
-  function layoutGrid() {
-    schedule({ titles: true, headers: true, gridHeight: true, scrollbars: true });
+  function layout() {
+    schedule({ titles: true, headers: true, scrollbars: true, backlog: true, archive: true });
+  }
+
+  function archiveTimeline() {
+    schedule({ archive: true });
   }
 
   function contentOverflowChanged() {
@@ -197,7 +256,6 @@ window.MDManager = window.MDManager || {};
     textWidthCache.clear();
     titleStyleCache.clear();
     headerHeightCache.clear();
-    gridHeightCache.clear();
   }
 
   function statusChanged() {
@@ -207,13 +265,13 @@ window.MDManager = window.MDManager || {};
 
   window.addEventListener("resize", () => {
     reset();
-    layoutGrid();
+    layout();
   });
   document.fonts.ready.then(() => {
     reset();
     equalizeReleaseHeaders();
-    layoutGrid();
+    layout();
   });
 
-  app.layout = { reset, statusChanged, equalizeReleaseHeaders, layoutGrid, contentOverflowChanged, fitTitles, startTitleScroll, stopTitleScroll };
+  app.layout = { reset, statusChanged, equalizeReleaseHeaders, layout, archiveTimeline, contentOverflowChanged, fitTitles, startTitleScroll, stopTitleScroll };
 })(window.MDManager);

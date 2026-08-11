@@ -89,7 +89,7 @@ function checkHarness(root) {
     modifiers.lastIndex = 0;
   }
 
-  const baselineNames = ["start-help-dark.png", "start-help-light.png", "board-expanded-backlog-dark.png", "board-expanded-backlog-light.png"];
+  const baselineNames = ["start-help-dark.png", "start-help-light.png", "workspace-expanded-backlog-dark.png", "workspace-expanded-backlog-light.png"];
   for (const platform of ["linux", "win32", "darwin"]) {
     for (const name of baselineNames) {
       const file = `tests/e2e/snapshots/${platform}/${name}`;

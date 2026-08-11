@@ -56,10 +56,12 @@ type MDFeature = {
 };
 type MDMarkdownWarning = { lineNumber: number; message: string };
 type MDProject = { title: string; newline: string; beforeFeatures: string[]; features: MDFeature[]; warnings: MDMarkdownWarning[]; hasArchive?: boolean; archiveTitle?: string };
+type MDArchiveOrder = "date" | "version";
 type MDArchiveScale = "day" | "week" | "month" | "year";
-type MDArchiveTimelineEntry = { feature: MDFeature; date: { value: string; time: number; year: number; month: number; day: number } };
+type MDArchiveResolution = "auto" | MDArchiveScale;
+type MDArchiveTimelineEntry = { feature: MDFeature; label: string; date?: { value: string; time: number; year: number; month: number; day: number } };
 type MDArchiveTimelineGroup = { key: string; label: string; entries: MDArchiveTimelineEntry[] };
-type MDArchiveTimeline = { scale: MDArchiveScale; from: string; to: string; groups: MDArchiveTimelineGroup[]; versioned: MDFeature[]; undated: MDFeature[] };
+type MDArchiveTimeline = { order: MDArchiveOrder; scale: MDArchiveScale; from: string; to: string; groups: MDArchiveTimelineGroup[]; unmatched: MDFeature[] };
 type MDUndoAction = {
   label: string;
   undo(): void;
@@ -84,12 +86,17 @@ type MDOpenedFile = {handle: MDFileHandle; markdown: string; stamp?: string};
 type MDViewState = {
   tasks: boolean[];
   featureNotes: boolean[];
-  archiveOpen: boolean;
-  archiveExpandedFeature?: number;
+  view: "workspace" | "archive";
+  archiveOrder: MDArchiveOrder;
+  archiveResolution: MDArchiveScale;
+  archiveControlsOpen: boolean;
+  archiveExpandedFeatures: number[];
   backlogOpen: boolean;
+  statsOpen: boolean;
   featureScrolls: Array<{left: number; top: number}>;
   contentScrollLeft: number;
   contentScrollTop: number;
+  archiveScrollLeft: number;
   archiveScrollTop: number;
   backlogScrollLeft: number;
   backlogScrollTop: number;

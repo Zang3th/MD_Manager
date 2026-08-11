@@ -105,6 +105,27 @@ test("external changes show warning actions and Reload starts a clean undo syste
   await expect(overwrite).toBeHidden();
 });
 
+test("reloading changed Markdown in Archive preserves visible Workspace titles and content", async ({ page }) => {
+  await openMutableFile(page);
+  await page.keyboard.press("a");
+  await expect(page.locator("#archive")).toBeVisible();
+
+  await changeDisk(page, "# External Project\n\n## Reloaded Feature\n### Reloaded Task\n- [ ] Changed");
+  await page.locator("#saveFile").click();
+  await page.getByRole("button", { name: "Reload", exact: true }).click();
+  await expect(page.locator("#archive")).toBeVisible();
+
+  await page.keyboard.press("w");
+  const featureTitle = page.locator("#content > .release .release-title");
+  await expect(featureTitle).toHaveText("Reloaded Feature");
+  await expect(featureTitle).toBeVisible();
+  expect(await featureTitle.evaluate(node => node.getBoundingClientRect().height)).toBeGreaterThan(0);
+  await expect(page.locator("#content .card-title")).toHaveText("Reloaded Task");
+  await expect(page.locator("#content .card-title")).toBeVisible();
+  await expect(page.locator("#content .todo-text")).toHaveText("Changed");
+  await expect(page.locator("#projectStats")).toBeVisible();
+});
+
 test("Overwrite resolves an external conflict with the current local revision", async ({ page }) => {
   await openMutableFile(page);
   await page.locator(".card-header").click();

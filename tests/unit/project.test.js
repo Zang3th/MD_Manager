@@ -88,16 +88,37 @@ test("archiving moves complete features behind the backlog and rejects individua
   assert.equal(value.hasArchive, false);
 });
 
-test("unarchiving restores an archived feature at the requested board position", () => {
+test("unarchiving without comparable metadata restores the feature at the far left", () => {
   const value = project();
   value.features[0].tasks[0].lines = ["- [x] ~one~", "#### Next", "- [x] ~two~"];
   const archived = value.features[0];
   assert.equal(domain.archiveFeature(value, 0), true);
-  assert.equal(domain.unarchiveFeature(value, value.features.indexOf(archived), 1), true);
-  assert.deepEqual(value.features.map(feature => feature.title), ["B", "A", "Backlog"]);
+  assert.equal(domain.unarchiveFeature(value, value.features.indexOf(archived)), true);
+  assert.deepEqual(value.features.map(feature => feature.title), ["A", "B", "Backlog"]);
   assert.equal(archived.isArchived, false);
   assert.equal(value.hasArchive, true);
-  assert.equal(domain.unarchiveFeature(value, 0, 0), false);
+  assert.equal(domain.unarchiveFeature(value, 0), false);
+});
+
+test("unarchiving prefers chronological date placement and falls back to numeric version placement", () => {
+  const dated = { features: [
+    { title: "January", dates: [{ from: "2026-01-01", to: "" }], tasks: [] },
+    { title: "Undated", dates: [], tasks: [] },
+    { title: "March", dates: [{ from: "01.03.2026", to: "" }], tasks: [] },
+    { title: "Backlog", isBacklog: true, tasks: [] },
+    { title: "February", isArchived: true, dates: [{ from: "2026-02-01", to: "" }], tasks: [] }
+  ] };
+  assert.equal(domain.unarchiveFeature(dated, 4), true);
+  assert.deepEqual(dated.features.map(feature => feature.title), ["January", "Undated", "February", "March", "Backlog"]);
+
+  const versioned = { features: [
+    { title: "One", version: "1.0.0", dates: [], tasks: [] },
+    { title: "Three", version: "v3.0.0", dates: [], tasks: [] },
+    { title: "Backlog", isBacklog: true, tasks: [] },
+    { title: "Two", version: "2.0.0", isArchived: true, dates: [{ from: "2026-02-01", to: "" }], tasks: [] }
+  ] };
+  assert.equal(domain.unarchiveFeature(versioned, 3), true);
+  assert.deepEqual(versioned.features.map(feature => feature.title), ["One", "Two", "Three", "Backlog"]);
 });
 
 test("incomplete features cannot be archived", () => {

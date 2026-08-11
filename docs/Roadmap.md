@@ -205,7 +205,7 @@
 - [x] ~README ergänzen~
 
 #Pin
-## Zeitstrahl und Suche
+## Zeitstrahl
 
 #Version
 - 0.7.1
@@ -215,17 +215,26 @@
 
 ### Bugs und Verbesserungen
 
-#### Darstellung & Rendering
+- [x] ~Board => Workspace~
+- [x] ~Grid => Wird abgeschafft und durchs Archiv ersetzt~
+- [x] ~Breite des Backlogs anpassen~
 - [ ] Tabs im Help-Menü
-- [ ] Board => Workspace
-- [ ] Grid => Wird abgeschafft und durchs Archiv ersetzt
-- [ ] Breite des Backlogs anpassen
+- [ ] Screenshots erneuern
+- [ ] Release fertig machen
 
 ### Archiv
 
-- [ ] Prototypischen Zeitstrahl zu einer vollwertigen Seite umbauen
-- [ ] "Pseudo"-3D + visuell ansprechend
-- [ ] README updaten
+- [x] ~Prototypischen Zeitstrahl zu einer vollwertigen Seite umbauen~
+- [x] ~"Pseudo"-3D + visuell ansprechend~
+- [x] ~README updaten~
+
+## Suche
+
+#Version
+- 0.8.0
+
+#Date
+- TBD
 
 ### Suche
 
@@ -235,7 +244,7 @@
 ## Markdown-Erweiterungen
 
 #Version
-- 0.8.0
+- 0.9.0
 
 #Date
 - TBD
@@ -252,13 +261,8 @@
 - [ ] Nach Linting-Regeln importieren/exportieren
 - [ ] Schalter im UI (Default = False)
 
-## Erweiterungen
-
-#Version
-- 0.9.0
-
-#Date
-- TBD
+#Backlog
+## Backlog
 
 ### Import/Export
 
@@ -268,9 +272,6 @@
 ### Keyboard-Controls
 
 - [ ] Ausbauen und vervollständigen
-
-#Backlog
-## Backlog
 
 ### Hosting und Deployment
 

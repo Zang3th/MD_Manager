@@ -27,8 +27,6 @@ window.MDManager = window.MDManager || {};
   /** @type {(() => Promise<boolean>) | null} */
   let overwriteExternal = null;
   let resolvingExternal = false;
-  /** @type {MDViewState | null} */
-  let expandedBeforeGrid = null;
   /** @type {number | null} */
   let clockInterval = null;
   /** @type {HTMLElement | null} */
@@ -41,6 +39,10 @@ window.MDManager = window.MDManager || {};
   let clipboardPositionFrame = null;
   /** @type {{x: number, y: number} | null} */
   let lastPointer = null;
+  /** @type {number | null} */
+  let featureHoldTimer = null;
+  /** @type {HTMLElement | null} */
+  let heldFeatureHeader = null;
   /** @type {MDViewState | null} */
   let dragViewState = null;
   /** @type {HTMLElement | null} */
@@ -57,6 +59,7 @@ window.MDManager = window.MDManager || {};
       ...viewState,
       tasks: viewState.tasks.slice(),
       featureNotes: viewState.featureNotes.slice(),
+      archiveExpandedFeatures: viewState.archiveExpandedFeatures.slice(),
       featureScrolls: viewState.featureScrolls.map(scroll => ({ ...scroll }))
     };
   }
@@ -441,30 +444,38 @@ window.MDManager = window.MDManager || {};
     document.getElementById("toggleHelp").setAttribute("aria-expanded", "false");
   }
 
-  /** @param {boolean} active */
-  function setGridView(active) {
-    if (document.body.classList.contains("toggle-grid-view") === active) return;
-    if (active) {
-      expandedBeforeGrid = captureViewState();
-    }
-    document.body.classList.toggle("toggle-grid-view", active);
-    document.getElementById("toggleGridView").setAttribute("aria-pressed", String(active));
-    document.getElementById("showBoardView").setAttribute("aria-pressed", String(!active));
-    if (active) {
-      closeViewMenu();
+  /** @param {"workspace" | "archive"} view */
+  function setView(view) {
+    if (!project) return;
+    const archiveActive = view === "archive";
+    const content = document.getElementById("content");
+    const archive = document.getElementById("archive");
+    document.body.classList.toggle("archive-view-active", archiveActive);
+    content.hidden = archiveActive;
+    archive.hidden = !archiveActive;
+    document.getElementById("showWorkspaceView").setAttribute("aria-pressed", String(!archiveActive));
+    document.getElementById("showArchiveView").setAttribute("aria-pressed", String(archiveActive));
+    document.getElementById("addFeature").hidden = archiveActive;
+    const backlogButton = document.getElementById("toggleBacklog");
+    const metadataButton = document.getElementById("toggleMetadata");
+    const statsButton = document.getElementById("toggleStats");
+    const archiveControlsButton = document.getElementById("toggleArchiveControls");
+    backlogButton.hidden = archiveActive;
+    metadataButton.hidden = archiveActive;
+    statsButton.hidden = archiveActive;
+    archiveControlsButton.hidden = !archiveActive;
+    if (archiveActive) {
+      const backlog = document.getElementById("backlog");
+      backlog.hidden = true;
+      document.body.classList.add("hide-stats");
     } else {
-      if (expandedBeforeGrid) restoreExpandedState(expandedBeforeGrid);
+      const backlog = document.getElementById("backlog");
+      backlog.hidden = backlogButton.disabled || backlogButton.getAttribute("aria-pressed") !== "true";
+      document.body.classList.toggle("hide-stats", statsButton.getAttribute("aria-pressed") !== "true");
     }
-    if (active) collapseAll();
-    if (active) {
-      const content = document.getElementById("content");
-      const initialHeight = Math.max(0, ...[...content.querySelectorAll(":scope > .release")].map(feature => feature.offsetHeight));
-      content.style.setProperty("--grid-feature-height", `${initialHeight}px`);
-      document.body.style.setProperty("--grid-feature-height", `${initialHeight}px`);
-    }
-    app.layout.layoutGrid();
-    const stateBeforeGrid = expandedBeforeGrid;
-    if (!active && stateBeforeGrid) requestAnimationFrame(() => restoreScrollState(stateBeforeGrid));
+    closeViewMenu();
+    connectSortable();
+    app.layout.layout();
   }
 
   /** @returns {MDViewState} */
@@ -472,7 +483,8 @@ window.MDManager = window.MDManager || {};
     const content = document.getElementById("content");
     const archive = document.getElementById("archive");
     const archiveContent = archive.querySelector(".archive-content");
-    const expandedArchiveFeature = archive.querySelector('.archive-feature-toggle[aria-expanded="true"]')?.closest(".archive-feature");
+    const expandedArchiveFeatures = [...archive.querySelectorAll('.archive-feature-toggle[aria-expanded="true"]')].map(toggle => Number(toggle.closest(".archive-feature")?.getAttribute("data-feature"))).filter(Number.isFinite);
+    const archiveResolutionInput = /** @type {HTMLInputElement | null} */ (archive.querySelector("#archiveResolution"));
     const backlog = document.getElementById("backlog");
     const backlogContent = backlog.querySelector(".backlog-content");
     const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -484,47 +496,22 @@ window.MDManager = window.MDManager || {};
     return {
       tasks: [...document.querySelectorAll(".card")].map(task => task.getAttribute("aria-expanded") === "true"),
       featureNotes: [...document.querySelectorAll(".feature-note")].map(note => note.getAttribute("aria-expanded") === "true"),
-      archiveOpen: !archive.hidden,
-      archiveExpandedFeature: expandedArchiveFeature ? Number(expandedArchiveFeature.dataset.feature) : undefined,
-      backlogOpen: !backlog.hidden,
+      view: document.body.classList.contains("archive-view-active") ? "archive" : "workspace",
+      archiveOrder: /** @type {MDArchiveOrder} */ (archive.querySelector('[data-archive-order][aria-pressed="true"]')?.getAttribute("data-archive-order") || "date"),
+      archiveResolution: /** @type {MDArchiveScale} */ ((archiveResolutionInput ? ["day", "week", "month", "year"][Number(archiveResolutionInput.value)] : archive.dataset.resolution) || "day"),
+      archiveControlsOpen: !archive.querySelector(".archive-control-panel")?.hasAttribute("hidden"),
+      archiveExpandedFeatures: expandedArchiveFeatures,
+      backlogOpen: document.getElementById("toggleBacklog").getAttribute("aria-pressed") === "true",
+      statsOpen: document.getElementById("toggleStats").getAttribute("aria-pressed") === "true",
       contentScrollLeft: content.scrollLeft,
       contentScrollTop: content.scrollTop,
       featureScrolls: [...content.querySelectorAll(":scope > .release > .release-content")].map(featureContent => ({ left: featureContent.scrollLeft, top: featureContent.scrollTop })),
+      archiveScrollLeft: archiveContent?.scrollLeft || 0,
       archiveScrollTop: archiveContent?.scrollTop || 0,
       backlogScrollLeft: backlogContent?.scrollLeft || 0,
       backlogScrollTop: backlogContent?.scrollTop || 0,
       focusSelector
     };
-  }
-
-  function collapseAll() {
-    document.querySelectorAll(".card:not(.bodyless-task)").forEach(task => {
-      task.setAttribute("aria-expanded", "false");
-      task.querySelector(".card-body").hidden = true;
-    });
-    document.querySelectorAll(".feature-note").forEach(note => {
-      note.classList.add("collapsed");
-      note.setAttribute("aria-expanded", "false");
-    });
-  }
-
-  /** @param {MDViewState} viewState */
-  function restoreExpandedState(viewState) {
-    document.querySelectorAll(".card").forEach((task, index) => {
-      if (task.classList.contains("bodyless-task")) {
-        task.removeAttribute("aria-expanded");
-        task.querySelector(".card-body").hidden = true;
-        return;
-      }
-      const expanded = viewState.tasks[index] ?? false;
-      task.setAttribute("aria-expanded", String(expanded));
-      task.querySelector(".card-body").hidden = !expanded;
-    });
-    document.querySelectorAll(".feature-note").forEach((note, index) => {
-      const expanded = viewState.featureNotes[index] ?? false;
-      note.classList.toggle("collapsed", !expanded);
-      note.setAttribute("aria-expanded", String(expanded));
-    });
   }
 
   /** @param {MDViewState} viewState */
@@ -539,22 +526,14 @@ window.MDManager = window.MDManager || {};
       featureContent.scrollLeft = viewState.featureScrolls[index]?.left || 0;
       featureContent.scrollTop = viewState.featureScrolls[index]?.top || 0;
     });
-    if (archiveContent) archiveContent.scrollTop = viewState.archiveScrollTop || 0;
+    if (archiveContent) {
+      archiveContent.scrollLeft = viewState.archiveScrollLeft || 0;
+      archiveContent.scrollTop = viewState.archiveScrollTop || 0;
+    }
     if (backlogContent) {
       backlogContent.scrollLeft = viewState.backlogScrollLeft;
       backlogContent.scrollTop = viewState.backlogScrollTop;
     }
-  }
-
-  function toggleArchive() {
-    const archive = document.getElementById("archive");
-    const button = document.getElementById("toggleArchive");
-    if (button.disabled) return;
-    const open = archive.hidden;
-    archive.hidden = !open;
-    button.setAttribute("aria-pressed", String(open));
-    connectSortable();
-    app.layout.contentOverflowChanged();
   }
 
   /** @param {MDViewState | undefined} viewState */
@@ -570,6 +549,7 @@ window.MDManager = window.MDManager || {};
   }
 
   function toggleBacklog() {
+    if (document.body.classList.contains("archive-view-active")) return;
     const backlog = document.getElementById("backlog");
     const button = document.getElementById("toggleBacklog");
     if (button.disabled) return;
@@ -582,6 +562,7 @@ window.MDManager = window.MDManager || {};
   }
 
   function toggleStats() {
+    if (document.body.classList.contains("archive-view-active")) return;
     const active = document.body.classList.toggle("hide-stats") === false;
     document.getElementById("toggleStats").setAttribute("aria-pressed", String(active));
   }
@@ -599,10 +580,6 @@ window.MDManager = window.MDManager || {};
     });
     app.layout.contentOverflowChanged();
     const behavior = reducedMotion.matches ? "auto" : "smooth";
-    if (document.body.classList.contains("toggle-grid-view")) {
-      pinned.scrollIntoView({ behavior, block: "nearest", inline: "nearest" });
-      return;
-    }
     const content = document.getElementById("content");
     const clock = document.getElementById("appClock");
     const pinnedBounds = pinned.getBoundingClientRect();
@@ -620,11 +597,6 @@ window.MDManager = window.MDManager || {};
     sortables = [];
   }
 
-  /** @param {any} event */
-  function restoreDroppedItem(event) {
-    event.from.insertBefore(event.item, event.from.children[event.oldIndex] || null);
-  }
-
   /** @param {HTMLElement | null} task */
   function setTodoDropPreview(task) {
     if (todoDropPreview === task) return;
@@ -633,10 +605,29 @@ window.MDManager = window.MDManager || {};
     todoDropPreview?.classList.add("todo-drop-preview");
   }
 
+  function clearFeatureHold() {
+    if (featureHoldTimer !== null) window.clearTimeout(featureHoldTimer);
+    featureHoldTimer = null;
+    heldFeatureHeader?.classList.remove("feature-header-held");
+    heldFeatureHeader = null;
+  }
+
+  /** @param {PointerEvent} event */
+  function startFeatureHold(event) {
+    if (event.button !== 0) return;
+    const header = eventElement(event).closest(".release-header");
+    if (!(header instanceof HTMLElement)) return;
+    clearFeatureHold();
+    featureHoldTimer = window.setTimeout(() => {
+      featureHoldTimer = null;
+      heldFeatureHeader = header;
+      header.classList.add("feature-header-held");
+    }, 150);
+  }
+
   function connectSortable() {
     resetSortables();
-    if (!project) return;
-    const activeProject = project;
+    if (!project || document.body.classList.contains("archive-view-active")) return;
     const content = document.getElementById("content");
 
     sortables.push(Sortable.create(content, {
@@ -652,73 +643,23 @@ window.MDManager = window.MDManager || {};
       dragClass: "sortable-drag",
       forceFallback: true,
       fallbackOnBody: true,
-      onStart() { dragViewState = captureViewState(); },
+      /** @param {any} event */
+      onStart(event) {
+        clearFeatureHold();
+        heldFeatureHeader = event.item.querySelector(".release-header");
+        heldFeatureHeader?.classList.add("feature-header-held");
+        dragViewState = captureViewState();
+      },
       /** @param {any} event */
       onEnd(event) {
+        clearFeatureHold();
         if (!project) return;
         const beforeViewState = dragViewState || captureViewState();
         const afterViewState = captureViewState();
         dragViewState = null;
-        if (event.to.closest("#archive")) {
-          const featureIndex = Number(event.item.dataset.feature);
-          const feature = activeProject.features[featureIndex];
-          if (!app.domain.canArchiveFeature(feature)) {
-            restoreDroppedItem(event);
-            requestAnimationFrame(connectSortable);
-            app.notifications.show("warning", "Feature not archived", [{ value: feature.title }, " is not 100% complete."]);
-            return;
-          }
-          const pinned = Boolean(feature.isPinned);
-          const hadArchive = Boolean(activeProject.hasArchive);
-          const archived = perform("Feature archived", () => app.domain.archiveFeature(activeProject, activeProject.features.indexOf(feature)), () => {
-            app.domain.restoreArchivedFeature(activeProject, feature, featureIndex, pinned, hadArchive);
-          }, beforeViewState, afterViewState);
-          if (archived) app.notifications.show("info", "Feature archived", [{ value: feature.title }, " archived."]);
-          return;
-        }
         perform("Feature moved", () => app.domain.moveFeature(project, event.oldIndex, event.newIndex), () => { app.domain.moveFeature(project, event.newIndex, event.oldIndex); }, beforeViewState, afterViewState);
       }
     }));
-
-    const archiveLists = document.getElementById("archive").hidden ? [] : document.querySelectorAll(".archive-period-features, .archive-drop-zone");
-    archiveLists.forEach(archiveList => {
-      sortables.push(Sortable.create(archiveList, {
-        group: "features",
-        animation: reducedMotion.matches ? 0 : 150,
-        easing: "cubic-bezier(.2,0,0,1)",
-        draggable: "> .archive-feature",
-        handle: ".archive-feature-toggle",
-        emptyInsertThreshold: 30,
-        ghostClass: "sortable-ghost",
-        chosenClass: "sortable-chosen",
-        dragClass: "sortable-drag",
-        forceFallback: true,
-        fallbackOnBody: true,
-        onStart() { dragViewState = captureViewState(); },
-        /** @param {any} event */
-        onEnd(event) {
-          if (!project) return;
-          if (event.to !== content) {
-            restoreDroppedItem(event);
-            dragViewState = null;
-            requestAnimationFrame(connectSortable);
-            return;
-          }
-          const beforeViewState = dragViewState || captureViewState();
-          const afterViewState = captureViewState();
-          dragViewState = null;
-          const featureIndex = Number(event.item.dataset.feature);
-          const feature = activeProject.features[featureIndex];
-          const followingFeature = [...content.children].slice(event.newIndex + 1).find(element => element.matches(".release"));
-          const boundary = activeProject.features.findIndex(item => item.isBacklog || item.isArchived);
-          const toIndex = followingFeature ? Number(followingFeature.dataset.feature) : boundary < 0 ? activeProject.features.length : boundary;
-          const unarchived = perform("Feature unarchived", () => app.domain.unarchiveFeature(activeProject, activeProject.features.indexOf(feature), toIndex), () => {
-            app.domain.archiveFeature(activeProject, activeProject.features.indexOf(feature));
-          }, beforeViewState, afterViewState);
-          if (unarchived) app.notifications.show("info", "Feature unarchived", [{ value: feature.title }, " unarchived."]);
-        }
-      }));
-    });
 
     document.querySelectorAll(".board").forEach(board => {
       sortables.push(Sortable.create(board, {
@@ -904,6 +845,7 @@ window.MDManager = window.MDManager || {};
         const hadArchive = Boolean(activeProject.hasArchive);
         const beforeViewState = captureViewState();
         const afterViewState = copyViewState(beforeViewState);
+        const expandedArchiveFeatures = /** @type {MDFeature[]} */ (beforeViewState.archiveExpandedFeatures.map(index => activeProject.features[index]).filter(Boolean));
         const firstTask = [...document.querySelectorAll(".card")].indexOf(featureElement.querySelector(".card"));
         if (firstTask >= 0) afterViewState.tasks.splice(firstTask, featureElement.querySelectorAll(".card").length);
         const firstNote = [...document.querySelectorAll(".feature-note")].indexOf(featureElement.querySelector(".feature-note"));
@@ -911,7 +853,11 @@ window.MDManager = window.MDManager || {};
         const renderedFeatureIndex = [...document.querySelectorAll("#content > .release")].indexOf(featureElement);
         if (renderedFeatureIndex >= 0) afterViewState.featureScrolls.splice(renderedFeatureIndex, 1);
         await animateRemoval(featureElement);
-        const archived = perform("Feature archived", () => app.domain.archiveFeature(activeProject, activeProject.features.indexOf(feature)), () => {
+        const archived = perform("Feature archived", () => {
+          const result = app.domain.archiveFeature(activeProject, activeProject.features.indexOf(feature));
+          afterViewState.archiveExpandedFeatures = expandedArchiveFeatures.map(expandedFeature => activeProject.features.indexOf(expandedFeature)).filter(index => index >= 0);
+          return result;
+        }, () => {
           app.domain.restoreArchivedFeature(activeProject, feature, featureIndex, pinned, hadArchive);
         }, beforeViewState, afterViewState, undefined, 1);
         if (archived) app.notifications.show("info", "Feature archived", [{ value: feature.title }, " archived."]);
@@ -1132,31 +1078,65 @@ window.MDManager = window.MDManager || {};
     container.addEventListener("mouseover", handleTitleEnter);
     container.addEventListener("mouseout", handleTitleLeave);
   });
+  document.getElementById("content").addEventListener("pointerdown", startFeatureHold);
+  document.addEventListener("pointerup", clearFeatureHold);
+  document.addEventListener("pointercancel", clearFeatureHold);
   document.getElementById("archive").addEventListener("click", event => {
     const target = eventElement(event);
-    if (target.closest(".archive-close")) {
-      toggleArchive();
+    if (target.closest(".archive-controls-close")) {
+      const panel = document.querySelector("#archive .archive-control-panel");
+      if (panel) panel.hidden = true;
+      document.getElementById("toggleArchiveControls").setAttribute("aria-pressed", "false");
+      closeViewMenu();
+      return;
+    }
+    const orderButton = target.closest("[data-archive-order]");
+    if (orderButton && project) {
+      const viewState = captureViewState();
+      viewState.archiveOrder = /** @type {MDArchiveOrder} */ (orderButton.getAttribute("data-archive-order"));
+      app.render.archive(project, viewState);
+      app.layout.archiveTimeline();
+      requestAnimationFrame(() => restoreScrollState(viewState));
+      return;
+    }
+    const unarchiveButton = /** @type {HTMLElement | null} */ (target.closest("[data-unarchive-feature]"));
+    if (unarchiveButton && project) {
+      const activeProject = project;
+      const featureIndex = Number(unarchiveButton.dataset.unarchiveFeature);
+      const feature = activeProject.features[featureIndex];
+      if (!feature?.isArchived) return;
+      const beforeViewState = captureViewState();
+      const afterViewState = copyViewState(beforeViewState);
+      const remainingExpandedFeatures = /** @type {MDFeature[]} */ (beforeViewState.archiveExpandedFeatures.map(index => activeProject.features[index]).filter(expandedFeature => expandedFeature && expandedFeature !== feature));
+      const unarchived = perform("Feature unarchived", () => {
+        const result = app.domain.unarchiveFeature(activeProject, activeProject.features.indexOf(feature));
+        afterViewState.archiveExpandedFeatures = remainingExpandedFeatures.map(expandedFeature => activeProject.features.indexOf(expandedFeature)).filter(index => index >= 0);
+        return result;
+      }, () => {
+        app.domain.archiveFeature(activeProject, activeProject.features.indexOf(feature));
+      }, beforeViewState, afterViewState, undefined, 1);
+      if (unarchived) app.notifications.show("info", "Feature unarchived", [{ value: feature.title }, " moved to Workspace."]);
       return;
     }
     const button = target.closest(".archive-feature-toggle");
     if (!button) return;
     const open = button.getAttribute("aria-expanded") !== "true";
-    document.querySelectorAll("#archive .archive-feature-toggle").forEach(toggle => {
-      const featureElement = toggle.closest(".archive-feature");
-      if (!featureElement) return;
-      toggle.setAttribute("aria-expanded", "false");
-      featureElement.classList.remove("expanded");
-      featureElement.querySelector(".archive-tasks").hidden = true;
-    });
-    if (open) {
-      const featureElement = button.closest(".archive-feature");
-      if (!featureElement) return;
-      button.setAttribute("aria-expanded", "true");
-      featureElement.classList.add("expanded");
-      featureElement.querySelector(".archive-tasks").hidden = false;
-    }
+    const featureElement = button.closest(".archive-feature");
+    if (!featureElement) return;
+    button.setAttribute("aria-expanded", String(open));
+    featureElement.classList.toggle("expanded", open);
+    featureElement.querySelector(".archive-tasks").hidden = !open;
   });
-  document.getElementById("toggleArchive").addEventListener("click", toggleArchive);
+  document.getElementById("archive").addEventListener("input", event => {
+    const input = eventElement(event);
+    if (!input.matches("#archiveResolution") || !project) return;
+    const range = /** @type {HTMLInputElement} */ (input);
+    const resolutions = /** @type {MDArchiveScale[]} */ (["day", "week", "month", "year"]);
+    const viewState = captureViewState();
+    viewState.archiveResolution = resolutions[Number(range.value)] || "day";
+    app.render.archiveTimeline(project, viewState);
+    app.layout.archiveTimeline();
+  });
   document.getElementById("toggleBacklog").addEventListener("click", toggleBacklog);
   document.getElementById("addFeature").addEventListener("click", () => {
     if (!project) return;
@@ -1207,7 +1187,8 @@ window.MDManager = window.MDManager || {};
     (/** @type {HTMLElement} */ (event.currentTarget)).setAttribute("aria-expanded", String(!help.hidden));
   });
   document.getElementById("closeHelp").addEventListener("click", closeHelp);
-  document.getElementById("showBoardView").addEventListener("click", () => setGridView(false));
+  document.getElementById("showWorkspaceView").addEventListener("click", () => setView("workspace"));
+  document.getElementById("showArchiveView").addEventListener("click", () => setView("archive"));
   document.addEventListener("keydown", event => {
     const shortcut = (event.ctrlKey || event.metaKey) && !event.altKey;
     const target = eventElement(event);
@@ -1244,17 +1225,21 @@ window.MDManager = window.MDManager || {};
     }
     if (letterShortcut && key === "a") {
       event.preventDefault();
-      toggleArchive();
+      setView("archive");
     }
-    if (letterShortcut && key === "b" && !document.getElementById("toggleBacklog").disabled) {
+    if (letterShortcut && key === "w") {
+      event.preventDefault();
+      setView("workspace");
+    }
+    if (letterShortcut && key === "b" && !document.body.classList.contains("archive-view-active") && !document.getElementById("toggleBacklog").disabled) {
       event.preventDefault();
       toggleBacklog();
     }
-    if (letterShortcut && key === "p") {
+    if (letterShortcut && key === "p" && !document.body.classList.contains("archive-view-active")) {
       event.preventDefault();
       jumpToPinnedFeature();
     }
-    if (letterShortcut && key === "s") {
+    if (letterShortcut && key === "s" && !document.body.classList.contains("archive-view-active")) {
       event.preventDefault();
       toggleStats();
     }
@@ -1264,10 +1249,18 @@ window.MDManager = window.MDManager || {};
     const active = document.body.classList.toggle("show-metadata");
     (/** @type {HTMLElement} */ (event.currentTarget)).setAttribute("aria-pressed", String(active));
     app.layout.equalizeReleaseHeaders();
-    app.layout.layoutGrid();
+    app.layout.layout();
   });
 
   document.getElementById("toggleStats").addEventListener("click", toggleStats);
+  document.getElementById("toggleArchiveControls").addEventListener("click", event => {
+    if (!document.body.classList.contains("archive-view-active")) return;
+    const panel = document.querySelector("#archive .archive-control-panel");
+    if (!panel) return;
+    const open = panel.hasAttribute("hidden");
+    panel.hidden = !open;
+    (/** @type {HTMLElement} */ (event.currentTarget)).setAttribute("aria-pressed", String(open));
+  });
   document.getElementById("toggleClock").addEventListener("click", event => {
     const clock = document.getElementById("appClock");
     const active = clock.hidden;
@@ -1279,8 +1272,6 @@ window.MDManager = window.MDManager || {};
     document.body.classList.add("hide-stats");
     document.getElementById("toggleStats").setAttribute("aria-pressed", "false");
   });
-
-  document.getElementById("toggleGridView").addEventListener("click", () => setGridView(true));
 
   document.getElementById("reloadApp").addEventListener("click", () => window.location.reload());
   document.getElementById("saveFile").addEventListener("click", event => {
