@@ -423,11 +423,13 @@ test("symbols, progress values, and the clock stay optically aligned in their co
 test("start page matches its platform visual baselines in both color schemes", async ({ page }) => {
   await page.goto(appUrl);
   await expect(page.locator("body")).toHaveClass(/start-view/);
+  await expect(page.locator(".header")).toHaveCSS("box-shadow", "none");
   await captureVisualThemePair(page, "start");
 });
 
 test("Golden File Workspace pinned jump with Backlog matches platform visual baselines", async ({ page }) => {
   await openGoldenFixture(page);
+  await expect(page.locator(".header")).toHaveCSS("box-shadow", "none");
   await toggleBacklogFromView(page);
   await page.keyboard.press("p");
   const pinned = page.locator("#content > .release.pinned");
@@ -461,6 +463,7 @@ test("Golden File Archive matches platform visual baselines", async ({ page }) =
   await openGoldenFixture(page);
   await toggleArchiveFromView(page);
   await expect(page.locator("#archive")).toBeVisible();
+  await expect(page.locator(".header")).toHaveCSS("box-shadow", "none");
   await expect(page.locator(".archive-feature")).toHaveCount(3);
   await captureVisualThemePair(page, "archive");
 });

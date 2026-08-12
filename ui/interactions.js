@@ -444,6 +444,17 @@ window.MDManager = window.MDManager || {};
     document.getElementById("toggleHelp").setAttribute("aria-expanded", "false");
   }
 
+  /** @param {HTMLElement} selectedTab */
+  function selectHelpTab(selectedTab) {
+    document.querySelectorAll("#helpPopover [role='tab']").forEach(tab => {
+      const selected = tab === selectedTab;
+      tab.setAttribute("aria-selected", String(selected));
+      tab.setAttribute("tabindex", selected ? "0" : "-1");
+      const panelId = tab.getAttribute("aria-controls");
+      if (panelId) document.getElementById(panelId).hidden = !selected;
+    });
+  }
+
   /** @param {"workspace" | "archive"} view */
   function setView(view) {
     if (!project) return;
@@ -1187,6 +1198,22 @@ window.MDManager = window.MDManager || {};
     (/** @type {HTMLElement} */ (event.currentTarget)).setAttribute("aria-expanded", String(!help.hidden));
   });
   document.getElementById("closeHelp").addEventListener("click", closeHelp);
+  const helpTabs = Array.from(document.querySelectorAll("#helpPopover [role='tab']"));
+  helpTabs.forEach(tab => tab.addEventListener("click", () => selectHelpTab(/** @type {HTMLElement} */ (tab))));
+  document.querySelector("#helpPopover [role='tablist']").addEventListener("keydown", event => {
+    const currentIndex = helpTabs.indexOf(eventElement(event));
+    if (currentIndex < 0) return;
+    let nextIndex;
+    if (event.key === "ArrowRight") nextIndex = (currentIndex + 1) % helpTabs.length;
+    else if (event.key === "ArrowLeft") nextIndex = (currentIndex - 1 + helpTabs.length) % helpTabs.length;
+    else if (event.key === "Home") nextIndex = 0;
+    else if (event.key === "End") nextIndex = helpTabs.length - 1;
+    else return;
+    event.preventDefault();
+    const nextTab = /** @type {HTMLElement} */ (helpTabs[nextIndex]);
+    selectHelpTab(nextTab);
+    nextTab.focus();
+  });
   document.getElementById("showWorkspaceView").addEventListener("click", () => setView("workspace"));
   document.getElementById("showArchiveView").addEventListener("click", () => setView("archive"));
   document.addEventListener("keydown", event => {

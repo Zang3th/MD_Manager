@@ -211,16 +211,16 @@
 - 0.7.1
 
 #Date
-- 11.08.2026 - TBD
+- 11.08.2026 - 12.08.2026
 
 ### Bugs und Verbesserungen
 
 - [x] ~Board => Workspace~
 - [x] ~Grid => Wird abgeschafft und durchs Archiv ersetzt~
 - [x] ~Breite des Backlogs anpassen~
-- [ ] Tabs im Help-Menü
-- [ ] Screenshots erneuern
-- [ ] Release fertig machen
+- [x] ~Tabs im Help-Menü~
+- [x] ~Screenshots automatisieren~
+- [x] ~Release fertig machen~
 
 ### Archiv
 

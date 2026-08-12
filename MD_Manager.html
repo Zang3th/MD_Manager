@@ -298,7 +298,7 @@
       <button class="app-logo-mark" id="reloadApp" type="button" aria-label="Reload application"><img class="app-logo" src="res/logo/Logo.svg" alt=""></button>
       <div class="header-left">
         <h1 class="project-title" id="projectTitle">MD_Manager</h1>
-        <span class="app-version" id="appVersion">v0.6.0</span>
+        <span class="app-version" id="appVersion">v0.7.1</span>
         <div class="file-controls">
           <div class="edit-tools">
             <button class="btn control-btn icon-btn toolbar-icon-btn" id="addFeature" type="button" aria-label="New" data-tooltip="New feature" hidden><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-plus"></use></svg></button>
@@ -325,9 +325,12 @@
             <button class="btn control-btn icon-btn toolbar-icon-btn help-button" id="toggleHelp" type="button" aria-label="Help" data-tooltip="Help" aria-expanded="false" aria-controls="helpPopover"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-help"></use></svg></button>
             <aside class="help-popover" id="helpPopover" aria-label="Application help" hidden>
               <header class="help-header"><h2>Quick reference</h2><button class="help-close" id="closeHelp" type="button" aria-label="Close help" data-tooltip="Close help"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-close"></use></svg></button></header>
-              <div class="help-content">
-                <section class="help-section" aria-labelledby="shortcutHelpTitle">
-                  <h3 id="shortcutHelpTitle">Shortcuts</h3>
+              <div class="help-tabs" role="tablist" aria-label="Help topics">
+                <button class="help-tab" id="shortcutHelpTab" type="button" role="tab" aria-selected="true" aria-controls="shortcutHelpPanel">Shortcuts</button>
+                <button class="help-tab" id="markdownHelpTab" type="button" role="tab" aria-selected="false" aria-controls="markdownHelpPanel" tabindex="-1">Markdown syntax</button>
+              </div>
+              <div class="help-content help-tab-panel" id="shortcutHelpPanel" role="tabpanel" aria-labelledby="shortcutHelpTab" tabindex="0">
+                <section class="help-section">
                   <dl class="shortcut-list">
                     <div><dt>Open file</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>O</kbd><small>or Command O</small></dd></div>
                     <div><dt>Save file</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>S</kbd><small>or Command S</small></dd></div>
@@ -344,8 +347,9 @@
                     <div><dt>Close or cancel</dt><dd><kbd>Esc</kbd></dd></div>
                   </dl>
                 </section>
-                <section class="help-section" aria-labelledby="markdownHelpTitle">
-                  <h3 id="markdownHelpTitle">Markdown</h3>
+              </div>
+              <div class="help-content help-tab-panel" id="markdownHelpPanel" role="tabpanel" aria-labelledby="markdownHelpTab" tabindex="0" hidden>
+                <section class="help-section">
                   <h4>Structure</h4>
                   <dl class="markdown-reference">
                     <div><dt><code># Project</code></dt><dd>Project title</dd></div>
@@ -362,13 +366,13 @@
                   </dl>
                   <h5 class="help-subcategory">Metadata</h5>
                   <dl class="markdown-reference markdown-reference-nested">
-                    <div><dt><code class="help-tag">#Version</code></dt><dd>Version list item</dd></div>
+                    <div><dt><code class="help-tag">#Version</code></dt><dd>Feature version numbering</dd></div>
                     <div><dt><code class="help-tag">#Date</code></dt><dd>Date range: <code>from - to</code></dd></div>
                   </dl>
                   <h4>Shared tags</h4>
                   <dl class="markdown-reference">
-                    <div><dt><code class="help-tag help-tag-info">#Info</code></dt><dd>One per feature or task</dd></div>
-                    <div><dt><code class="help-tag help-tag-warn">#Warn</code></dt><dd>One per feature or task</dd></div>
+                    <div><dt><code class="help-tag help-tag-info">#Info</code></dt><dd>Informational note for a feature or task</dd></div>
+                    <div><dt><code class="help-tag help-tag-warn">#Warn</code></dt><dd>Warning note for a feature or task</dd></div>
                     <div><dt><code class="help-tag">#Ignore</code></dt><dd>Hides next feature or task</dd></div>
                   </dl>
                   <h4>Supported formatting</h4>
@@ -558,6 +562,6 @@
       </footer>
     </form>
   </dialog>
-  <div class="watermark" id="watermark">© 2026 MD_Manager v0.6.0 · Tim Krüger (Zang3th) · <a href="https://github.com/Zang3th" target="_blank" rel="noopener noreferrer">GitHub</a></div>
+  <div class="watermark" id="watermark">© 2026 MD_Manager v0.7.1 · Tim Krüger (Zang3th) · <a href="https://github.com/Zang3th" target="_blank" rel="noopener noreferrer">GitHub</a></div>
 </body>
 </html>
