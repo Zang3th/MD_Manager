@@ -44,6 +44,7 @@ function fixture(t) {
   };
   const basicFiles = ["package-lock.json", "jsconfig.json", "jsconfig.harness.json", "eslint.config.js", "tools/check-architecture.js", "tools/check-harness.js", "tests/unit/architecture-checker.test.js", "tests/unit/harness-doctor.test.js", "tests/e2e/fixtures.js"];
   for (const file of basicFiles) write(root, file);
+  write(root, ".gitattributes", "data/parsing/Layout.md text eol=lf\n");
   write(root, "package.json", `${JSON.stringify({ scripts }, null, 2)}\n`);
   write(root, "AGENTS.md", "Run `npm run verify`.\n");
   write(root, "README.md", "Run `npm run verify`.\n");
@@ -82,11 +83,13 @@ test("rejects a duplicated workflow snapshot manifest", t => {
   assert.ok(violations.some(value => value.includes("HARNESS-CI-002")));
 });
 
-test("reports disabled tests and missing visual baselines", t => {
+test("reports disabled tests, missing visual baselines, and golden-file EOL drift", t => {
   const root = fixture(t);
   write(root, "tests/unit/disabled.test.js", "test" + ".only('hidden weakening', () => {});\n");
   fs.rmSync(path.join(root, "tests/e2e/snapshots/linux/start-dark.png"));
+  write(root, ".gitattributes", "data/parsing/Layout.md text\n");
   const violations = checkHarness(root);
   assert.ok(violations.some(value => value.includes("HARNESS-TESTS-001")));
   assert.ok(violations.some(value => value.includes("HARNESS-SNAPSHOTS-001")));
+  assert.ok(violations.some(value => value.includes("HARNESS-EOL-001")));
 });

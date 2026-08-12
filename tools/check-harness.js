@@ -36,6 +36,7 @@ function checkHarness(root) {
   /** @type {string[]} */
   const violations = [];
   const requiredFiles = [
+    ".gitattributes",
     "AGENTS.md",
     "README.md",
     "package.json",
@@ -84,6 +85,11 @@ function checkHarness(root) {
 
   for (const file of ["AGENTS.md", "README.md"]) {
     if (!source(file).includes("npm run verify")) report(file, "HARNESS-DOCS-001", "documentation must name npm run verify as the development gate");
+  }
+
+  const attributes = source(".gitattributes").split(/\r?\n/);
+  if (!attributes.includes("data/parsing/Layout.md text eol=lf")) {
+    report(".gitattributes", "HARNESS-EOL-001", "the parsing golden file must be checked out with LF line endings");
   }
 
   const workflow = source(".github/workflows/verify.yml");
