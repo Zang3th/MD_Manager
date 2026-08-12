@@ -96,6 +96,12 @@ window.MDManager = window.MDManager || {};
         result.blocks.push(group);
         return;
       }
+      if (!line.trim() && note) {
+        note = null;
+        group = initialGroup;
+        section = initialSection;
+        return;
+      }
       const listItem = line.match(/^(\s*)[-*+]\s+(?:\[([ xX])\]\s+)?(.*)$/);
       if (listItem) {
         if (note) note.items.push({ text: listItem[3], indent: listItem[1].replace(/\t/g, "    ").length });
@@ -134,6 +140,7 @@ window.MDManager = window.MDManager || {};
       if (/^\s*#Info\s*$/i.test(line)) { section = "info"; continue; }
       if (/^\s*#Warn\s*$/i.test(line)) { section = "warn"; continue; }
       if (/^####\s+.+?\s*#*\s*$/.test(line)) section = "markdown";
+      if (!line.trim() && section !== "markdown") { section = "markdown"; continue; }
       sections[section].push(line);
     }
     const clean = (/** @type {string[]} */ values) => values.join("\n").replace(/^(?:[ \t]*\n)+|(?:\n[ \t]*)+$/g, "");
@@ -148,9 +155,9 @@ window.MDManager = window.MDManager || {};
     const markdown = embedded.markdown;
     const info = clean([embedded.info, fields.info].filter(Boolean).join("\n"));
     const warn = clean([embedded.warn, fields.warn].filter(Boolean).join("\n"));
-    if (markdown) blocks.push(markdown);
     if (info) blocks.push(`#Info\n${info}`);
     if (warn) blocks.push(`#Warn\n${warn}`);
+    if (markdown) blocks.push(markdown);
     const composed = blocks.join("\n\n");
     return composed ? composed.split("\n") : [];
   }
@@ -288,6 +295,10 @@ window.MDManager = window.MDManager || {};
       } else project.beforeFeatures.push(line);
     }
     if (pendingPin) project.warnings.push({ lineNumber: pendingPin.lineNumber, message: "#Pin is only supported directly before a feature heading and was ignored." });
+    for (const item of project.features) {
+      item.headerLines = composeFeatureLines(featureEditorFields(item.headerLines));
+      for (const itemTask of item.tasks) itemTask.lines = composeTaskLines(taskEditorFields(itemTask.lines));
+    }
     for (const archivedFeature of project.features.filter(item => item.isArchived)) {
       const todos = archivedFeature.tasks.filter(item => !item.ignored).flatMap(item => taskContent(item).todos);
       if (!todos.length || todos.some(todo => !todo.checked)) {
@@ -306,9 +317,7 @@ window.MDManager = window.MDManager || {};
   function parseFeatureMetadata(markdown) {
     const content = markdown.replace(/\r\n?/g, "\n").replace(/^(?:[ \t]*\n)+|(?:\n[ \t]*)+$/g, "");
     const parsed = parse(`# Metadata\n\n## Feature\n${content ? `${content}\n` : ""}\n### Boundary`);
-    const feature = parsed.features[0];
-    feature.headerLines = content ? content.split("\n") : [];
-    return feature;
+    return parsed.features[0];
   }
 
   /** @param {string[]} lines @returns {{metadata: string, info: string, warn: string}} */
@@ -327,8 +336,8 @@ window.MDManager = window.MDManager || {};
     return { metadata: clean(sections.metadata), info: clean(sections.info), warn: clean(sections.warn) };
   }
 
-  /** @param {{metadata: string, info: string, warn: string}} fields @returns {MDFeature} */
-  function composeFeatureMetadata(fields) {
+  /** @param {{metadata: string, info: string, warn: string}} fields @returns {string[]} */
+  function composeFeatureLines(fields) {
     const blocks = [];
     const clean = (/** @type {string} */ value) => value.replace(/\r\n?/g, "\n").replace(/^(?:[ \t]*\n)+|(?:\n[ \t]*)+$/g, "");
     const embedded = featureEditorFields(clean(fields.metadata).split("\n"));
@@ -338,18 +347,28 @@ window.MDManager = window.MDManager || {};
     if (metadata) blocks.push(metadata);
     if (info) blocks.push(`#Info\n${info}`);
     if (warn) blocks.push(`#Warn\n${warn}`);
-    return parseFeatureMetadata(blocks.join("\n\n"));
+    const composed = blocks.join("\n\n");
+    return composed ? composed.split("\n") : [];
   }
 
-  /** @param {MDTask} task @returns {string[]} */
-  function serializeTaskLines(task) {
+  /** @param {{metadata: string, info: string, warn: string}} fields @returns {MDFeature} */
+  function composeFeatureMetadata(fields) {
+    return parseFeatureMetadata(composeFeatureLines(fields).join("\n"));
+  }
+
+  /** @param {MDTask} task @param {string[]} [lines] @returns {string[]} */
+  function serializeTaskLines(task, lines = task.lines) {
     let note = false;
-    return task.lines.map(line => {
+    return lines.map(line => {
       if (/^\s*#(?:Info|Warn)\s*$/i.test(line)) {
         note = true;
         return line;
       }
       if (/^####\s+.+?\s*#*\s*$/.test(line)) {
+        note = false;
+        return line;
+      }
+      if (!line.trim() && note) {
         note = false;
         return line;
       }
@@ -415,10 +434,10 @@ window.MDManager = window.MDManager || {};
       if (feature.isBacklog) lines.push("#Backlog");
       if (feature.isPinned && !feature.isBacklog) lines.push("#Pin");
       if (feature.ignored) lines.push("#Ignore");
-      lines.push(`## ${feature.title}`, ...feature.headerLines);
+      lines.push(`## ${feature.title}`, ...composeFeatureLines(featureEditorFields(feature.headerLines)));
       for (const task of feature.tasks) {
         if (task.ignored) lines.push("#Ignore");
-        lines.push(`### ${task.title}`, ...serializeTaskLines(task));
+        lines.push(`### ${task.title}`, ...serializeTaskLines(task, composeTaskLines(taskEditorFields(task.lines))));
       }
     }
     if (project.hasArchive || archivedFeatures.length) {
@@ -426,10 +445,10 @@ window.MDManager = window.MDManager || {};
       lines.push(`# ${project.archiveTitle || "Archive"}`);
       for (const feature of archivedFeatures) {
         if (feature.ignored) lines.push("#Ignore");
-        lines.push(`## ${feature.title}`, ...feature.headerLines);
+        lines.push(`## ${feature.title}`, ...composeFeatureLines(featureEditorFields(feature.headerLines)));
         for (const task of feature.tasks) {
           if (task.ignored) lines.push("#Ignore");
-          lines.push(`### ${task.title}`, ...serializeTaskLines(task));
+          lines.push(`### ${task.title}`, ...serializeTaskLines(task, composeTaskLines(taskEditorFields(task.lines))));
         }
       }
     }

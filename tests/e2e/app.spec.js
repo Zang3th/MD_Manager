@@ -921,6 +921,42 @@ test("tag content renders nested lists, code, and URLs while task todos stay fla
   expect(new Set(todoOffsets.map(offset => Math.round(offset))).size).toBe(1);
 });
 
+test("feature Info and Warn use the card vertical spacing rhythm", async ({ page }) => {
+  await openFixture(page, "# Project\n\n## Feature\n\n#Info\nInformation paragraph.\n\n#Warn\n- Warning item.\n\n### Task\n\n#### Work\n- [ ] Todo");
+  const feature = page.locator("#content > .release");
+  const notes = feature.locator(".feature-note");
+  await notes.locator(".note-toggle").evaluateAll(toggles => toggles.forEach(toggle => /** @type {HTMLElement} */ (toggle).click()));
+
+  const spacing = await feature.evaluate(node => {
+    const releaseContent = /** @type {HTMLElement} */ (node.querySelector(".release-content"));
+    const featureNotes = /** @type {HTMLElement} */ (node.querySelector(".feature-notes"));
+    const noteElements = [...featureNotes.querySelectorAll(".feature-note")];
+    const card = /** @type {HTMLElement} */ (node.querySelector(".card"));
+    const first = noteElements[0].getBoundingClientRect();
+    const second = noteElements[1].getBoundingClientRect();
+    const content = releaseContent.getBoundingClientRect();
+    const cardRect = card.getBoundingClientRect();
+    const insets = noteElements.map(note => {
+      const bounds = note.getBoundingClientRect();
+      const toggle = /** @type {HTMLElement} */ (note.querySelector(".note-toggle")).getBoundingClientRect();
+      const lastContent = /** @type {HTMLElement} */ (note.lastElementChild).getBoundingClientRect();
+      return [toggle.top - bounds.top, bounds.bottom - lastContent.bottom];
+    });
+    return {
+      cardPaddingTop: Number.parseFloat(getComputedStyle(card).paddingTop),
+      insets,
+      outerGaps: [first.top - content.top, second.top - first.bottom, cardRect.top - second.bottom]
+    };
+  });
+
+  for (const [top, bottom] of spacing.insets) {
+    expect(top).toBeCloseTo(bottom, 1);
+    expect(top).toBeCloseTo(spacing.cardPaddingTop, 1);
+  }
+  expect(spacing.outerGaps[0]).toBeCloseTo(spacing.outerGaps[1], 1);
+  expect(spacing.outerGaps[1]).toBeCloseTo(spacing.outerGaps[2], 1);
+});
+
 test("metadata uses natural Workspace header heights while keeping title rows aligned", async ({ page }) => {
   await openFixture(page);
   await expect(page.locator("#toggleMetadata")).toHaveAttribute("aria-pressed", "true");

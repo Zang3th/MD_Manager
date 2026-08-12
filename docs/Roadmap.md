@@ -204,7 +204,6 @@
 - [x] ~Anzeige und Toggle ähnlich zum Backlog~
 - [x] ~README ergänzen~
 
-#Pin
 ## Zeitstrahl
 
 #Version
@@ -228,13 +227,32 @@
 - [x] ~"Pseudo"-3D + visuell ansprechend~
 - [x] ~README updaten~
 
-## Suche
+#Pin
+## Zoom und Suche
 
 #Version
 - 0.8.0
 
 #Date
-- TBD
+- 12.08.2026 - TBD
+
+### Bugs und Verbesserungen
+
+- [x] ~#Info und #Warn werden im Markdown an die falsche Stelle geschoben~
+- [x] ~Abstände innerhalb von #Tags (oben und unten) sind nicht einheitlich~
+- [ ] Zeiträume müssen im Archiv-Zeitstrahl auch dargestellt werden können
+- [ ] Edit-Dialog im Hochkantmodus ist manchmal immer noch buggy
+
+### Zoom
+
+#Info
+Feature-Karten (und alles was daran hängt) können breiter gemacht werden.
+Stats und Backlog bleiben davon unberührt.
+
+- [ ] Lupensymbol integrieren => aktiviert Slider
+- [ ] Aktuelle Einstellung ist der Default
+- [ ] Zwei Vergrößerungen möglich (fließender Übergang)
+- [ ] Wird sich für die geöffnete Datei als neuer Default gemerkt
 
 ### Suche
 
@@ -261,8 +279,13 @@
 - [ ] Nach Linting-Regeln importieren/exportieren
 - [ ] Schalter im UI (Default = False)
 
-#Backlog
-## Backlog
+## QoL-Verbesserungen für v1.0
+
+#Version
+- 1.0.0
+
+#Date
+- TBD
 
 ### Import/Export
 
@@ -272,6 +295,9 @@
 ### Keyboard-Controls
 
 - [ ] Ausbauen und vervollständigen
+
+#Backlog
+## Backlog
 
 ### Hosting und Deployment
 

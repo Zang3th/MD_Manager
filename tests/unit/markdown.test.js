@@ -69,10 +69,35 @@ test("task labels use level-four headings while standalone bold text stays a par
   assert.equal(content.blocks[2].title, "Section");
 });
 
-test("task editor separates Markdown, info, and warn without trailing blank lines", () => {
+test("task editor composes info and warn before Markdown without trailing blank lines", () => {
   const fields = markdown.taskEditorFields(["", "- [ ] todo", "", "#Info", "- detail", "", "#Warn", "warning", ""]);
   assert.deepEqual({ ...fields }, { markdown: "- [ ] todo", info: "- detail", warn: "warning" });
-  assert.deepEqual(Array.from(markdown.composeTaskLines(fields)), ["- [ ] todo", "", "#Info", "- detail", "", "#Warn", "warning"]);
+  assert.deepEqual(Array.from(markdown.composeTaskLines(fields)), ["#Info", "- detail", "", "#Warn", "warning", "", "- [ ] todo"]);
+});
+
+test("parsing, ordinary serialization, and editors share canonical feature and task ordering", () => {
+  const featureLines = ["#Warn", "feature warning", "#Info", "feature info", "#Version", "- 1.2.3", "#Date", "- 2026-08-12"];
+  const taskLines = ["#### Work", "- [ ] todo", "#Warn", "task warning", "#Info", "task info"];
+  const project = markdown.parse(["# P", "## F", ...featureLines, "### T", ...taskLines].join("\n"));
+  const feature = project.features[0];
+  const task = feature.tasks[0];
+  const editorFeature = markdown.composeFeatureMetadata(markdown.featureEditorFields(featureLines));
+  const editorTaskLines = markdown.composeTaskLines(markdown.taskEditorFields(taskLines));
+
+  assert.deepEqual(Array.from(feature.headerLines), Array.from(editorFeature.headerLines));
+  assert.deepEqual(Array.from(task.lines), Array.from(editorTaskLines));
+  assert.deepEqual(Array.from(task.lines), ["#Info", "task info", "", "#Warn", "task warning", "", "#### Work", "- [ ] todo"]);
+  assert.equal(markdown.taskContent(task).todos.length, 1);
+
+  feature.headerLines = featureLines;
+  task.lines = taskLines;
+  const serialized = markdown.serialize(project);
+  const serializedFeature = serialized.slice(serialized.indexOf("## F"), serialized.indexOf("### T"));
+  const serializedTask = serialized.slice(serialized.indexOf("### T"));
+  assert.ok(serializedFeature.indexOf("#Version") < serializedFeature.indexOf("#Info"));
+  assert.ok(serializedFeature.indexOf("#Info") < serializedFeature.indexOf("#Warn"));
+  assert.ok(serializedTask.indexOf("#Info") < serializedTask.indexOf("#Warn"));
+  assert.ok(serializedTask.indexOf("#Warn") < serializedTask.indexOf("#### Work"));
 });
 
 test("info and warn are limited to one marker per task and feature", () => {
@@ -93,7 +118,7 @@ test("info and warn are limited to one marker per task and feature", () => {
 
 test("feature metadata Markdown keeps source lines and derives supported fields", () => {
   const feature = markdown.parseFeatureMetadata("\n#Version\n- 2.0.0\n#Date\n- 2027-01-01 - 2027-06-30\n#Warn\n- review\ncustom: retained\n");
-  assert.deepEqual(Array.from(feature.headerLines), ["#Version", "- 2.0.0", "#Date", "- 2027-01-01 - 2027-06-30", "#Warn", "- review", "custom: retained"]);
+  assert.deepEqual(Array.from(feature.headerLines), ["#Version", "- 2.0.0", "#Date", "- 2027-01-01 - 2027-06-30", "", "#Warn", "- review", "custom: retained"]);
   assert.equal(feature.version, "2.0.0");
   assert.deepEqual({ ...feature.dates[0] }, { from: "2027-01-01", to: "2027-06-30" });
   assert.equal(feature.notes[0].items[0].text, "review");
