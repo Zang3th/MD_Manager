@@ -19,7 +19,7 @@ module.exports = [
     languageOptions: { ecmaVersion: 2022, globals: { ...globals.browser, Sortable: "readonly" } }
   },
   {
-    files: ["tests/**/*.js", "tools/**/*.js", "playwright.config.js", "eslint.config.js"],
+    files: ["tests/**/*.js", "tools/**/*.js", ".codex/skills/**/*.js", "playwright.config.js", "eslint.config.js"],
     languageOptions: { ecmaVersion: 2022, sourceType: "commonjs", globals: globals.node },
     rules: {
       "no-restricted-syntax": [
@@ -33,6 +33,10 @@ module.exports = [
   },
   {
     files: ["tests/e2e/**/*.js"],
+    languageOptions: { globals: globals.browser }
+  },
+  {
+    files: [".codex/skills/**/*.js"],
     languageOptions: { globals: globals.browser }
   }
 ];

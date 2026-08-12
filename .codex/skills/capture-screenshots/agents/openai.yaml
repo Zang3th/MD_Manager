@@ -1,0 +1,4 @@
+interface:
+  display_name: "Capture Screenshots"
+  short_description: "Capture pixel-perfect MD_Manager screenshots"
+  default_prompt: "Use $capture-screenshots to capture the MD_Manager screenshot set."
