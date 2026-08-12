@@ -5,9 +5,20 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
-const { checkHarness } = require("../../tools/check-harness.js");
+const { PLATFORM_BASELINE_NAMES, checkHarness } = require("../../tools/check-harness.js");
 
-const baselineNames = ["start-help-dark.png", "start-help-light.png", "workspace-expanded-backlog-dark.png", "workspace-expanded-backlog-light.png"];
+const baselineNames = [
+  "start-dark.png",
+  "start-light.png",
+  "workspace-pinned-backlog-dark.png",
+  "workspace-pinned-backlog-light.png",
+  "help-dialog-dark.png",
+  "help-dialog-light.png",
+  "task-edit-dialog-dark.png",
+  "task-edit-dialog-light.png",
+  "archive-dark.png",
+  "archive-light.png"
+];
 
 /** @param {string} root @param {string} relative @param {string} content */
 function write(root, relative, content = "fixture\n") {
@@ -48,6 +59,7 @@ function fixture(t) {
 }
 
 test("accepts a coherent deterministic harness contract", t => {
+  assert.deepEqual(PLATFORM_BASELINE_NAMES, baselineNames);
   assert.deepEqual(checkHarness(fixture(t)), []);
 });
 
@@ -65,7 +77,7 @@ test("reports verify-order and CI drift with stable rule ids", t => {
 test("reports disabled tests and missing visual baselines", t => {
   const root = fixture(t);
   write(root, "tests/unit/disabled.test.js", "test" + ".only('hidden weakening', () => {});\n");
-  fs.rmSync(path.join(root, "tests/e2e/snapshots/linux/start-help-dark.png"));
+  fs.rmSync(path.join(root, "tests/e2e/snapshots/linux/start-dark.png"));
   const violations = checkHarness(root);
   assert.ok(violations.some(value => value.includes("HARNESS-TESTS-001")));
   assert.ok(violations.some(value => value.includes("HARNESS-SNAPSHOTS-001")));

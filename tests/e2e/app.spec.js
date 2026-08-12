@@ -1,7 +1,9 @@
 const { test, expect } = require("./fixtures");
+const fs = require("node:fs");
 const path = require("node:path");
 
 const appUrl = `file:///${path.resolve(__dirname, "../../MD_Manager.html").replaceAll("\\", "/")}`;
+const goldenFixture = fs.readFileSync(path.resolve(__dirname, "../../data/parsing/Layout.md"), "utf8");
 const fixture = `# Test Project
 
 ## Active Feature
@@ -42,6 +44,40 @@ async function openFixture(page, markdown = fixture) {
 }
 
 /** @param {import("@playwright/test").Page} page */
+async function openGoldenFixture(page) {
+  await openFixture(page, goldenFixture);
+  await expect(page.locator("#projectTitle")).toHaveText("Lorem Ipsum Product Roadmap");
+}
+
+/** @param {import("@playwright/test").Page} page */
+async function prepareVisualPage(page) {
+  await page.addStyleTag({ content: ".app-tooltip,.notifications,.app-clock{visibility:hidden!important}" });
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  });
+  await page.mouse.move(720, 700);
+}
+
+/** @param {import("@playwright/test").Page} page @param {"dark" | "light"} theme */
+async function setVisualTheme(page, theme) {
+  const expected = `gruvbox-${theme}`;
+  if (await page.locator("body").getAttribute("data-theme") !== expected) {
+    await page.evaluate(() => window.MDManager.theme.next());
+  }
+  await expect(page.locator("body")).toHaveAttribute("data-theme", expected);
+}
+
+/** @param {import("@playwright/test").Page} page @param {string} scene */
+async function captureVisualThemePair(page, scene) {
+  for (const theme of ["dark", "light"]) {
+    await setVisualTheme(page, /** @type {"dark" | "light"} */ (theme));
+    await prepareVisualPage(page);
+    await expect(page).toHaveScreenshot(`${scene}-${theme}.png`, { animations: "disabled", maxDiffPixels: 100 });
+  }
+}
+
+/** @param {import("@playwright/test").Page} page */
 async function toggleBacklogFromView(page) {
   await page.locator("#toggleViewMenu").click();
   await page.locator("#toggleBacklog").click();
@@ -57,18 +93,6 @@ async function toggleArchiveFromView(page) {
 async function openFeatureActions(feature) {
   await feature.locator(".release-heading").hover();
   await feature.locator(".feature-menu-button").click();
-}
-
-/** @param {import("@playwright/test").Page} page */
-async function expandAllProjectContent(page) {
-  const collapsible = page.locator(".card, .feature-note");
-  for (let index = 0; index < await collapsible.count(); index += 1) {
-    const item = collapsible.nth(index);
-    if (await item.getAttribute("aria-expanded") === "true") continue;
-    const toggle = await item.evaluate(node => node.classList.contains("card")) ? ".card-header" : ".note-toggle";
-    await item.locator(toggle).click();
-  }
-  await expect.poll(() => collapsible.evaluateAll(items => items.every(item => item.getAttribute("aria-expanded") === "true"))).toBe(true);
 }
 
 /** @param {import("@playwright/test").Locator} parent @param {import("@playwright/test").Locator} child @param {"both" | "vertical" | "horizontal"} axes */
@@ -125,7 +149,7 @@ async function expectSvgInkCentered(button, svg) {
 test("start screen exposes the application identity and open action", async ({ page }) => {
   await page.goto(appUrl);
   await expect(page).toHaveTitle("MD_Manager");
-  await expect(page.locator("#appVersion")).toHaveText("v0.6.0");
+  await expect(page.locator("#appVersion")).toHaveText("v0.7.1");
   await expect(page.locator("#appVersion")).toHaveCSS("font-family", '"JetBrains Mono", monospace');
   expect(await page.locator("#appVersion").evaluate(element => getComputedStyle(element, "::before").content)).toBe("none");
   const versionClockStyles = await page.locator("#appVersion, #appClock").evaluateAll(elements => elements.map(element => {
@@ -157,7 +181,7 @@ test("start screen exposes the application identity and open action", async ({ p
   await expect(createFile).toHaveCSS("box-shadow", restingActionShadow);
   await expect(page.locator(".header").getByRole("button", { name: /Open/ })).toHaveCount(0);
   await expect(page.locator("#watermark")).toBeVisible();
-  await expect(page.locator("#watermark")).toContainText("MD_Manager v0.6.0");
+  await expect(page.locator("#watermark")).toContainText("MD_Manager v0.7.1");
   const help = page.getByRole("button", { name: "Help", exact: true });
   const sound = page.locator("#toggleSounds");
   const theme = page.locator("#toggleTheme");
@@ -396,37 +420,49 @@ test("symbols, progress values, and the clock stay optically aligned in their co
   expect(new Set(checkReferences)).toEqual(new Set(["#icon-check"]));
 });
 
-test("start help matches its platform visual baselines in both color schemes", async ({ page }) => {
+test("start page matches its platform visual baselines in both color schemes", async ({ page }) => {
   await page.goto(appUrl);
-  await page.addStyleTag({ content: ".app-tooltip,.notifications,.app-clock{visibility:hidden!important}" });
-  await page.locator("#toggleHelp").click();
-  await expect(page.locator("#helpPopover")).toBeVisible();
-  await expect(page.locator("#toggleHelp")).toHaveAttribute("aria-expanded", "true");
-  await page.mouse.move(720, 700);
-  await expect(page).toHaveScreenshot("start-help-dark.png", { animations: "disabled", maxDiffPixels: 100 });
-
-  await page.locator("#toggleTheme").click();
-  await expect(page.locator("body")).toHaveAttribute("data-theme", "gruvbox-light");
-  await page.locator("#toggleHelp").click();
-  await expect(page.locator("#helpPopover")).toBeVisible();
-  await expect(page.locator("#toggleHelp")).toHaveAttribute("aria-expanded", "true");
-  await page.mouse.move(720, 700);
-  await expect(page).toHaveScreenshot("start-help-light.png", { animations: "disabled", maxDiffPixels: 100 });
+  await expect(page.locator("body")).toHaveClass(/start-view/);
+  await captureVisualThemePair(page, "start");
 });
 
-test("expanded Workspace and backlog match their platform visual baselines in both color schemes", async ({ page }) => {
-  await openFixture(page);
-  await page.addStyleTag({ content: ".app-tooltip,.notifications,.app-clock{visibility:hidden!important}" });
+test("Golden File Workspace pinned jump with Backlog matches platform visual baselines", async ({ page }) => {
+  await openGoldenFixture(page);
   await toggleBacklogFromView(page);
+  await page.keyboard.press("p");
+  const pinned = page.locator("#content > .release.pinned");
+  await expect(pinned).toHaveCount(1);
+  await expect(pinned).toBeInViewport();
+  await expect(pinned.locator(".card").first()).toHaveAttribute("aria-expanded", "true");
   await expect(page.locator("#backlog")).toBeVisible();
-  await expandAllProjectContent(page);
-  await page.mouse.move(720, 700);
-  await expect(page).toHaveScreenshot("workspace-expanded-backlog-dark.png", { animations: "disabled", maxDiffPixels: 100 });
+  await captureVisualThemePair(page, "workspace-pinned-backlog");
+});
 
-  await page.locator("#toggleTheme").click();
-  await expect(page.locator("body")).toHaveAttribute("data-theme", "gruvbox-light");
-  await page.mouse.move(720, 700);
-  await expect(page).toHaveScreenshot("workspace-expanded-backlog-light.png", { animations: "disabled", maxDiffPixels: 100 });
+test("Golden File Help dialog matches platform visual baselines", async ({ page }) => {
+  await openGoldenFixture(page);
+  await page.locator("#toggleHelp").click();
+  await expect(page.locator("#helpPopover")).toBeVisible();
+  await expect(page.locator("#toggleHelp")).toHaveAttribute("aria-expanded", "true");
+  await captureVisualThemePair(page, "help-dialog");
+});
+
+test("Golden File Task Edit dialog matches platform visual baselines", async ({ page }) => {
+  await openGoldenFixture(page);
+  await page.keyboard.press("p");
+  const task = page.locator("#content > .release.pinned .card").first();
+  await task.locator(".card-header").hover();
+  await task.locator('[data-edit="task"]').click();
+  await expect(page.locator("#taskEditor")).toBeVisible();
+  await expect(page.locator("#taskEditorTitle")).toHaveValue("Markdown editing");
+  await captureVisualThemePair(page, "task-edit-dialog");
+});
+
+test("Golden File Archive matches platform visual baselines", async ({ page }) => {
+  await openGoldenFixture(page);
+  await toggleArchiveFromView(page);
+  await expect(page.locator("#archive")).toBeVisible();
+  await expect(page.locator(".archive-feature")).toHaveCount(3);
+  await captureVisualThemePair(page, "archive");
 });
 
 test("theme toggle switches Gruvbox themes on the start screen and in the app", async ({ page }) => {
@@ -1472,6 +1508,7 @@ test("start screen Create File creates and opens a filesystem Markdown and help 
   await expect(page.locator("#content .empty")).toContainText("No features found");
 
   await page.locator("#toggleHelp").click();
+  await page.getByRole("tab", { name: "Markdown syntax", exact: true }).click();
   const templateHelp = page.locator('.help-section[aria-labelledby="templateHelpTitle"]');
   await expect(templateHelp.getByRole("heading", { name: "Templates", exact: true })).toBeVisible();
   await expect(templateHelp.locator("p")).toHaveCSS("color", "rgb(146, 131, 116)");
@@ -2375,29 +2412,52 @@ test("help popover documents shortcuts and Markdown and closes predictably", asy
   await expect(help).toBeVisible();
   await expect(helpButton).toHaveAttribute("aria-expanded", "true");
   await expect(help).toContainText("Quick reference");
-  await expect(help).toContainText("Shortcuts");
-  await expect(help).toContainText("Ctrl");
-  const keySurfaces = await help.locator("kbd").evaluateAll(keys => keys.map(key => {
+  const shortcutTab = help.getByRole("tab", { name: "Shortcuts", exact: true });
+  const markdownTab = help.getByRole("tab", { name: "Markdown syntax", exact: true });
+  const shortcutPanel = page.locator("#shortcutHelpPanel");
+  const markdownPanel = page.locator("#markdownHelpPanel");
+  await expect(shortcutTab).toHaveAttribute("aria-selected", "true");
+  await expect(markdownTab).toHaveAttribute("aria-selected", "false");
+  await expect(shortcutPanel).toBeVisible();
+  await expect(markdownPanel).toBeHidden();
+  await expect(shortcutPanel).toContainText("Ctrl");
+  const keySurfaces = await shortcutPanel.locator("kbd").evaluateAll(keys => keys.map(key => {
     const style = getComputedStyle(key);
     return { minWidth: style.minWidth, height: style.height, display: style.display, overflow: style.overflow };
   }));
   expect(keySurfaces.length).toBeGreaterThan(0);
   expect(keySurfaces.every(key => key.minWidth === "22px" && key.height === "22px" && key.display === "grid" && key.overflow === "hidden")).toBe(true);
-  await expect(help).toContainText("#Backlog");
-  await expect(help).toContainText("#Pin");
-  await expect(help).toContainText("#Ignore");
-  await expect(help.locator(".shortcut-list > div").filter({ hasText: "Open workspace" }).locator("kbd")).toHaveText("W");
-  await expect(help.locator(".shortcut-list > div").filter({ hasText: "Open archive" }).locator("kbd")).toHaveText("A");
-  await expect(help.locator(".shortcut-list > div").filter({ hasText: "Toggle backlog" }).locator("kbd")).toHaveText("B");
-  await expect(help.locator(".shortcut-list > div").filter({ hasText: "Toggle statistics" }).locator("kbd")).toHaveText("S");
-  await expect(help).toContainText("Jump to pinned feature");
-  const structure = help.locator(".markdown-reference").first();
+  await expect(shortcutPanel.locator(".shortcut-list > div").filter({ hasText: "Open workspace" }).locator("kbd")).toHaveText("W");
+  await expect(shortcutPanel.locator(".shortcut-list > div").filter({ hasText: "Open archive" }).locator("kbd")).toHaveText("A");
+  await expect(shortcutPanel.locator(".shortcut-list > div").filter({ hasText: "Toggle backlog" }).locator("kbd")).toHaveText("B");
+  await expect(shortcutPanel.locator(".shortcut-list > div").filter({ hasText: "Toggle statistics" }).locator("kbd")).toHaveText("S");
+  await expect(shortcutPanel).toContainText("Jump to pinned feature");
+  await shortcutTab.focus();
+  await page.keyboard.press("End");
+  await expect(markdownTab).toBeFocused();
+  await expect(markdownTab).toHaveAttribute("aria-selected", "true");
+  await expect(shortcutPanel).toBeHidden();
+  await expect(markdownPanel).toBeVisible();
+  await page.keyboard.press("Home");
+  await expect(shortcutTab).toBeFocused();
+  await page.keyboard.press("ArrowRight");
+  await expect(markdownTab).toBeFocused();
+  await page.keyboard.press("ArrowLeft");
+  await expect(shortcutTab).toBeFocused();
+  await markdownTab.click();
+  await expect(markdownPanel).toContainText("#Backlog");
+  await expect(markdownPanel).toContainText("#Pin");
+  await expect(markdownPanel).toContainText("#Ignore");
+  await expect(markdownPanel.locator(".markdown-reference > div").filter({ hasText: "#Version" }).locator("dd")).toHaveText("Feature version numbering");
+  await expect(markdownPanel.locator(".markdown-reference > div").filter({ hasText: "#Info" }).locator("dd")).toHaveText("Informational note for a feature or task");
+  await expect(markdownPanel.locator(".markdown-reference > div").filter({ hasText: "#Warn" }).locator("dd")).toHaveText("Warning note for a feature or task");
+  const structure = markdownPanel.locator(".markdown-reference").first();
   await expect(structure).toContainText("#### Label");
   await expect(structure).toContainText("- [ ] Todo");
-  await expect(help.getByText("Task content", { exact: true })).toHaveCount(0);
-  await expect(help).not.toContainText("Starts a");
-  await expect(help).not.toContainText("Marks the");
-  const formatting = help.locator(".help-formatting");
+  await expect(markdownPanel.getByText("Task content", { exact: true })).toHaveCount(0);
+  await expect(markdownPanel).not.toContainText("Starts a");
+  await expect(markdownPanel).not.toContainText("Marks the");
+  const formatting = markdownPanel.locator(".help-formatting");
   await expect(formatting.locator(".markdown-syntax-bold")).toHaveText("**Bold**");
   await expect(formatting.locator(".markdown-syntax-bold")).toHaveCSS("font-weight", "800");
   await expect(formatting.locator(".markdown-syntax-italic")).toHaveCSS("font-style", "oblique 12deg");
@@ -2406,8 +2466,8 @@ test("help popover documents shortcuts and Markdown and closes predictably", asy
   await expect(formatting.locator(".markdown-syntax-link")).toHaveText("[URL](url)");
   await expect(formatting).not.toContainText("Bullet");
   await expect(formatting).not.toContainText("Nested");
-  await expect(help.locator(".help-tag-info")).toHaveCSS("color", "rgb(131, 165, 152)");
-  await expect(help.locator(".help-tag-warn")).toHaveCSS("color", "rgb(215, 153, 33)");
+  await expect(markdownPanel.locator(".help-tag-info")).toHaveCSS("color", "rgb(131, 165, 152)");
+  await expect(markdownPanel.locator(".help-tag-warn")).toHaveCSS("color", "rgb(215, 153, 33)");
   await page.keyboard.press("Escape");
   await expect(help).toBeHidden();
   await expect(helpButton).toHaveAttribute("aria-expanded", "false");

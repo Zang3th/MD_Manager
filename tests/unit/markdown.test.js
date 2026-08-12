@@ -229,11 +229,13 @@ test("data/parsing/Layout.md is the parsing golden file and round-trips without 
   assert.equal(first.archiveTitle, "Archive");
   assert.equal(first.newline, "\n");
   assert.doesNotMatch(serialized, /\r\n/);
-  assert.deepEqual(Array.from(archivedFeatures, feature => feature.title), ["Archived Version Fixture", "Archived Date Fixture", "Archived Metadata-free Fixture"]);
+  assert.deepEqual(Array.from(archivedFeatures, feature => feature.title), ["Archived Version Fixture", "Archived Date Fixture", "Archived Ignored Fixture", "Archived Metadata-free Fixture"]);
   assert.equal(archivedFeatures[0].version, "0.8.0");
   assert.equal(archivedFeatures[1].dates[0].from, "2025-10-01");
-  assert.equal(archivedFeatures[2].version, "");
-  assert.equal(archivedFeatures[2].dates.length, 0);
+  assert.equal(archivedFeatures[2].ignored, true);
+  assert.equal(archivedFeatures[2].tasks[0].title, "Ignored archive task");
+  assert.equal(archivedFeatures[3].version, "");
+  assert.equal(archivedFeatures[3].dates.length, 0);
   assert.equal(regularFeatures.find((/** @type {any} */ feature) => feature.title === "Editor Experience").isPinned, true);
   assert.equal(regularFeatures.find((/** @type {any} */ feature) => feature.title === "Hidden Feature Fixture").ignored, true);
   assert.equal(regularFeatures.find((/** @type {any} */ feature) => feature.title === "Empty Feature Fixture").tasks.length, 0);

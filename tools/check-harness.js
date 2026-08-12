@@ -3,6 +3,19 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
+const PLATFORM_BASELINE_NAMES = [
+  "start-dark.png",
+  "start-light.png",
+  "workspace-pinned-backlog-dark.png",
+  "workspace-pinned-backlog-light.png",
+  "help-dialog-dark.png",
+  "help-dialog-light.png",
+  "task-edit-dialog-dark.png",
+  "task-edit-dialog-light.png",
+  "archive-dark.png",
+  "archive-light.png"
+];
+
 /** @param {string} value */
 function slash(value) {
   return value.replaceAll("\\", "/");
@@ -89,9 +102,8 @@ function checkHarness(root) {
     modifiers.lastIndex = 0;
   }
 
-  const baselineNames = ["start-help-dark.png", "start-help-light.png", "workspace-expanded-backlog-dark.png", "workspace-expanded-backlog-light.png"];
   for (const platform of ["linux", "win32", "darwin"]) {
-    for (const name of baselineNames) {
+    for (const name of PLATFORM_BASELINE_NAMES) {
       const file = `tests/e2e/snapshots/${platform}/${name}`;
       if (!fs.existsSync(path.join(root, file))) report(file, "HARNESS-SNAPSHOTS-001", "required platform visual baseline is missing");
     }
@@ -130,4 +142,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { checkHarness };
+module.exports = { PLATFORM_BASELINE_NAMES, checkHarness };

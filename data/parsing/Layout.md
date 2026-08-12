@@ -210,6 +210,23 @@ This archived card verifies date-based ordering and retained warnings.
 #### Archived validation
 - [x] ~Complete the date-based archive fixture~
 
+#Ignore
+## Archived Ignored Fixture
+
+#Date
+- 2025-11-01 - 2025-11-30
+
+#Info
+- This completed archived feature remains canonical while hidden from the application.
+
+### Ignored archive task
+
+#Warn
+- Hidden archive content must survive parsing and serialization unchanged.
+
+#### Archived preservation
+- [x] ~Preserve the ignored archived feature and its task~
+
 ## Archived Metadata-free Fixture
 
 ### Metadata-free archive task
