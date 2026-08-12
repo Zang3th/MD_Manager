@@ -48,7 +48,7 @@ function fixture(t) {
   write(root, "AGENTS.md", "Run `npm run verify`.\n");
   write(root, "README.md", "Run `npm run verify`.\n");
   write(root, "playwright.config.js", "module.exports = { fullyParallel: true, forbidOnly: true, retries: 0 };\n");
-  write(root, ".github/workflows/verify.yml", "workflow_call:\npermissions:\n  contents: read\n# ubuntu-latest windows-latest macos-latest npm ci npm run verify\n");
+  write(root, ".github/workflows/verify.yml", "workflow_call:\npermissions:\n  contents: read\n# ubuntu-latest windows-latest macos-latest\n- run: node tools/check-harness.js\n- run: npm ci\n- run: npm run verify\n");
   write(root, "tests/unit/markdown.test.js", "// data/parsing/Layout.md\n// round-trips without losing information\n// serialization remains stable across repeated LF and CRLF round trips\n");
   write(root, "docs/work/current.md", "# Current Work\n\n_No active work item._\n");
   write(root, "data/parsing/Layout.md", ["# Layout", "#Pin", "#Ignore", "#Backlog", "#Archive", "#Version", "#Date", "#Info", "#Warn"].join("\n"));
@@ -72,6 +72,14 @@ test("reports verify-order and CI drift with stable rule ids", t => {
   const violations = checkHarness(root);
   assert.ok(violations.some(value => value.includes("HARNESS-SCRIPTS-002")));
   assert.ok(violations.some(value => value.includes("HARNESS-CI-001")));
+});
+
+test("rejects a duplicated workflow snapshot manifest", t => {
+  const root = fixture(t);
+  const workflow = fs.readFileSync(path.join(root, ".github/workflows/verify.yml"), "utf8");
+  write(root, ".github/workflows/verify.yml", `${workflow}\n# \${{ hashFiles('tests/e2e/snapshots/linux/start-dark.png') }}\n`);
+  const violations = checkHarness(root);
+  assert.ok(violations.some(value => value.includes("HARNESS-CI-002")));
 });
 
 test("reports disabled tests and missing visual baselines", t => {

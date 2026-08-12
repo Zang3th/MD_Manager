@@ -31,6 +31,11 @@ function cssReferences(source) {
 }
 
 /** @param {string} source */
+function markdownReferences(source) {
+  return [...source.matchAll(/!?\[[^\]]*\]\(([^\s)]+)(?:\s+"[^"]*")?\)/g)].map(match => match[1]).filter(localReference);
+}
+
+/** @param {string} source */
 function runtimeReferences(source) {
   const extension = "(?:css|gif|jpe?g|js|mp3|ogg|otf|png|svg|ttf|wav|webp|woff2?)";
   const nested = new RegExp(`["'\\x60]((?:[A-Za-z0-9_.-]+/)+[A-Za-z0-9_.-]+\\.${extension})["'\\x60]`, "gi");
@@ -44,6 +49,8 @@ test("release preparation is explicitly dispatched and creates only a draft", ()
   assert.match(releaseWorkflow, /needs: verify/);
   assert.match(releaseWorkflow, /contents: write/);
   assert.match(releaseWorkflow, /id="appVersion"/);
+  assert.match(releaseWorkflow, /id="watermark"/);
+  assert.match(releaseWorkflow, /README\.md has no release-table entry/);
   assert.match(releaseWorkflow, /git rev-parse --verify --quiet "refs\/tags\/v\$VERSION"/);
   assert.match(releaseWorkflow, /gh release create "v\$VERSION"/);
   assert.match(releaseWorkflow, /\s--draft\s/);
@@ -59,6 +66,7 @@ test("verification can be reused by release preparation", () => {
 });
 
 test("release archive contains the local application runtime", () => {
+  const packaged = releaseFiles();
   assert.deepEqual(releaseEntries, [
     "MD_Manager.html",
     "app.js",
@@ -74,6 +82,7 @@ test("release archive contains the local application runtime", () => {
   ]);
   for (const entry of releaseEntries) {
     assert.ok(fs.existsSync(path.join(root, entry)), `${entry} must exist`);
+    assert.ok([...packaged].some(file => file === entry || file.startsWith(`${entry}/`)), `${entry} must contain tracked release content`);
   }
   assert.match(releaseWorkflow, /mapfile -t release_paths < \.github\/release-files\.txt/);
   assert.match(releaseWorkflow, /"\$\{release_paths\[@\]\}"/);
@@ -93,5 +102,10 @@ test("every local runtime dependency is tracked and included in the release", ()
 
   for (const reference of references) {
     assert.ok(packaged.has(reference), `${reference} is required at runtime but is not tracked in the release`);
+  }
+
+  const readme = fs.readFileSync(path.join(root, "README.md"), "utf8");
+  for (const reference of [...htmlReferences(readme), ...markdownReferences(readme)]) {
+    assert.ok(packaged.has(reference), `${reference} is referenced by README.md but is not tracked in the release`);
   }
 });

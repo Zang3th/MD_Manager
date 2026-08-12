@@ -27,11 +27,8 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - name: Require platform visual baselines
-        if: ${{ hashFiles(format('tests/e2e/snapshots/{0}/start-help-dark.png', matrix.platform)) == '' || hashFiles(format('tests/e2e/snapshots/{0}/start-help-light.png', matrix.platform)) == '' || hashFiles(format('tests/e2e/snapshots/{0}/workspace-expanded-backlog-dark.png', matrix.platform)) == '' || hashFiles(format('tests/e2e/snapshots/{0}/workspace-expanded-backlog-light.png', matrix.platform)) == '' }}
-        run: |
-          echo "::error::Missing ${{ matrix.platform }} visual baselines. Run the 'Generate visual baselines' workflow, download the 'visual-baselines' artifact, and copy its contents into tests/e2e/snapshots/."
-          exit 1
+      - name: Validate harness contract
+        run: node tools/check-harness.js
       - run: npm ci
       - if: runner.os == 'Linux'
         run: npx playwright install --with-deps chromium

@@ -142,7 +142,7 @@ CI executes the complete pipeline on Windows, Linux, and macOS.
     </tr>
   </thead>
   <tbody>
-    <tr><td><a href="https://github.com/Zang3th/MD_Manager/releases/tag/v0.7.1">v0.7.1</a></td><td>12.08.2026</td><td>557</td><td>474</td><td>4,322</td><td>162</td><td>Feature pinning, archive timeline</td></tr>
+    <tr><td><a href="https://github.com/Zang3th/MD_Manager/releases/tag/v0.7.1">v0.7.1</a></td><td>12.08.2026</td><td>557</td><td>474</td><td>4,322</td><td>166</td><td>Feature pinning, archive timeline</td></tr>
     <tr><td><a href="https://github.com/Zang3th/MD_Manager/releases/tag/v0.6.0">v0.6.0</a></td><td>07.08.2026</td><td>538</td><td>385</td><td>3,351</td><td>107</td><td>UI polish, README, release workflow</td></tr>
     <tr><td>v0.5.0</td><td>03.08.2026</td><td>512</td><td>376</td><td>3,321</td><td>96</td><td>Cross-platform improvements</td></tr>
     <tr><td>v0.4.0</td><td>03.08.2026</td><td>279</td><td>392</td><td>3,255</td><td>90</td><td>New undo/redo system and file conflicts</td></tr>

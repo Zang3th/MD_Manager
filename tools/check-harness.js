@@ -87,8 +87,11 @@ function checkHarness(root) {
   }
 
   const workflow = source(".github/workflows/verify.yml");
-  for (const required of ["workflow_call:", "contents: read", "ubuntu-latest", "windows-latest", "macos-latest", "npm ci", "npm run verify"]) {
+  for (const required of ["workflow_call:", "contents: read", "ubuntu-latest", "windows-latest", "macos-latest", "node tools/check-harness.js", "npm ci", "npm run verify"]) {
     if (!workflow.includes(required)) report(".github/workflows/verify.yml", "HARNESS-CI-001", `verification workflow is missing '${required}'`);
+  }
+  if (/hashFiles\([^\n]*tests\/e2e\/snapshots/.test(workflow)) {
+    report(".github/workflows/verify.yml", "HARNESS-CI-002", "snapshot baselines must be validated through tools/check-harness.js instead of a duplicated workflow manifest");
   }
 
   const playwright = source("playwright.config.js");
