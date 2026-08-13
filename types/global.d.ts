@@ -58,10 +58,13 @@ type MDMarkdownWarning = { lineNumber: number; message: string };
 type MDProject = { title: string; newline: string; beforeFeatures: string[]; features: MDFeature[]; warnings: MDMarkdownWarning[]; hasArchive?: boolean; archiveTitle?: string };
 type MDArchiveOrder = "date" | "version";
 type MDArchiveScale = "day" | "week" | "month" | "year";
-type MDArchiveResolution = "auto" | MDArchiveScale;
-type MDArchiveTimelineEntry = { feature: MDFeature; label: string; date?: { value: string; time: number; year: number; month: number; day: number } };
+type MDArchiveDate = { value: string; time: number; year: number; month: number; day: number };
+type MDArchiveTickLevel = "major" | "minor";
+type MDArchiveTick = { time: number; level: MDArchiveTickLevel };
+type MDArchiveTimelineRange = { from: MDArchiveDate; to?: MDArchiveDate; label: string };
+type MDArchiveTimelineEntry = { feature: MDFeature; label: string; date?: MDArchiveDate; endDate?: MDArchiveDate; rangeLabel?: string; ranges?: MDArchiveTimelineRange[]; rangeCount?: number };
 type MDArchiveTimelineGroup = { key: string; label: string; entries: MDArchiveTimelineEntry[] };
-type MDArchiveTimeline = { order: MDArchiveOrder; scale: MDArchiveScale; from: string; to: string; groups: MDArchiveTimelineGroup[]; unmatched: MDFeature[] };
+type MDArchiveTimeline = { order: MDArchiveOrder; scale: MDArchiveScale; from: string; to: string; fromTime?: number; toTime?: number; entries?: MDArchiveTimelineEntry[]; markers?: MDArchiveDate[]; ticks?: MDArchiveTick[]; groups: MDArchiveTimelineGroup[]; unmatched: MDFeature[] };
 type MDUndoAction = {
   label: string;
   undo(): void;
@@ -88,7 +91,6 @@ type MDViewState = {
   featureNotes: boolean[];
   view: "workspace" | "archive";
   archiveOrder: MDArchiveOrder;
-  archiveResolution: MDArchiveScale;
   archiveControlsOpen: boolean;
   archiveExpandedFeatures: number[];
   backlogOpen: boolean;

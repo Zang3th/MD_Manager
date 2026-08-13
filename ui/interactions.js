@@ -495,7 +495,6 @@ window.MDManager = window.MDManager || {};
     const archive = document.getElementById("archive");
     const archiveContent = archive.querySelector(".archive-content");
     const expandedArchiveFeatures = [...archive.querySelectorAll('.archive-feature-toggle[aria-expanded="true"]')].map(toggle => Number(toggle.closest(".archive-feature")?.getAttribute("data-feature"))).filter(Number.isFinite);
-    const archiveResolutionInput = /** @type {HTMLInputElement | null} */ (archive.querySelector("#archiveResolution"));
     const backlog = document.getElementById("backlog");
     const backlogContent = backlog.querySelector(".backlog-content");
     const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -509,7 +508,6 @@ window.MDManager = window.MDManager || {};
       featureNotes: [...document.querySelectorAll(".feature-note")].map(note => note.getAttribute("aria-expanded") === "true"),
       view: document.body.classList.contains("archive-view-active") ? "archive" : "workspace",
       archiveOrder: /** @type {MDArchiveOrder} */ (archive.querySelector('[data-archive-order][aria-pressed="true"]')?.getAttribute("data-archive-order") || "date"),
-      archiveResolution: /** @type {MDArchiveScale} */ ((archiveResolutionInput ? ["day", "week", "month", "year"][Number(archiveResolutionInput.value)] : archive.dataset.resolution) || "day"),
       archiveControlsOpen: !archive.querySelector(".archive-control-panel")?.hasAttribute("hidden"),
       archiveExpandedFeatures: expandedArchiveFeatures,
       backlogOpen: document.getElementById("toggleBacklog").getAttribute("aria-pressed") === "true",
@@ -1137,16 +1135,6 @@ window.MDManager = window.MDManager || {};
     button.setAttribute("aria-expanded", String(open));
     featureElement.classList.toggle("expanded", open);
     featureElement.querySelector(".archive-tasks").hidden = !open;
-  });
-  document.getElementById("archive").addEventListener("input", event => {
-    const input = eventElement(event);
-    if (!input.matches("#archiveResolution") || !project) return;
-    const range = /** @type {HTMLInputElement} */ (input);
-    const resolutions = /** @type {MDArchiveScale[]} */ (["day", "week", "month", "year"]);
-    const viewState = captureViewState();
-    viewState.archiveResolution = resolutions[Number(range.value)] || "day";
-    app.render.archiveTimeline(project, viewState);
-    app.layout.archiveTimeline();
   });
   document.getElementById("toggleBacklog").addEventListener("click", toggleBacklog);
   document.getElementById("addFeature").addEventListener("click", () => {

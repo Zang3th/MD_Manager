@@ -124,6 +124,14 @@ test("feature metadata Markdown keeps source lines and derives supported fields"
   assert.equal(feature.notes[0].items[0].text, "review");
 });
 
+test("feature metadata preserves multiple European two-digit date ranges", () => {
+  const feature = markdown.parseFeatureMetadata("#Date\n- 09.12.25 - 06.01.26\n- 21.05.26 - 05.06.26");
+  assert.deepEqual(Array.from(feature.dates, range => ({ ...range })), [
+    { from: "09.12.25", to: "06.01.26" },
+    { from: "21.05.26", to: "05.06.26" }
+  ]);
+});
+
 test("Ignore preserves but hides the following feature or task", () => {
   const source = "# P\n\n#Ignore\n## Hidden Feature\n### Child\n- [ ] hidden\n\n## Visible Feature\n#Ignore\n### Hidden Task\n- [ ] hidden\n\n### Visible Task\n- [ ] shown";
   const project = markdown.parse(source);
@@ -220,6 +228,12 @@ test("archive serialization sorts versions and ISO or European dates before miss
   const titles = Array.from(output.matchAll(/^## (.+)$/gm), match => match[1]);
   assert.deepEqual(titles, ["Version Two", "Version Ten", "Date Early", "Date Late", "Unknown"]);
   assert.ok(output.indexOf("#Archive") > output.indexOf("# P"));
+});
+
+test("archive serialization sorts European two-digit dates chronologically", () => {
+  const project = markdown.parse("# P\n#Archive\n# Archive\n## February\n#Date\n- 01.02.26\n### Done\n- [x] ~done~\n## January\n#Date\n- 31.01.26\n### Done\n- [x] ~done~");
+  const output = markdown.serialize(project);
+  assert.ok(output.indexOf("## January") < output.indexOf("## February"));
 });
 
 test("archive rejects individual tasks and sections following it", () => {

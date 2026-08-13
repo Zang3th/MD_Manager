@@ -74,13 +74,14 @@ window.MDManager = window.MDManager || {};
     project.features.splice(0, project.features.length, ...ordered);
   }
 
-  /** @param {string} value @returns {{value: string, time: number, year: number, month: number, day: number} | null} */
+  /** @param {string} value @returns {MDArchiveDate | null} */
   function parsedArchiveDate(value) {
     const source = value.trim();
     const iso = source.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    const european = source.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+    const european = source.match(/^(\d{2})\.(\d{2})\.(\d{2}|\d{4})$/);
     if (!iso && !european) return null;
-    const year = Number(iso?.[1] || european?.[3]);
+    const europeanYear = european?.[3] || "";
+    const year = Number(iso?.[1] || (europeanYear.length === 2 ? `20${europeanYear}` : europeanYear));
     const month = Number(iso?.[2] || european?.[2]);
     const day = Number(iso?.[3] || european?.[1]);
     const time = Date.UTC(year, month - 1, day);
@@ -164,13 +165,72 @@ window.MDManager = window.MDManager || {};
     return { key: String(date.year), label: String(date.year) };
   }
 
-  /** @param {MDFeature[]} features @param {MDArchiveOrder} [order] @param {MDArchiveResolution} [resolution] @returns {MDArchiveTimeline} */
-  function archiveTimeline(features, order = "date", resolution = "auto") {
+  const maxArchiveTicks = 400;
+  /** @type {Record<MDArchiveScale, {minor: string, major: string}>} */
+  const archiveTickUnits = {
+    day: { minor: "day", major: "week" },
+    week: { minor: "week", major: "month" },
+    month: { minor: "month", major: "quarter" },
+    year: { minor: "quarter", major: "year" }
+  };
+
+  /** @param {string} unit @param {number} time @returns {number} */
+  function archiveUnitStart(unit, time) {
+    const date = new Date(time);
+    const dayStart = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+    if (unit === "day") return dayStart;
+    if (unit === "week") return dayStart - ((new Date(dayStart).getUTCDay() || 7) - 1) * dayMs;
+    if (unit === "month") return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1);
+    if (unit === "quarter") return Date.UTC(date.getUTCFullYear(), Math.floor(date.getUTCMonth() / 3) * 3, 1);
+    return Date.UTC(date.getUTCFullYear(), 0, 1);
+  }
+
+  /** @param {string} unit @param {number} time @returns {number} */
+  function archiveUnitNext(unit, time) {
+    if (unit === "day") return time + dayMs;
+    if (unit === "week") return time + 7 * dayMs;
+    const date = new Date(time);
+    if (unit === "month") return Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1);
+    if (unit === "quarter") return Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 3, 1);
+    return Date.UTC(date.getUTCFullYear() + 1, 0, 1);
+  }
+
+  /** @param {string} unit @param {number} first @param {number} last @returns {number[]} */
+  function archiveUnitBoundaries(unit, first, last) {
+    /** @type {number[]} */
+    const times = [];
+    for (let time = archiveUnitStart(unit, first); time < last; time = archiveUnitNext(unit, time)) {
+      if (time > first) times.push(time);
+    }
+    return times;
+  }
+
+  /** @param {MDArchiveScale} scale @param {number} first @param {number} last @returns {MDArchiveTick[]} */
+  function archiveTicks(scale, first, last) {
+    if (!(last > first)) return [];
+    const units = archiveTickUnits[scale];
+    const majorTimes = archiveUnitBoundaries(units.major, first, last);
+    const majors = new Set(majorTimes);
+    /** @type {MDArchiveTick[]} */
+    const ticks = majorTimes.map(time => ({ time, level: /** @type {MDArchiveTickLevel} */ ("major") }));
+    if (ticks.length <= maxArchiveTicks) {
+      for (const time of archiveUnitBoundaries(units.minor, first, last)) {
+        if (!majors.has(time)) ticks.push({ time, level: "minor" });
+      }
+    }
+    ticks.sort((left, right) => left.time - right.time);
+    if (ticks.length <= maxArchiveTicks) return ticks;
+    const stride = Math.ceil(ticks.length / maxArchiveTicks);
+    return ticks.filter((_, index) => index % stride === 0);
+  }
+
+  /** @param {MDFeature[]} features @param {MDArchiveOrder} [order] @returns {MDArchiveTimeline} */
+  function archiveTimeline(features, order = "date") {
     /** @type {MDArchiveTimelineEntry[]} */
     const entries = [];
     /** @type {MDFeature[]} */
     const unmatched = [];
-    /** @type {Array<{value: string, time: number, year: number, month: number, day: number}>} */
+    /** @type {MDArchiveDate[]} */
     const rangeDates = [];
     for (const feature of features) {
       if (order === "version") {
@@ -179,19 +239,29 @@ window.MDManager = window.MDManager || {};
         else unmatched.push(feature);
         continue;
       }
-      /** @type {ReturnType<typeof parsedArchiveDate>} */
-      let start = null;
+      /** @type {MDArchiveTimelineRange[]} */
+      const ranges = [];
       for (const range of feature.dates) {
         const from = parsedArchiveDate(range.from);
-        const to = parsedArchiveDate(range.to);
-        if (from) {
-          rangeDates.push(from);
-          start ||= from;
-        }
+        if (!from) continue;
+        const parsedTo = parsedArchiveDate(range.to);
+        const to = parsedTo && parsedTo.time >= from.time ? parsedTo : undefined;
+        rangeDates.push(from);
         if (to) rangeDates.push(to);
+        ranges.push({ from, to, label: to && to.time !== from.time ? `${from.value} – ${to.value}` : from.value });
       }
-      if (start) entries.push({ feature, date: start, label: start.value });
-      else unmatched.push(feature);
+      if (!ranges.length) {
+        unmatched.push(feature);
+        continue;
+      }
+      ranges.sort((left, right) => left.from.time - right.from.time);
+      const start = ranges[0].from;
+      const end = ranges.reduce((latest, range) => {
+        const candidate = range.to || range.from;
+        return candidate.time > latest.time ? candidate : latest;
+      }, start);
+      const rangeLabel = ranges.length === 1 ? ranges[0].label : `${start.value} – ${end.value} · ${ranges.length} periods`;
+      entries.push({ feature, date: start, endDate: end.time > start.time ? end : undefined, label: start.value, rangeLabel, ranges, rangeCount: ranges.length });
     }
     if (order === "version") {
       entries.sort((left, right) => compareVersionParts(versionParts(left.feature.version || ""), versionParts(right.feature.version || "")));
@@ -207,28 +277,28 @@ window.MDManager = window.MDManager || {};
         }
         group.entries.push(entry);
       }
-      return { order, scale: "day", from: entries[0]?.label || "", to: entries[entries.length - 1]?.label || "", groups: [...versionGroups.values()], unmatched };
+      return { order, scale: "day", from: entries[0]?.label || "", to: entries[entries.length - 1]?.label || "", entries, groups: [...versionGroups.values()], unmatched };
     }
     rangeDates.sort((left, right) => left.time - right.time);
     entries.sort((left, right) => /** @type {NonNullable<typeof left.date>} */ (left.date).time - /** @type {NonNullable<typeof right.date>} */ (right.date).time);
-    if (!rangeDates.length) return { order, scale: resolution === "auto" ? "day" : resolution, from: "", to: "", groups: [], unmatched };
+    if (!rangeDates.length) return { order, scale: "day", from: "", to: "", entries, markers: [], ticks: [], groups: [], unmatched };
     const first = /** @type {NonNullable<ReturnType<typeof parsedArchiveDate>>} */ (rangeDates[0]);
     const last = /** @type {NonNullable<ReturnType<typeof parsedArchiveDate>>} */ (rangeDates[rangeDates.length - 1]);
     const span = Math.round((last.time - first.time) / dayMs);
     /** @type {MDArchiveScale} */
-    const scale = resolution === "auto" ? span <= 31 ? "day" : span <= 183 ? "week" : span <= 731 ? "month" : "year" : resolution;
+    const scale = span <= 31 ? "day" : span <= 183 ? "week" : span <= 731 ? "month" : "year";
     /** @type {Map<string, MDArchiveTimelineGroup>} */
     const groups = new Map();
+    for (const date of rangeDates) {
+      const value = archivePeriod(scale, date);
+      if (!groups.has(value.key)) groups.set(value.key, { ...value, entries: [] });
+    }
     for (const entry of entries) {
       const value = archivePeriod(scale, /** @type {NonNullable<typeof entry.date>} */ (entry.date));
-      let group = groups.get(value.key);
-      if (!group) {
-        group = { ...value, entries: [] };
-        groups.set(value.key, group);
-      }
-      group.entries.push(entry);
+      groups.get(value.key)?.entries.push(entry);
     }
-    return { order, scale, from: first.value, to: last.value, groups: [...groups.values()], unmatched };
+    const markerDates = [...new Map(rangeDates.map(date => [date.time, date])).values()];
+    return { order, scale, from: first.value, to: last.value, fromTime: first.time, toTime: last.time, entries, markers: markerDates, ticks: archiveTicks(scale, first.time, last.time), groups: [...groups.values()], unmatched };
   }
 
   /** @param {MDProject} project */

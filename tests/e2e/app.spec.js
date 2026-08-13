@@ -465,6 +465,15 @@ test("Golden File Archive matches platform visual baselines", async ({ page }) =
   await expect(page.locator("#archive")).toBeVisible();
   await expect(page.locator(".header")).toHaveCSS("box-shadow", "none");
   await expect(page.locator(".archive-feature")).toHaveCount(3);
+  await expect(page.locator(".archive-date-marker-endpoint")).toHaveCount(2);
+  expect(await page.locator("#archive .archive-timeline").evaluate(node => {
+    const card = node.querySelector(".archive-date-card")?.getBoundingClientRect();
+    const markers = [...node.querySelectorAll(".archive-date-marker-endpoint")];
+    const start = markers[0]?.getBoundingClientRect();
+    const end = markers[1]?.getBoundingClientRect();
+    if (!card || !start || !end) return Number.POSITIVE_INFINITY;
+    return Math.max(Math.abs(card.left - (start.left + start.width / 2)), Math.abs(card.right - (end.left + end.width / 2)));
+  })).toBeLessThanOrEqual(1);
   await captureVisualThemePair(page, "archive");
 });
 
@@ -1720,7 +1729,7 @@ test("last Workspace feature remains reachable while Backlog is visible", async 
   }).toBeGreaterThanOrEqual(11);
 });
 
-test("Archive is an exclusive pseudo-3D timeline with date, version, and resolution controls", async ({ page }) => {
+test("Archive is an exclusive pseudo-3D timeline with date and version controls", async ({ page }) => {
   const archived = `${fixture}\n\n#Archive\n# Finished Releases\n\n## First release\n#Version\n- 1.0.0\n#Date\n- 15.01.2024\n### First task\n- [x] ~done detail~\n### Second task\n- [x] ~another detail~\n\n## Later release\n#Date\n- 01.02.2025\n### Later task\n- [x] ~hidden todo~\n\n## Versioned only\n#Version\n- 2.0.0\n### Version task\n- [x] ~version detail~\n\n## Metadata free\n### Last task\n- [x] ~last detail~`;
   await openFixture(page, archived);
   await toggleArchiveFromView(page);
@@ -1738,25 +1747,17 @@ test("Archive is an exclusive pseudo-3D timeline with date, version, and resolut
   await expect(page.locator(".archive-summary > .archive-range")).toHaveCount(1);
   await expect(page.locator(".archive-range")).toHaveCSS("border-top-width", "0px");
   await expect(page.locator(".archive-range")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
-  await expect(page.locator("#archiveResolutionValue")).toHaveText("Monthly");
-  await expect(page.locator("#archiveResolution")).toHaveValue("2");
+  await expect(archive.locator("#archiveResolution,.archive-resolution")).toHaveCount(0);
   await expect(archive.locator(".archive-control-panel-header")).toContainText("Timeline controls");
-  await expect(page.locator(".archive-period-title")).toHaveText(["January 2024", "February 2025", "Without date"]);
-  await expect(page.locator(".archive-period-title").first()).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
-  await expect(page.locator(".archive-period-title").first()).toHaveCSS("z-index", "2");
-  await expect(page.locator(".archive-period-title").first()).toHaveCSS("text-shadow", "none");
+  await expect(archive.locator(".archive-date-marker-main")).toHaveCount(2);
+  await expect(archive.locator(".archive-date-unmatched>h3")).toHaveText("Without date");
   await expect(page.locator(".archive-feature-title")).toHaveText(["First release", "Later release", "Versioned only", "Metadata free"]);
   await expect(page.locator(".archive-feature-meta")).toHaveText(["v1.0.0", "v2.0.0"]);
   await expect(archive.locator(".archive-content")).toHaveCSS("perspective", "1200px");
-  await expect(archive.locator(".archive-timeline")).toHaveCSS("display", "grid");
+  await expect(archive.locator(".archive-timeline")).toHaveCSS("display", "block");
   expect(await archive.locator(".archive-feature").first().evaluate(node => getComputedStyle(node).transform)).not.toBe("none");
-  const timelineGeometry = await archive.locator(".archive-period").evaluateAll(periods => periods.map(period => {
-    const title = period.querySelector(".archive-period-title").getBoundingClientRect();
-    const dot = period.querySelector(".archive-period-dot").getBoundingClientRect();
-    return { titleBottom: title.bottom, dotTop: dot.top, dotCenter: dot.top + dot.height / 2 };
-  }));
-  expect(new Set(timelineGeometry.map(item => Math.round(item.dotCenter))).size).toBe(1);
-  expect(timelineGeometry.every(item => item.titleBottom < item.dotTop)).toBe(true);
+  const timelineGeometry = await archive.locator(".archive-date-marker").evaluateAll(markers => markers.map(marker => marker.getBoundingClientRect().top));
+  expect(new Set(timelineGeometry.map(Math.round)).size).toBe(1);
   const archiveBounds = await archive.boundingBox();
   expect(archiveBounds.x).toBe(0);
   expect(archiveBounds.width).toBeCloseTo(page.viewportSize().width, 0);
@@ -1765,10 +1766,26 @@ test("Archive is an exclusive pseudo-3D timeline with date, version, and resolut
   expect(Math.abs(archiveBounds.y + archiveBounds.height - panelBounds.y - panelBounds.height - 12)).toBeLessThanOrEqual(2);
   await expect(archive.locator(".archive-control-panel")).toHaveCSS("border-top-width", "0px");
   await expect(archive.locator(".archive-order button").first()).toHaveCSS("border-top-width", "2px");
-  const timelinePath = archive.locator(".archive-timeline-path");
-  await expect(timelinePath).toHaveAttribute("d", /^M .+(?: L | C )/);
-  await expect(timelinePath).not.toHaveAttribute("mask", /.+/);
-  await expect(timelinePath).toHaveCSS("stroke-linejoin", "round");
+  await expect(archive.locator(".archive-date-axis-line")).toHaveCount(1);
+  await expect(archive.locator(".archive-date-tick")).toHaveCount(12);
+  await expect(archive.locator(".archive-date-tick-major")).toHaveCount(4);
+  await expect(archive.locator(".archive-date-tick-minor")).toHaveCount(8);
+  await expect(archive.locator(".archive-date-tick").first()).toHaveCSS("width", "1px");
+  expect(await archive.locator(".archive-date-tick").first().evaluate(node => getComputedStyle(node).backgroundColor)).not.toBe(await archive.evaluate(node => getComputedStyle(node).getPropertyValue("--border").trim()));
+  const ruler = await archive.locator(".archive-date-tick").evaluateAll(ticks => {
+    const measure = (/** @type {string} */ level) => ticks.filter(tick => tick.classList.contains(`archive-date-tick-${level}`)).map(tick => Math.round(tick.getBoundingClientRect().height));
+    return {
+      times: ticks.map(tick => Number(tick.dataset.time)),
+      majorHeights: [...new Set(measure("major"))],
+      minorHeights: [...new Set(measure("minor"))],
+      majorMonths: ticks.filter(tick => tick.classList.contains("archive-date-tick-major")).map(tick => new Date(Number(tick.dataset.time)).getUTCMonth())
+    };
+  });
+  expect(ruler.times).toEqual([...ruler.times].sort((left, right) => left - right));
+  expect(ruler.majorHeights).toHaveLength(1);
+  expect(ruler.minorHeights).toHaveLength(1);
+  expect(ruler.majorHeights[0]).toBeGreaterThan(ruler.minorHeights[0]);
+  expect(ruler.majorMonths).toEqual([3, 6, 9, 0]);
   await expect(archive.locator("mask,.archive-timeline-mask-labels")).toHaveCount(0);
   await expect(archive.locator(".archive-timeline-segment")).toHaveCount(0);
   const unarchiveButton = archive.locator(".archive-unarchive").first();
@@ -1808,32 +1825,273 @@ test("Archive is an exclusive pseudo-3D timeline with date, version, and resolut
   await expect(archive.locator(".archive-period-title")).toHaveText(["v1.0.0", "v2.0.0", "Without version"]);
   await expect(archive.locator(".archive-feature-title")).toHaveText(["First release", "Versioned only", "Later release", "Metadata free"]);
   await expect(archive.locator(".archive-feature-meta")).toHaveText(["15.01.2024", "01.02.2025"]);
-  await expect(page.locator("#archiveResolution")).toBeDisabled();
-  await expect(page.locator("#archiveResolutionValue")).toHaveText("Unavailable with version sorting");
-  await expect(archive.locator(".archive-resolution")).toHaveClass(/archive-resolution-disabled/);
+  await expect(archive.locator("#archiveResolution,.archive-resolution")).toHaveCount(0);
   await archive.locator('[data-archive-order="date"]').click();
-  await expect(archive.locator(".archive-resolution-stop")).toHaveCount(4);
-  const resolutionSlider = page.locator("#archiveResolution");
-  await expect(resolutionSlider).toHaveAttribute("min", "0");
-  await expect(resolutionSlider).toHaveAttribute("max", "3");
-  await expect(resolutionSlider).toHaveAttribute("step", "1");
-  await expect(archive.locator(".archive-control-panel")).not.toContainText("Auto");
-  expect(await resolutionSlider.evaluate(node => {
-    const input = /** @type {HTMLInputElement} */ (node);
-    input.value = "0";
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-    return input.isConnected;
-  })).toBe(true);
-  await expect(page.locator("#archiveResolutionValue")).toHaveText("Daily");
-  await expect(page.locator("#archiveResolution")).toHaveValue("0");
+  await expect(archive.locator(".archive-date-card").first()).toHaveAttribute("style", /width/);
   await expect(page.locator(".archive-range")).toHaveText("15.01.2024 – 01.02.2025");
-  await expect(archive.locator(".archive-period-title").first()).toHaveText("15.01.2024");
 
   await page.keyboard.press("A");
   await expect(archive).toBeVisible();
   await page.keyboard.press("W");
   await expect(archive).toBeHidden();
   await expect(page.locator("#content")).toBeVisible();
+});
+
+test("Archive shows multiple work ranges proportionally with one existing timeline card", async ({ page }) => {
+  await openFixture(page, "# Project\n\n#Archive\n# Archive\n\n## Repeated work\n#Version\n- 1.0.0\n#Date\n- 09.12.25 - 06.01.26\n- 21.05.26 - 05.06.26\n### Finished\n- [x] ~Done~");
+  await toggleArchiveFromView(page);
+  const archive = page.locator("#archive");
+  const cards = archive.locator(".archive-feature");
+
+  await expect(archive.locator(".archive-range")).toHaveText("09.12.25 – 05.06.26");
+  await expect(cards).toHaveCount(1);
+  await expect(cards.locator(".archive-feature-title")).toHaveText("Repeated work");
+  await expect(cards.locator(".archive-feature-meta")).toHaveText("v1.0.0");
+  await expect(cards.locator(".archive-feature-toggle")).not.toContainText("09.12.25");
+  const controlledIds = await cards.locator(".archive-feature-toggle").evaluateAll(buttons => buttons.map(button => button.getAttribute("aria-controls")));
+  expect(new Set(controlledIds).size).toBe(1);
+  for (const id of controlledIds) await expect(archive.locator(`#${id}`)).toHaveCount(1);
+  await expect(archive.locator(".archive-date-marker-main")).toHaveCount(2);
+  await expect(archive.locator(".archive-date-marker-sub")).toHaveCount(2);
+  await expect(archive.locator(".archive-date-marker>span")).toHaveText(["09.12.25", "06.01.26", "21.05.26", "05.06.26"]);
+  expect(await archive.locator(".archive-date-marker-sub").first().evaluate(node => parseFloat(getComputedStyle(node.querySelector("span")).fontSize))).toBeLessThan(await archive.locator(".archive-date-marker-main").first().evaluate(node => parseFloat(getComputedStyle(node.querySelector("span")).fontSize)));
+  const labelSides = await archive.locator(".archive-date-timeline").evaluate(node => {
+    const marker = node.querySelector(".archive-date-marker-main").getBoundingClientRect();
+    const axisY = marker.top + marker.height / 2;
+    const main = node.querySelector(".archive-date-marker-main>span").getBoundingClientRect();
+    const sub = node.querySelector(".archive-date-marker-sub>span").getBoundingClientRect();
+    const style = (/** @type {string} */ selector) => getComputedStyle(node.querySelector(`${selector}>span`));
+    return {
+      mainAbove: main.bottom < axisY,
+      subBelow: sub.top > axisY,
+      subThinner: Number(style(".archive-date-marker-sub").fontWeight) < Number(style(".archive-date-marker-main").fontWeight)
+    };
+  });
+  expect(labelSides).toEqual({ mainAbove: true, subBelow: true, subThinner: true });
+  await expect(cards.locator(".archive-feature-periods")).toHaveCount(0);
+  await expect(cards.locator(".archive-feature-inactive")).toHaveCount(1);
+  await expect(cards.locator(".archive-feature-inactive")).toBeEmpty();
+  await expect(cards.locator(".archive-feature-inactive")).toHaveCSS("background-image", /repeating-linear-gradient/);
+  await expect(archive.locator(".archive-date-lines > .archive-date-guide")).toHaveCount(4);
+  await expect(archive.locator(".archive-date-guide-sub")).toHaveCount(2);
+  await expect(archive.locator(".archive-date-guide-sub").first()).toHaveCSS("stroke-dasharray", "3px, 5px");
+  const guideGeometry = await archive.locator(".archive-date-timeline").evaluate(node => {
+    const card = node.querySelector(".archive-date-card .archive-feature").getBoundingClientRect();
+    const marker = node.querySelector(".archive-date-marker").getBoundingClientRect();
+    const axisY = marker.top + marker.height / 2;
+    return [...node.querySelectorAll(".archive-date-guide")].map(guide => {
+      const path = /** @type {SVGPathElement} */ (guide);
+      const bounds = guide.getBoundingClientRect();
+      const head = path.getPointAtLength(0);
+      const tail = path.getPointAtLength(path.getTotalLength());
+      return {
+        subordinate: guide.classList.contains("archive-date-guide-sub"),
+        vertical: Math.abs(head.x - tail.x) < .01,
+        curved: /[cqas]/i.test(path.getAttribute("d") || ""),
+        length: path.getTotalLength(),
+        startsAtAxis: Math.abs(bounds.top - axisY) <= 3,
+        overlap: bounds.bottom - card.top,
+        stroke: getComputedStyle(guide).stroke
+      };
+    });
+  });
+  expect(guideGeometry).toHaveLength(4);
+  expect(guideGeometry.every(guide => guide.vertical && !guide.curved && guide.length > 20 && guide.startsAtAxis)).toBe(true);
+  expect(guideGeometry.every(guide => guide.subordinate ? guide.overlap >= 1 && guide.overlap <= 3 : guide.overlap >= 9 && guide.overlap <= 11)).toBe(true);
+  expect(new Set(guideGeometry.map(guide => guide.stroke)).size).toBe(1);
+  await expect(archive.locator(".archive-date-lines circle")).toHaveCount(0);
+  const attachmentGeometry = await archive.locator(".archive-date-timeline").evaluate(node => {
+    const card = node.querySelector(".archive-date-card").getBoundingClientRect();
+    const centre = (/** @type {Element} */ guide) => {
+      const bounds = guide.getBoundingClientRect();
+      return bounds.left + bounds.width / 2;
+    };
+    return {
+      width: card.width,
+      start: centre(node.querySelector(".archive-date-guide-start")) - card.left,
+      endGap: Math.abs(centre(node.querySelector(".archive-date-guide-end")) - card.right),
+      internal: [...node.querySelectorAll(".archive-date-guide-sub")].map(guide => centre(guide) - card.left)
+    };
+  });
+  expect(attachmentGeometry.start).toBeCloseTo(0, 0);
+  expect(attachmentGeometry.endGap).toBeLessThanOrEqual(1);
+  expect(attachmentGeometry.internal.every(position => position > 0 && position < attachmentGeometry.width)).toBe(true);
+  const gap = await cards.locator(".archive-feature-inactive").evaluate(node => ({ left: parseFloat(node.style.left), width: parseFloat(node.style.width) }));
+  expect(gap.left).toBeCloseTo(28 / 178 * 100, 4);
+  expect(gap.width).toBeCloseTo(135 / 178 * 100, 4);
+  await archive.locator('[data-archive-order="version"]').click();
+  await expect(archive.locator(".archive-feature-meta")).toHaveText("09.12.25 – 06.01.26 · 21.05.26 – 05.06.26");
+  await archive.locator('[data-archive-order="date"]').click();
+  const wideCard = archive.locator(".archive-feature");
+  await wideCard.locator(".archive-feature-toggle").click();
+  await expect(wideCard.locator(".archive-tasks")).toBeVisible();
+  await wideCard.hover();
+  const actionGeometry = await wideCard.evaluate(node => {
+    const card = node.getBoundingClientRect();
+    const action = node.querySelector(".archive-unarchive").getBoundingClientRect();
+    return { rightInset: card.right - action.right, topInset: action.top - card.top };
+  });
+  expect(actionGeometry.rightInset).toBeGreaterThan(5);
+  expect(actionGeometry.rightInset).toBeLessThan(10);
+  expect(actionGeometry.topInset).toBeGreaterThan(5);
+  expect(actionGeometry.topInset).toBeLessThan(10);
+  const hoveredAttachment = await archive.locator(".archive-date-timeline").evaluate(node => {
+    const card = node.querySelector(".archive-date-card .archive-feature").getBoundingClientRect();
+    return [...node.querySelectorAll(".archive-date-guide")].map(guide => ({ overlap: guide.getBoundingClientRect().bottom - card.top, subordinate: guide.classList.contains("archive-date-guide-sub") }));
+  });
+  expect(hoveredAttachment.every(guide => guide.subordinate ? guide.overlap >= 1 && guide.overlap <= 3 : guide.overlap >= 9 && guide.overlap <= 11)).toBe(true);
+  await wideCard.locator(".archive-unarchive").click();
+  await expect(archive.locator(".archive-feature")).toHaveCount(0);
+  await page.locator("#showWorkspaceView").click();
+  await expect(page.locator("#content .release-title")).toHaveText("Repeated work");
+});
+
+test("Archive keeps separated and continuous feature durations legible together", async ({ page }) => {
+  await openFixture(page, "# Project\n\n#Archive\n# Archive\n\n## Learn Vulkan basics\n#Version\n- 0.0.0\n#Date\n- 23.08.24 - 15.09.24\n- 01.10.24 - 15.11.24\n### Finished\n- [x] ~Done~\n\n## Refactoring der Basics\n#Version\n- 0.0.1\n#Date\n- 23.04.25 - 19.05.25\n### Finished\n- [x] ~Done~");
+  await toggleArchiveFromView(page);
+  const archive = page.locator("#archive");
+
+  await expect(archive.locator(".archive-feature")).toHaveCount(2);
+  await expect(archive.locator(".archive-date-marker-main")).toHaveCount(4);
+  await expect(archive.locator(".archive-date-marker-sub")).toHaveCount(2);
+  await expect(archive.locator(".archive-feature-inactive")).toHaveCount(1);
+  await expect(archive.locator(".archive-feature-periods")).toHaveCount(0);
+  const cardWidths = await archive.locator(".archive-date-card").evaluateAll(cards => cards.map(card => card.getBoundingClientRect().width));
+  expect(cardWidths[0]).toBeGreaterThan(cardWidths[1]);
+  expect(cardWidths[1]).toBeGreaterThan(200);
+  const clampedAttachment = await archive.locator(".archive-date-timeline").evaluate(node => {
+    const card = node.querySelectorAll(".archive-date-card")[1].getBoundingClientRect();
+    const guide = /** @type {SVGPathElement} */ (node.querySelector('.archive-date-guide-start[data-entry="1"]'));
+    const bounds = guide.getBoundingClientRect();
+    const head = guide.getPointAtLength(0);
+    const tail = guide.getPointAtLength(guide.getTotalLength());
+    const centre = bounds.left + bounds.width / 2;
+    return {
+      commands: (guide.getAttribute("d") || "").match(/[A-Za-z]/g),
+      vertical: Math.abs(head.x - tail.x) < .01,
+      withinCard: centre >= card.left - 1 && centre <= card.right + 1,
+      landsOnCard: Math.abs(bounds.bottom - card.top - 10) <= 2
+    };
+  });
+  expect(clampedAttachment).toEqual({ commands: ["M", "L"], vertical: true, withinCard: true, landsOnCard: true });
+  expect(await archive.locator(".archive-date-timeline").evaluate(node => [...node.querySelectorAll(".archive-date-guide")].every(guide => !/[cqas]/i.test(guide.getAttribute("d") || "")))).toBe(true);
+  await expect(archive.locator(".archive-date-card").nth(1)).toHaveAttribute("data-lane", "0");
+});
+
+test("Archive draws the four documented date cases with straight axis connections", async ({ page }) => {
+  await openFixture(page, "# Project\n\n#Archive\n# Archive\n\n## Point A\n#Date\n- 01.02.26\n### Finished\n- [x] ~Done~\n\n## Point B\n#Date\n- 01.02.26\n### Finished\n- [x] ~Done~\n\n## Interval\n#Date\n- 05.02.26 - 15.02.26\n### Finished\n- [x] ~Done~");
+  await toggleArchiveFromView(page);
+  const archive = page.locator("#archive");
+  await expect(archive.locator(".archive-feature")).toHaveCount(3);
+  await expect(archive.locator(".archive-date-marker-main")).toHaveCount(3);
+  expect(await archive.locator(".archive-date-card").evaluateAll(cards => cards.map(card => card.getAttribute("data-lane")))).toEqual(["0", "1", "0"]);
+  await expect(archive.locator(".archive-date-marker-shared")).toHaveCount(1);
+  await expect(archive.locator(".archive-date-guide-shared,.archive-date-shared-dot")).toHaveCount(0);
+  expect(await archive.locator(".archive-date-marker").evaluateAll(markers => {
+    const shadow = (/** @type {Element} */ marker) => getComputedStyle(marker).boxShadow;
+    const shared = markers.filter(marker => marker.classList.contains("archive-date-marker-shared"));
+    const plain = markers.filter(marker => !marker.classList.contains("archive-date-marker-shared") && marker.classList.contains("archive-date-marker-main"));
+    return shared.every(marker => plain.every(other => shadow(marker) !== shadow(other)));
+  })).toBe(true);
+
+  const connections = await archive.locator(".archive-date-timeline").evaluate(node => {
+    const cards = [...node.querySelectorAll(".archive-date-card")];
+    const marker = node.querySelector(".archive-date-marker").getBoundingClientRect();
+    const axisY = marker.top + marker.height / 2;
+    return [...node.querySelectorAll(".archive-date-guide")].map(guide => {
+      const path = /** @type {SVGPathElement} */ (guide);
+      const bounds = guide.getBoundingClientRect();
+      const card = cards[Number(path.dataset.entry)].getBoundingClientRect();
+      const centre = bounds.left + bounds.width / 2;
+      const edge = guide.classList.contains("archive-date-guide-end") ? card.right : card.left;
+      return {
+        entry: path.dataset.entry,
+        end: guide.classList.contains("archive-date-guide-end"),
+        straight: ((guide.getAttribute("d") || "").match(/[A-Za-z]/g) || []).join("") === "ML",
+        vertical: Math.abs(path.getPointAtLength(0).x - path.getPointAtLength(path.getTotalLength()).x) < .01,
+        startsAtAxis: Math.abs(bounds.top - axisY) <= 3,
+        onNearEdge: Math.abs(centre - edge) <= 1.5,
+        reachesCard: Math.abs(bounds.bottom - card.top - 10) <= 2,
+        centre,
+        stroke: getComputedStyle(guide).stroke
+      };
+    });
+  });
+  expect(connections).toHaveLength(4);
+  expect(connections.every(guide => guide.straight && guide.vertical && guide.startsAtAxis && guide.onNearEdge && guide.reachesCard)).toBe(true);
+  expect(new Set(connections.map(guide => guide.stroke)).size).toBe(1);
+  expect(new Set(connections.filter(guide => guide.entry !== "2").map(guide => Math.round(guide.centre)))).toEqual(new Set([Math.round(connections[0].centre)]));
+
+  const stack = await archive.locator(".archive-date-timeline").evaluate(node => {
+    const points = [...node.querySelectorAll(".archive-date-card-point")].map(card => card.getBoundingClientRect());
+    const guides = [...node.querySelectorAll(".archive-date-guide-start")].filter(guide => /** @type {SVGPathElement} */ (guide).dataset.entry !== "2").map(guide => guide.getBoundingClientRect());
+    const deepest = Math.max(...points.map(card => card.top));
+    return {
+      sameColumn: Math.max(...points.map(card => card.left)) - Math.min(...points.map(card => card.left)) <= 1,
+      stacked: new Set(points.map(card => Math.round(card.top))).size === points.length,
+      reachesLast: Math.max(...guides.map(guide => guide.bottom)) >= deepest,
+      markerLayer: Number(getComputedStyle(node.querySelector(".archive-date-marker")).zIndex),
+      lineLayer: Number(getComputedStyle(node.querySelector(".archive-date-lines")).zIndex)
+    };
+  });
+  expect(stack.sameColumn).toBe(true);
+  expect(stack.stacked).toBe(true);
+  expect(stack.reachesLast).toBe(true);
+  expect(stack.markerLayer).toBeGreaterThan(stack.lineLayer);
+  await expect(archive.locator("#archiveResolution,.archive-resolution")).toHaveCount(0);
+});
+
+test("Archive wraps a long date timeline into a snake without horizontal scrolling", async ({ page }) => {
+  const features = Array.from({ length: 12 }, (_, index) => `## Release ${index + 1}\n#Date\n- 01.01.${20 + index}\n### Task\n- [x] ~done~`).join("\n\n");
+  await page.setViewportSize({ width: 1440, height: 600 });
+  await openFixture(page, `# Long Archive\n\n#Archive\n# Releases\n\n${features}`);
+  await toggleArchiveFromView(page);
+  const archive = page.locator("#archive");
+  const content = archive.locator(":scope > .archive-content");
+
+  const plan = await archive.locator(".archive-date-timeline").evaluate(node => {
+    const style = getComputedStyle(node);
+    const data = node.querySelector(".archive-date-axis-line").getAttribute("d") || "";
+    return {
+      leftInset: parseFloat(style.paddingLeft),
+      rightInset: parseFloat(style.paddingRight),
+      width: node.clientWidth,
+      commands: (data.match(/[A-Za-z]/g) || []).join(""),
+      values: (data.match(/-?\d+(?:\.\d+)?/g) || []).map(Number),
+      cards: [...node.querySelectorAll(".archive-date-card")].map(element => {
+        const card = /** @type {HTMLElement} */ (element);
+        return {
+          row: Number(card.dataset.row),
+          time: Number(card.dataset.start),
+          left: parseFloat(card.style.left),
+          right: parseFloat(card.style.left) + parseFloat(card.style.width)
+        };
+      })
+    };
+  });
+
+  expect(plan.commands).toBe("MLCL");
+  expect(plan.values).toHaveLength(12);
+  const [, firstRowY, exitX, , controlAX, controlAY, controlBX, controlBY, returnX, secondRowY] = plan.values;
+  expect(controlAY).toBeCloseTo(firstRowY, 5);
+  expect(controlBY).toBeCloseTo(secondRowY, 5);
+  expect(controlAX).toBeCloseTo(controlBX, 5);
+  expect(returnX).toBeCloseTo(exitX, 5);
+  expect(controlAX).toBeGreaterThan(exitX);
+  expect(secondRowY).toBeGreaterThan(firstRowY);
+  expect(Math.abs(controlAX - exitX) * .75 / (plan.width - 8 - exitX)).toBeCloseTo(.5, 2);
+
+  expect([...new Set(plan.cards.map(card => card.row))]).toEqual([0, 1]);
+  expect(plan.cards.every(card => card.left >= plan.leftInset - .5 && card.right <= plan.width - plan.rightInset + .5)).toBe(true);
+  const secondRow = plan.cards.filter(card => card.row === 1).sort((left, right) => left.time - right.time);
+  expect(secondRow.length).toBeGreaterThan(1);
+  expect(secondRow.every((card, index) => index === 0 || card.left < secondRow[index - 1].left)).toBe(true);
+  expect(await content.evaluate(node => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
+  expect(await content.evaluate(node => node.scrollHeight > node.clientHeight)).toBe(true);
+
+  await page.setViewportSize({ width: 760, height: 600 });
+  await expect.poll(() => archive.locator(".archive-date-timeline").evaluate(node => new Set([...node.querySelectorAll(".archive-date-card")].map(card => /** @type {HTMLElement} */ (card).dataset.row)).size)).toBeGreaterThan(2);
+  expect(await content.evaluate(node => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
 });
 
 test("an empty Archive uses the centered shared empty-state message", async ({ page }) => {
@@ -1862,10 +2120,11 @@ test("an empty Archive uses the centered shared empty-state message", async ({ p
 });
 
 test("Archive wraps a long timeline into a responsive vertical snake without horizontal scrolling", async ({ page }) => {
-  const features = Array.from({ length: 9 }, (_, index) => `## Release ${index + 1}\n#Date\n- 01.${String(index + 1).padStart(2, "0")}.2024\n### Task ${index + 1}\n- [x] ~done~`).join("\n\n");
+  const features = Array.from({ length: 9 }, (_, index) => `## Release ${index + 1}\n#Version\n- ${index + 1}.0.0\n#Date\n- 01.${String(index + 1).padStart(2, "0")}.2024\n### Task ${index + 1}\n- [x] ~done~`).join("\n\n");
   await page.setViewportSize({ width: 1440, height: 500 });
   await openFixture(page, `# Snake\n\n#Archive\n# Releases\n\n${features}`);
   await toggleArchiveFromView(page);
+  await page.locator('[data-archive-order="version"]').click();
   const timeline = page.locator("#archive .archive-timeline");
   const content = page.locator("#archive .archive-content");
   await expect(timeline).toHaveAttribute("data-columns", "3");
@@ -1912,10 +2171,11 @@ test("Archive wraps a long timeline into a responsive vertical snake without hor
 });
 
 test("Archive uses symmetric snake turns and keeps idle feature text untransformed", async ({ page }) => {
-  const features = Array.from({ length: 9 }, (_, index) => `## Release ${index + 1}\n#Date\n- 01.${String(index + 1).padStart(2, "0")}.2024\n### Task ${index + 1}\n- [x] ~done~`).join("\n\n");
+  const features = Array.from({ length: 9 }, (_, index) => `## Release ${index + 1}\n#Version\n- ${index + 1}.0.0\n#Date\n- 01.${String(index + 1).padStart(2, "0")}.2024\n### Task ${index + 1}\n- [x] ~done~`).join("\n\n");
   await page.setViewportSize({ width: 1440, height: 500 });
   await openFixture(page, `# Consistent Snake\n\n#Archive\n# Releases\n\n${features}`);
   await toggleArchiveFromView(page);
+  await page.locator('[data-archive-order="version"]').click();
   await expect(page.locator("#archive .archive-timeline-path")).toHaveAttribute("d", / C /);
 
   const geometry = await page.locator("#archive .archive-timeline").evaluate(node => {
@@ -1944,10 +2204,11 @@ test("Archive uses symmetric snake turns and keeps idle feature text untransform
 });
 
 test("Archive snake turns use fifty percent of their available excursion", async ({ page }) => {
-  const features = Array.from({ length: 6 }, (_, index) => `## Release ${index + 1}\n#Date\n- 01.${String(index + 1).padStart(2, "0")}.2024\n### Task\n- [x] ~done~`).join("\n\n");
+  const features = Array.from({ length: 6 }, (_, index) => `## Release ${index + 1}\n#Version\n- ${index + 1}.0.0\n#Date\n- 01.${String(index + 1).padStart(2, "0")}.2024\n### Task\n- [x] ~done~`).join("\n\n");
   await page.setViewportSize({ width: 1440, height: 500 });
   await openFixture(page, `# Gentle Snake\n\n#Archive\n# Releases\n\n${features}`);
   await toggleArchiveFromView(page);
+  await page.locator('[data-archive-order="version"]').click();
   const path = page.locator("#archive .archive-timeline-path");
   await expect(path).toHaveAttribute("d", / C /);
 
@@ -1979,10 +2240,8 @@ test("Archive scrollbar spans the viewport and appears only for overflow", async
   expect(await content.evaluate(node => node.scrollHeight <= node.clientHeight + 1)).toBe(true);
   await expect(content).toHaveCSS("overflow-y", "auto");
   const timeline = archive.locator(".archive-timeline");
-  await expect(archive.locator(".archive-timeline-path")).toHaveAttribute("d", /^M /);
   const geometry = () => timeline.evaluate(node => ({
     height: Math.round(node.getBoundingClientRect().height * 100) / 100,
-    path: node.querySelector(".archive-timeline-path")?.getAttribute("d"),
     scrollHeight: node.closest(".archive-content")?.scrollHeight,
     clientHeight: node.closest(".archive-content")?.clientHeight
   }));
@@ -1999,6 +2258,7 @@ test("Archive scrollbar spans the viewport and appears only for overflow", async
   const tasks = Array.from({ length: 40 }, (_, index) => `### Task ${index + 1}\n- [x] ~done~`).join("\n");
   await openFixture(page, `# Long Archive\n\n#Archive\n# Releases\n\n## Release\n#Date\n- 01.01.2024\n${tasks}`);
   await toggleArchiveFromView(page);
+  await page.locator("#archive .archive-feature-toggle").click();
   await expect.poll(() => content.evaluate(node => node.scrollHeight > node.clientHeight + 1)).toBe(true);
 });
 
@@ -2010,6 +2270,7 @@ test("Archive reserves expanded row heights and keeps multiple features open", a
   await page.setViewportSize({ width: 1440, height: 600 });
   await openFixture(page, `# Stable Snake\n\n#Archive\n# Releases\n\n${features}`);
   await toggleArchiveFromView(page);
+  await page.locator('[data-archive-order="version"]').click();
   const timeline = page.locator("#archive .archive-timeline");
   await expect(timeline).toHaveAttribute("data-columns", "3");
 
@@ -2034,7 +2295,6 @@ test("Archive reserves expanded row heights and keeps multiple features open", a
   await expect(page.locator("#archive .archive-tasks:visible")).toHaveCount(2);
   expect(await geometry()).toEqual(closedGeometry);
 
-  await page.locator('[data-archive-order="version"]').click();
   await expect(timeline).toHaveAttribute("data-columns", "3");
   expect(await page.locator("#archive .archive-feature.expanded").evaluateAll(features => features.map(feature => feature.getAttribute("data-feature")))).toEqual(["0", "3"]);
   await page.locator('#archive .archive-feature[data-feature="0"] .archive-feature-toggle').click();

@@ -1,6 +1,21 @@
 window.MDManager = window.MDManager || {};
 
 (function (app) {
+  const dayMs = 24 * 60 * 60 * 1000;
+  const archiveTurnInset = 8;
+  const archiveTurnHandleScale = 2 / 3;
+  const archiveMinimumCardWidth = 240;
+  const archiveLaneGap = 16;
+  const archiveAxisGap = 46;
+  const archiveRowGap = 34;
+  const archiveMaximumRows = 24;
+  /** @type {Record<string, {pixels: number, span: number}>} */
+  const archiveRulerPitch = {
+    day: { pixels: 26, span: dayMs },
+    week: { pixels: 46, span: 7 * dayMs },
+    month: { pixels: 78, span: 30.4375 * dayMs },
+    year: { pixels: 190, span: 365.25 * dayMs }
+  };
   const titleFitCache = new Map();
   const textWidthCache = new Map();
   const titleStyleCache = new Map();
@@ -131,6 +146,10 @@ window.MDManager = window.MDManager || {};
   function applyArchiveGrid() {
     const archive = document.getElementById("archive");
     const timeline = /** @type {HTMLElement | null} */ (archive.querySelector(".archive-timeline"));
+    if (timeline?.classList.contains("archive-date-timeline")) {
+      if (!archive.hidden) applyArchiveDateLayout(timeline);
+      return;
+    }
     const periods = /** @type {HTMLElement[]} */ ([...archive.querySelectorAll(".archive-period")]);
     if (archive.hidden || !timeline || !periods.length) return;
     const style = getComputedStyle(timeline);
@@ -166,6 +185,152 @@ window.MDManager = window.MDManager || {};
     schedule({ archivePath: true });
   }
 
+  /**
+   * Plans the wrapped date ruler. Rows are equal-duration, contiguous windows of the archived span
+   * that share one pixels-per-millisecond scale, so the ruler stays proportional across rows.
+   * @param {HTMLElement} timeline
+   */
+  function applyArchiveDateLayout(timeline) {
+    const style = getComputedStyle(timeline);
+    const leftInset = parseFloat(style.paddingLeft) || 0;
+    const rightInset = parseFloat(style.paddingRight) || 0;
+    const axisTop = parseFloat(style.paddingTop) || 0;
+    const timelineWidth = timeline.clientWidth;
+    const axisWidth = Math.max(1, timelineWidth - leftInset - rightInset);
+    const lines = /** @type {SVGSVGElement | null} */ (timeline.querySelector(".archive-date-lines"));
+    const axis = /** @type {SVGPathElement | null} */ (lines?.querySelector(".archive-date-axis-line") || null);
+    const fromTime = Number(timeline.dataset.fromTime);
+    const toTime = Number(timeline.dataset.toTime);
+    if (!lines || !axis || !Number.isFinite(fromTime) || !Number.isFinite(toTime)) return;
+
+    const cards = /** @type {HTMLElement[]} */ ([...timeline.querySelectorAll(".archive-date-card")]);
+    const ticks = /** @type {HTMLElement[]} */ ([...timeline.querySelectorAll(".archive-date-tick")]);
+    const markers = /** @type {HTMLElement[]} */ ([...timeline.querySelectorAll(".archive-date-marker")]);
+    const guides = /** @type {SVGPathElement[]} */ ([...lines.querySelectorAll(".archive-date-guide")]);
+    const unmatched = /** @type {HTMLElement | null} */ (timeline.querySelector(".archive-date-unmatched"));
+    const totalSpan = Math.max(1, toTime - fromTime);
+    const cardTimes = cards.map(card => ({ start: Number(card.dataset.start), end: Number(card.dataset.end) }));
+    const longestRange = cardTimes.reduce((longest, times) => Math.max(longest, times.end - times.start), 0);
+    const minimumWidth = Math.min(archiveMinimumCardWidth, axisWidth);
+
+    const pitch = archiveRulerPitch[timeline.dataset.scale || "day"] || archiveRulerPitch.day;
+    let scale = Math.max(axisWidth / totalSpan, pitch.pixels / pitch.span);
+    if (longestRange > 0) scale = Math.min(scale, axisWidth / longestRange);
+    let rowCount = Math.max(1, Math.min(archiveMaximumRows, Math.ceil(totalSpan * scale / axisWidth - 1e-9)));
+    let rowSpan = totalSpan / rowCount;
+    /** @param {number} time */
+    const rowOf = time => Math.max(0, Math.min(rowCount - 1, Math.floor((time - fromTime) / rowSpan)));
+    while (rowCount > 1 && cardTimes.some(times => rowOf(times.start) !== rowOf(times.end))) {
+      rowCount -= 1;
+      rowSpan = totalSpan / rowCount;
+    }
+    /** @param {number} time @param {number} row */
+    const xOf = (time, row) => {
+      const offset = Math.max(0, Math.min(1, (time - fromTime - row * rowSpan) / rowSpan));
+      return leftInset + (row % 2 === 0 ? offset : 1 - offset) * axisWidth;
+    };
+
+    const geometry = cards.map((card, index) => {
+      const { start, end } = cardTimes[index];
+      const row = rowOf(start);
+      const startX = xOf(start, row);
+      const endX = xOf(end, row);
+      const width = Math.max(minimumWidth, Math.abs(endX - startX));
+      const anchored = row % 2 === 0 ? Math.min(startX, endX) : Math.max(startX, endX) - width;
+      const left = Math.max(leftInset, Math.min(anchored, leftInset + axisWidth - width));
+      return { card, row, startX, endX, left, right: left + width, width, lane: 0, top: 0 };
+    });
+
+    for (const item of geometry) {
+      item.card.style.left = `${item.left}px`;
+      item.card.style.width = `${item.width}px`;
+    }
+
+    /** @type {number[][]} */
+    const laneRights = Array.from({ length: rowCount }, () => []);
+    for (const item of [...geometry].sort((left, right) => left.row - right.row || left.left - right.left || left.right - right.right)) {
+      const lanes = laneRights[item.row];
+      let lane = lanes.findIndex(edge => edge + archiveLaneGap <= item.left);
+      if (lane < 0) lane = lanes.length;
+      lanes[lane] = item.right;
+      item.lane = lane;
+    }
+
+    const cardHeights = geometry.map(item => item.card.offsetHeight);
+    const unmatchedHeight = unmatched ? unmatched.offsetHeight : 0;
+
+    /** @type {number[]} */
+    const rowAxis = [];
+    /** @type {number[][]} */
+    const laneTops = [];
+    let cursor = axisTop;
+    for (let row = 0; row < rowCount; row += 1) {
+      rowAxis[row] = cursor;
+      const heights = laneRights[row].map(() => 0);
+      geometry.forEach((item, index) => {
+        if (item.row === row) heights[item.lane] = Math.max(heights[item.lane], cardHeights[index]);
+      });
+      let top = cursor + archiveAxisGap;
+      laneTops[row] = [];
+      for (let lane = 0; lane < heights.length; lane += 1) {
+        laneTops[row][lane] = top;
+        top += heights[lane] + archiveLaneGap;
+      }
+      cursor = (heights.length ? top - archiveLaneGap : cursor + archiveAxisGap) + archiveRowGap;
+    }
+
+    geometry.forEach(item => {
+      item.top = laneTops[item.row][item.lane];
+      item.card.dataset.row = String(item.row);
+      item.card.dataset.lane = String(item.lane);
+      item.card.style.top = `${item.top}px`;
+    });
+
+    for (const tick of ticks) {
+      const row = rowOf(Number(tick.dataset.time));
+      tick.style.left = `${xOf(Number(tick.dataset.time), row)}px`;
+      tick.style.top = `${rowAxis[row]}px`;
+    }
+    for (const marker of markers) {
+      const row = rowOf(Number(marker.dataset.time));
+      marker.style.left = `${xOf(Number(marker.dataset.time), row)}px`;
+      marker.style.top = `${rowAxis[row]}px`;
+    }
+
+    for (const guide of guides) {
+      const item = geometry[Number(guide.dataset.entry)];
+      if (!item) {
+        guide.removeAttribute("d");
+        continue;
+      }
+      const subordinate = guide.classList.contains("archive-date-guide-sub");
+      const anchorX = guide.classList.contains("archive-date-guide-end") ? item.endX
+        : subordinate ? xOf(Number(guide.dataset.time), item.row)
+          : item.startX;
+      const x = Math.min(Math.max(anchorX, item.left), item.right);
+      guide.setAttribute("d", `M ${x} ${rowAxis[item.row]} L ${x} ${item.top + (subordinate ? 2 : 10)}`);
+    }
+
+    let data = "";
+    for (let row = 0; row < rowCount; row += 1) {
+      const forward = row % 2 === 0;
+      const entry = forward ? leftInset : leftInset + axisWidth;
+      const exit = forward ? leftInset + axisWidth : leftInset;
+      if (row === 0) data = `M ${entry} ${rowAxis[row]}`;
+      data += ` L ${exit} ${rowAxis[row]}`;
+      if (row + 1 >= rowCount) continue;
+      const edge = forward ? timelineWidth - archiveTurnInset : archiveTurnInset;
+      const turn = exit + (edge - exit) * archiveTurnHandleScale;
+      data += ` C ${turn} ${rowAxis[row]}, ${turn} ${rowAxis[row + 1]}, ${exit} ${rowAxis[row + 1]}`;
+    }
+    axis.setAttribute("d", data);
+
+    if (unmatched) unmatched.style.top = `${cursor}px`;
+    const height = Math.max(cursor + (unmatched ? unmatchedHeight + 28 : 0), axisTop + 120);
+    timeline.style.minHeight = `${height}px`;
+    lines.style.height = `${height}px`;
+  }
+
   function applyArchivePath() {
     const timeline = /** @type {HTMLElement | null} */ (document.querySelector("#archive .archive-timeline"));
     const line = /** @type {SVGSVGElement | null} */ (timeline?.querySelector(".archive-timeline-line"));
@@ -173,9 +338,8 @@ window.MDManager = window.MDManager || {};
     if (!timeline || !line || !path) return;
     const timelineBounds = timeline.getBoundingClientRect();
     const columns = Number(timeline.dataset.columns) || 1;
-    const leftTurn = 8;
-    const rightTurn = timelineBounds.width - 8;
-    const turnHandleScale = 2 / 3;
+    const leftTurn = archiveTurnInset;
+    const rightTurn = timelineBounds.width - archiveTurnInset;
     const points = [...timeline.querySelectorAll(".archive-period-dot")].map(dot => {
       const bounds = dot.getBoundingClientRect();
       return { x: bounds.left + bounds.width / 2 - timelineBounds.left, y: bounds.top + bounds.height / 2 - timelineBounds.top };
@@ -188,7 +352,7 @@ window.MDManager = window.MDManager || {};
       if (Math.abs(start.y - end.y) < 1 || columns === 1) data += ` L ${end.x} ${end.y}`;
       else {
         const turnEdge = turnIndex % 2 ? leftTurn : rightTurn;
-        const turn = start.x + (turnEdge - start.x) * turnHandleScale;
+        const turn = start.x + (turnEdge - start.x) * archiveTurnHandleScale;
         data += ` C ${turn} ${start.y}, ${turn} ${end.y}, ${end.x} ${end.y}`;
         turnIndex += 1;
       }
