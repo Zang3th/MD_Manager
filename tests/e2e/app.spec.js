@@ -1780,7 +1780,7 @@ test("Expanded archive cards keep their resting colors outside hover", async ({ 
   await expect.poll(colors).toEqual(restingColors);
 });
 
-test("Archive pause hatching is subdued and vertical connectors keep a stable one-pixel color", async ({ page }) => {
+test("Archive pause hatching is subdued and vertical connectors keep a stable width and color", async ({ page }) => {
   await openFixture(page, `${fixture}\n\n#Archive\n# Finished Releases\n\n## Paused feature\n#Version\n- 1.0.0\n#Date\n- 09.12.25 - 06.01.26\n- 21.05.26 - 05.06.26\n### Finished task\n- [x] ~done~\n\n## Unmatched feature\n### Finished task\n- [x] ~done~`);
   await toggleArchiveFromView(page);
 
@@ -1789,7 +1789,7 @@ test("Archive pause hatching is subdued and vertical connectors keep a stable on
     const style = getComputedStyle(guide);
     return { width: style.strokeWidth, colour: style.stroke, opacity: style.opacity };
   }));
-  expect([...new Set(dateGuides.map(guide => guide.width))]).toEqual(["1px"]);
+  expect([...new Set(dateGuides.map(guide => guide.width))]).toEqual(["2px"]);
   expect([...new Set(dateGuides.map(guide => guide.colour))]).toHaveLength(1);
   expect([...new Set(dateGuides.map(guide => guide.opacity))]).toEqual(["1"]);
 
@@ -1799,7 +1799,7 @@ test("Archive pause hatching is subdued and vertical connectors keep a stable on
     return { width: style.width, colour: style.backgroundColor };
   }));
   const restingConnectors = await connectorStyles();
-  expect([...new Set(restingConnectors.map(connector => connector.width))]).toEqual(["1px"]);
+  expect([...new Set(restingConnectors.map(connector => connector.width))]).toEqual(["2px"]);
   expect([...new Set(restingConnectors.map(connector => connector.colour))]).toHaveLength(1);
 
   const card = page.locator("#archive .archive-feature").first();
@@ -1952,7 +1952,7 @@ test("Archive is an exclusive pseudo-3D timeline with date and version controls"
       radius: parseFloat(getComputedStyle(feature).borderTopLeftRadius)
     };
   });
-  expect(versionConnector.width).toBe("1px");
+  expect(versionConnector.width).toBe("2px");
   expect(versionConnector.gradient).toBe("none");
   expect(versionConnector.colour).toBe(dateStroke);
   expect(versionConnector.onBorder).toBe(true);
@@ -2190,6 +2190,274 @@ test("Archive draws the four documented date cases with straight axis connection
   expect(stack.reachesLast).toBe(true);
   expect(stack.markerLayer).toBeGreaterThan(stack.lineLayer);
   await expect(archive.locator("#archiveResolution,.archive-resolution")).toHaveCount(0);
+});
+
+/** @param {import("@playwright/test").Page} page */
+async function openConnectorArchive(page) {
+  const releases = Array.from({ length: 12 }, (_, index) => `## Release ${index + 1}\n#Date\n- 01.01.${20 + index}\n### Task\n- [x] ~done~`).join("\n\n");
+  const paused = "## Paused work\n#Date\n- 01.02.21 - 01.06.21\n- 01.09.22 - 01.02.23\n### Task\n- [x] ~done~";
+  await page.setViewportSize({ width: 1440, height: 600 });
+  await openFixture(page, `# Connectors\n\n#Archive\n# Archive\n\n${releases}\n\n${paused}`);
+  await toggleArchiveFromView(page);
+  const archive = page.locator("#archive");
+  await expect(archive.locator(".archive-date-card")).toHaveCount(13);
+  await expect(archive.locator(".archive-date-guide-sub")).toHaveCount(2);
+  await expect(archive.locator(".archive-date-tick").first()).toBeVisible();
+  return archive;
+}
+
+/** @param {import("@playwright/test").Page} page */
+async function openVersionArchive(page) {
+  const releases = Array.from({ length: 9 }, (_, index) => `## Release ${index + 1}\n#Version\n- 0.${index}.0\n#Date\n- 0${index + 1}.01.26\n### Task\n- [x] ~done~`).join("\n\n");
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openFixture(page, `# Versions\n\n#Archive\n# Archive\n\n${releases}`);
+  await toggleArchiveFromView(page);
+  const archive = page.locator("#archive");
+  await archive.locator('[data-archive-order="version"]').click();
+  await expect(archive.locator(".archive-period")).toHaveCount(9);
+  await expect(archive.locator(".archive-left-turn-point")).not.toHaveCount(0);
+  return archive;
+}
+
+/** @param {Awaited<ReturnType<typeof measureVersionConnectors>>} measured @param {number} ratio */
+function expectIdenticalVersionConnectors(measured, ratio) {
+  const grid = ratio / 32;
+  expect(measured.length).toBeGreaterThanOrEqual(9);
+  expect(new Set(measured.map(connector => connector.paint)).size).toBe(1);
+  expect([...new Set(measured.map(connector => connector.thickness))]).toEqual([2]);
+  expect(measured.every(connector => connector.thickness === connector.border)).toBe(true);
+  expect(measured.every(connector => connector.seam <= 1 / 32)).toBe(true);
+  expect(measured.every(connector => connector.edgeOffGrid <= grid)).toBe(true);
+}
+
+/** @param {import("@playwright/test").Locator} archive */
+function measureDateConnectors(archive) {
+  return archive.locator(".archive-date-timeline").evaluate(node => {
+    const ratio = window.devicePixelRatio || 1;
+    // Rendering is only identical when every line lands on the same device pixel phase, which holds
+    // once every one of them sits on the device pixel grid.
+    const offGrid = (/** @type {number} */ value) => Math.abs(value * ratio - Math.round(value * ratio));
+    const dots = new Map([...node.querySelectorAll(".archive-date-marker")].map(element => {
+      const marker = /** @type {HTMLElement} */ (element);
+      const bounds = marker.getBoundingClientRect();
+      return [Number(marker.dataset.time), bounds.left + bounds.width / 2];
+    }));
+    const border = parseFloat(getComputedStyle(node.querySelector(".archive-date-card .archive-feature")).borderLeftWidth);
+    const style = getComputedStyle(node);
+    const padding = { left: parseFloat(style.paddingLeft), right: node.clientWidth - parseFloat(style.paddingRight) };
+    const guides = [...node.querySelectorAll(".archive-date-guide[d]")].map(element => {
+      const guide = /** @type {SVGPathElement} */ (element);
+      const card = /** @type {HTMLElement} */ (node.querySelector(`.archive-date-card[data-entry="${guide.dataset.entry}"]`));
+      const cardBounds = card.getBoundingClientRect();
+      const bounds = guide.getBoundingClientRect();
+      const subordinate = guide.classList.contains("archive-date-guide-sub");
+      const time = subordinate ? Number(guide.dataset.time)
+        : guide.classList.contains("archive-date-guide-end") ? Number(card.dataset.end)
+          : Number(card.dataset.start);
+      const paint = getComputedStyle(guide);
+      // A path box carries no stroke, so the painted column is the geometry centre plus half a stroke.
+      const centre = bounds.left + bounds.width / 2;
+      const thickness = parseFloat(paint.strokeWidth);
+      // Element boxes are quantised, path data is not, so the grid check uses the timeline local
+      // coordinate the layout actually wrote.
+      const column = Number((guide.getAttribute("d") || "").split(" ")[1]);
+      const painted = { left: centre - thickness / 2, right: centre + thickness / 2 };
+      // A card that the minimum width or the timeline padding pushes off its own date can no longer
+      // put a border on that date, so only cards still standing on their date owe a border column.
+      const pinned = Math.abs(parseFloat(card.style.left) - padding.left) <= .01
+        || Math.abs(parseFloat(card.style.left) + parseFloat(card.style.width) - padding.right) <= .01;
+      return {
+        subordinate,
+        pinned,
+        thickness,
+        strokeWidth: paint.strokeWidth,
+        paint: [paint.stroke, paint.opacity].join("|"),
+        dotOffset: Math.abs(centre - Number(dots.get(time))),
+        borderOffset: Math.min(Math.abs(painted.left - cardBounds.left), Math.abs(painted.right - cardBounds.right)),
+        cardOverflow: Math.max(cardBounds.left - painted.left, painted.right - cardBounds.right),
+        centreOffGrid: offGrid(column)
+      };
+    });
+    const ticks = [...node.querySelectorAll(".archive-date-tick")].map(element => {
+      const tick = /** @type {HTMLElement} */ (element);
+      const paint = getComputedStyle(tick);
+      const edge = parseFloat(tick.style.left);
+      return {
+        level: tick.classList.contains("archive-date-tick-major") ? "major" : "minor",
+        paint: [paint.width, paint.height, paint.backgroundColor, paint.opacity].join("|"),
+        edgeOffGrid: offGrid(edge)
+      };
+    });
+    return { ratio, border, guides, ticks };
+  });
+}
+
+/** @param {Awaited<ReturnType<typeof measureDateConnectors>>} measured @param {number} ratio */
+function expectIdenticalConnectors(measured, ratio) {
+  expect(measured.ratio).toBe(ratio);
+  expect(measured.border).toBe(2);
+  expect(measured.guides.length).toBeGreaterThanOrEqual(12);
+  expect(measured.guides.some(guide => guide.subordinate)).toBe(true);
+  expect([...new Set(measured.guides.map(guide => guide.strokeWidth))]).toEqual(["2px"]);
+  expect(new Set(measured.guides.map(guide => guide.paint)).size).toBe(1);
+  expect(new Set(measured.guides.map(guide => guide.thickness))).toEqual(new Set([measured.border]));
+  // Layout quantises to a sixty-fourth of a pixel and serialises inline styles with fewer digits, so
+  // both the cross checks and the grid checks are exact only down to that quantum.
+  const quantum = 1 / 32;
+  const grid = quantum * measured.ratio;
+  expect(measured.guides.every(guide => guide.dotOffset <= quantum)).toBe(true);
+  expect(measured.guides.every(guide => guide.cardOverflow <= quantum)).toBe(true);
+  const seams = measured.guides.filter(guide => !guide.subordinate && !guide.pinned);
+  expect(seams.length).toBeGreaterThanOrEqual(4);
+  expect(seams.every(guide => guide.borderOffset <= quantum)).toBe(true);
+  expect(measured.guides.every(guide => guide.centreOffGrid <= grid)).toBe(true);
+  for (const level of ["major", "minor"]) {
+    const ticks = measured.ticks.filter(tick => tick.level === level);
+    expect(ticks.length).toBeGreaterThan(0);
+    expect(new Set(ticks.map(tick => tick.paint)).size).toBe(1);
+    expect(ticks.every(tick => tick.edgeOffGrid <= grid)).toBe(true);
+  }
+}
+
+test("Archive date connectors are two pixels wide, centred on their dot and on one pixel grid", async ({ page }) => {
+  const archive = await openConnectorArchive(page);
+  expectIdenticalConnectors(await measureDateConnectors(archive), 1);
+  const layering = await archive.locator(".archive-date-timeline").evaluate(node => ({
+    marker: Number(getComputedStyle(node.querySelector(".archive-date-marker")).zIndex),
+    lines: Number(getComputedStyle(node.querySelector(".archive-date-lines")).zIndex),
+    caps: getComputedStyle(node.querySelector(".archive-date-guide")).strokeLinecap
+  }));
+  expect(layering.marker).toBeGreaterThan(layering.lines);
+  expect(layering.caps).toBe("butt");
+  const inside = await archive.locator(".archive-date-timeline").evaluate(node => {
+    const style = getComputedStyle(node);
+    const padding = { left: parseFloat(style.paddingLeft), right: parseFloat(style.paddingRight) };
+    return [...node.querySelectorAll(".archive-date-card")].every(element => {
+      const card = /** @type {HTMLElement} */ (element);
+      return parseFloat(card.style.left) >= padding.left - .01 && parseFloat(card.style.left) + parseFloat(card.style.width) <= node.clientWidth - padding.right + .01;
+    });
+  });
+  expect(inside).toBe(true);
+});
+
+/** @param {import("@playwright/test").Locator} archive */
+function measureVersionConnectors(archive) {
+  return archive.locator(".archive-timeline").evaluate(node => {
+    const ratio = window.devicePixelRatio || 1;
+    const origin = node.getBoundingClientRect().left;
+    const offGrid = (/** @type {number} */ value) => Math.abs(value * ratio - Math.round(value * ratio));
+    return [...node.querySelectorAll(".archive-period")].map(element => {
+      const period = /** @type {HTMLElement} */ (element);
+      const dot = /** @type {HTMLElement} */ (period.querySelector(".archive-period-dot"));
+      const feature = /** @type {HTMLElement} */ (period.querySelector(".archive-feature"));
+      const line = getComputedStyle(dot, "::after");
+      const bounds = dot.getBoundingClientRect();
+      const card = feature.getBoundingClientRect();
+      const border = parseFloat(getComputedStyle(feature).borderLeftWidth);
+      const thickness = parseFloat(line.width);
+      const centre = bounds.left + bounds.width / 2;
+      const turn = period.classList.contains("archive-left-turn-point");
+      return {
+        thickness,
+        border,
+        paint: [line.width, line.height, line.backgroundColor, line.backgroundImage, line.opacity].join("|"),
+        // The connector has to cover the card border column it runs into, on whichever side the
+        // snake turn puts the dot.
+        seam: turn ? Math.abs(centre + thickness / 2 - card.right) : Math.abs(centre - thickness / 2 - card.left),
+        edgeOffGrid: offGrid(centre - thickness / 2 - origin)
+      };
+    });
+  });
+}
+
+test("Archive date labels keep clear of the cards a timeline turn puts above them", async ({ page }) => {
+  const archive = await openConnectorArchive(page);
+  await expect.poll(() => archive.locator(".archive-date-timeline").evaluate(node => new Set([...node.querySelectorAll(".archive-date-card")].map(card => /** @type {HTMLElement} */ (card).dataset.row)).size)).toBeGreaterThan(1);
+  const clearance = await archive.locator(".archive-date-timeline").evaluate(node => {
+    const cards = [...node.querySelectorAll(".archive-date-card")].map(card => card.getBoundingClientRect());
+    const labels = [...node.querySelectorAll(".archive-date-marker:not(.archive-date-marker-sub) > span")].map(label => label.getBoundingClientRect());
+    let closest = Number.POSITIVE_INFINITY;
+    let collisions = 0;
+    for (const label of labels) {
+      for (const card of cards) {
+        if (card.right <= label.left || card.left >= label.right) continue;
+        if (card.bottom <= label.top) closest = Math.min(closest, label.top - card.bottom);
+        else if (card.top < label.bottom) collisions += 1;
+      }
+    }
+    return { closest, collisions, labels: labels.length };
+  });
+  expect(clearance.labels).toBeGreaterThan(2);
+  expect(clearance.collisions).toBe(0);
+  // The fixture wraps, so at least one label stands under a card and has to keep the shared gap.
+  expect(Number.isFinite(clearance.closest)).toBe(true);
+  expect(clearance.closest).toBeGreaterThanOrEqual(16);
+});
+
+test("Archive version connectors are two pixels wide, on the card border and on one pixel grid", async ({ page }) => {
+  const archive = await openVersionArchive(page);
+  expectIdenticalVersionConnectors(await measureVersionConnectors(archive), 1);
+});
+
+test.describe("zoomed to a fractional device pixel ratio", () => {
+  test.use({ deviceScaleFactor: 1.5 });
+
+  test("Archive date connectors keep one width and one pixel grid", async ({ page }) => {
+    const archive = await openConnectorArchive(page);
+    expectIdenticalConnectors(await measureDateConnectors(archive), 1.5);
+  });
+
+  test("Archive version connectors keep one width and one pixel grid", async ({ page }) => {
+    const archive = await openVersionArchive(page);
+    expectIdenticalVersionConnectors(await measureVersionConnectors(archive), 1.5);
+  });
+});
+
+test("Archive keeps a closing date column beside its neighbour instead of below it", async ({ page }) => {
+  const groups = [["23.07.26", 1], ["24.07.26", 3], ["25.07.26", 1], ["26.07.26", 6], ["27.07.26", 4]];
+  const features = groups.flatMap(([date, count], group) => Array.from({ length: Number(count) }, (_, index) => `## Feature ${group}${index}\n#Date\n- ${date}\n### Task\n- [x] ~done~`)).join("\n\n");
+  await page.setViewportSize({ width: 1014, height: 1260 });
+  await openFixture(page, `# Narrow\n\n#Archive\n# Archive\n\n${features}`);
+  await toggleArchiveFromView(page);
+  const archive = page.locator("#archive");
+  await expect(archive.locator(".archive-date-card")).toHaveCount(15);
+
+  const layout = await archive.locator(".archive-date-timeline").evaluate(node => {
+    const cards = [...node.querySelectorAll(".archive-date-card")].map(element => {
+      const card = /** @type {HTMLElement} */ (element);
+      return {
+        row: Number(card.dataset.row),
+        lane: Number(card.dataset.lane),
+        left: parseFloat(card.style.left),
+        width: parseFloat(card.style.width),
+        top: parseFloat(card.style.top)
+      };
+    });
+    const columns = [...new Set(cards.map(card => `${card.row}:${Math.round(card.left)}`))];
+    const heads = cards.filter(card => card.lane === 0);
+    const clearance = heads.flatMap(card => heads
+      .filter(other => other.row === card.row && other.left > card.left)
+      .map(other => other.left - (card.left + card.width)));
+    return {
+      rows: new Set(cards.map(card => card.row)).size,
+      columns: columns.length,
+      heads: heads.length,
+      headTops: new Set(heads.map(card => `${card.row}:${Math.round(card.top)}`)).size,
+      clearance: Math.min(...clearance),
+      width: [...new Set(cards.map(card => Math.round(card.width)))]
+    };
+  });
+
+  // Every date column has to start at the axis, so no column may be pushed below another one.
+  expect(layout.rows).toBeGreaterThan(1);
+  expect(layout.heads).toBe(layout.columns);
+  expect(layout.headTops).toBe(layout.rows);
+  expect(layout.clearance).toBeGreaterThanOrEqual(16);
+  // Sharing the gap costs width, but never more than half of the configured card minimum.
+  expect(layout.width).toHaveLength(1);
+  expect(layout.width[0]).toBeGreaterThanOrEqual(110);
+  expect(layout.width[0]).toBeLessThan(220);
+  expect(await archive.locator(":scope > .archive-content").evaluate(node => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
 });
 
 test("Archive expands a shared date without disturbing other dates or shifting horizontally", async ({ page }) => {

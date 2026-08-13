@@ -186,13 +186,13 @@ main>.release { flex:0 0 380px; width:380px; min-width:380px; }
 .archive-stage { width:100%; min-width:0; min-height:100%; transform-style:preserve-3d; }
 .archive-stage-empty { display:flex; }
 .archive-timeline { --archive-columns:1; position:relative; display:grid; grid-template-columns:repeat(var(--archive-columns),minmax(0,17rem)); align-items:start; justify-content:space-between; column-gap:1.5rem; row-gap:5rem; width:100%; min-width:0; min-height:100%; padding:4.4rem var(--archive-side-inset,2rem) 1.5rem; transform-style:preserve-3d; }
-.archive-date-timeline { display:block; min-height:0; padding:4rem var(--archive-side-inset,2rem) 2rem; }
+.archive-date-timeline { --archive-card-inset:calc(var(--archive-side-inset,2rem) - 1px); display:block; min-height:0; padding:4rem var(--archive-card-inset) 2rem; }
 .archive-date-lines { position:absolute; top:0; left:0; z-index:0; width:100%; overflow:visible; pointer-events:none; }
 .archive-date-axis-line { fill:none; stroke:var(--archive-line); stroke-width:4px; stroke-linecap:round; stroke-linejoin:round; vector-effect:non-scaling-stroke; filter:drop-shadow(0 4px 4px color-mix(in srgb,var(--link) 24%,transparent)); }
-.archive-date-guide { fill:none; stroke:var(--archive-line); stroke-width:1px; stroke-linecap:round; stroke-linejoin:round; vector-effect:non-scaling-stroke; }
+.archive-date-guide { fill:none; stroke:var(--archive-line); stroke-width:2px; stroke-linecap:butt; stroke-linejoin:round; vector-effect:non-scaling-stroke; }
 .archive-date-guide-sub { stroke-dasharray:3 5; }
 .archive-date-ticks,.archive-date-markers { position:absolute; top:0; left:0; width:100%; height:0; }
-.archive-date-tick { position:absolute; z-index:1; width:1px; background:var(--archive-line); transform:translate(-50%,-50%); }
+.archive-date-tick { position:absolute; z-index:1; width:1px; background:var(--archive-line); transform:translateY(-50%); }
 .archive-date-tick-major { height:14px; opacity:.9; }
 .archive-date-tick-minor { height:7px; opacity:.5; }
 .archive-date-marker { position:absolute; z-index:3; width:14px; height:14px; border:3px solid var(--link); border-radius:50%; background:var(--bg-secondary); box-shadow:0 0 0 5px color-mix(in srgb,var(--link) 10%,transparent),0 0 15px color-mix(in srgb,var(--link) 42%,transparent); transform:translate(-50%,-50%); }
@@ -205,17 +205,17 @@ main>.release { flex:0 0 380px; width:380px; min-width:380px; }
 .archive-feature-inactive { position:absolute; z-index:0; top:0; bottom:0; display:grid; place-items:center; overflow:hidden; border-right:1px solid color-mix(in srgb,var(--muted) 62%,transparent); border-left:1px solid color-mix(in srgb,var(--muted) 62%,transparent); background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--muted) 24%,transparent) 0 5px,color-mix(in srgb,var(--bg-secondary) 54%,transparent) 5px 10px); opacity:.6; pointer-events:none; }
 .archive-date-card .archive-feature-toggle,.archive-date-card .archive-tasks { position:relative; z-index:2; }
 .archive-date-card .archive-unarchive { position:absolute; z-index:4; }
-.archive-date-unmatched { position:absolute; right:var(--archive-side-inset,2rem); left:var(--archive-side-inset,2rem); }
+.archive-date-unmatched { position:absolute; right:var(--archive-card-inset,2rem); left:var(--archive-card-inset,2rem); }
 .archive-date-unmatched>h3 { margin:0 0 .65rem; color:var(--muted); font-size:var(--text-sm); }
 .archive-date-unmatched>div { display:grid; grid-template-columns:repeat(auto-fit,minmax(17rem,17rem)); gap:.65rem; }
 .archive-timeline-line { position:absolute; z-index:0; inset:0; width:100%; height:100%; overflow:visible; pointer-events:none; }
 .archive-timeline-path { fill:none; stroke:color-mix(in srgb,var(--link) 68%,var(--border)); stroke-linecap:round; stroke-linejoin:round; stroke-width:4px; filter:drop-shadow(0 4px 4px color-mix(in srgb,var(--link) 24%,transparent)); }
 .archive-period { position:relative; z-index:1; width:100%; max-width:17rem; padding-top:1.8rem; }
 .archive-period-title { position:absolute; top:-2.45rem; left:0; z-index:2; min-height:1.6rem; color:var(--link); font-size:var(--text-sm); font-weight:700; line-height:1.6rem; letter-spacing:.02em; white-space:nowrap; }
-.archive-period-dot { position:absolute; top:-.4rem; left:.5px; z-index:1; width:.8rem; height:.8rem; border:3px solid var(--link); border-radius:50%; background:var(--bg-secondary); box-shadow:0 0 0 5px color-mix(in srgb,var(--link) 10%,transparent),0 0 15px color-mix(in srgb,var(--link) 42%,transparent); transform:translateX(-50%); }
+.archive-period-dot { position:absolute; top:-.4rem; left:1px; z-index:1; width:.8rem; height:.8rem; border:3px solid var(--link); border-radius:50%; background:var(--bg-secondary); box-shadow:0 0 0 5px color-mix(in srgb,var(--link) 10%,transparent),0 0 15px color-mix(in srgb,var(--link) 42%,transparent); transform:translateX(-50%); }
 .archive-period.archive-left-turn-point .archive-period-title { right:0; left:auto; text-align:right; }
-.archive-period.archive-left-turn-point .archive-period-dot { right:.5px; left:auto; transform:translateX(50%); }
-.archive-period-dot::after { position:absolute; top:calc(100% + 3px); left:calc(50% - .5px); width:1px; height:calc(1.4rem + 10px); background:var(--archive-line); content:""; }
+.archive-period.archive-left-turn-point .archive-period-dot { right:1px; left:auto; transform:translateX(50%); }
+.archive-period-dot::after { position:absolute; top:calc(100% + 3px); left:calc(50% - 1px); width:2px; height:calc(1.4rem + 10px); background:var(--archive-line); content:""; }
 .archive-period-features { display:flex; flex-direction:column; gap:.65rem; }
 .archive-feature { position:relative; z-index:1; overflow:hidden; border:2px solid color-mix(in srgb,var(--link) 42%,var(--border)); border-radius:10px; background:linear-gradient(145deg,color-mix(in srgb,var(--bg-tertiary) 82%,var(--link)),var(--bg-secondary) 62%); box-shadow:inset 0 1px rgba(255,255,255,.04),0 10px 24px rgba(0,0,0,.28); transform:translateY(0); transform-origin:top left; transition:border-color var(--motion-fast) var(--ease-out),box-shadow var(--motion-base) var(--ease-out),transform var(--motion-base) var(--ease-out); }
 .archive-period:nth-child(even) .archive-feature { transform-origin:top right; }

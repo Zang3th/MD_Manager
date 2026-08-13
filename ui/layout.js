@@ -16,6 +16,12 @@ window.MDManager = window.MDManager || {};
     month: { pixels: 78, span: 30.4375 * dayMs },
     year: { pixels: 190, span: 365.25 * dayMs }
   };
+  /**
+   * Rounds a CSS pixel value onto the device pixel grid. Every date timeline line is placed through
+   * this, so all of them share one subpixel phase and rasterise identically at any zoom level.
+   * @param {number} value @param {number} ratio
+   */
+  const snapToDevicePixel = (value, ratio) => Math.round(value * ratio) / ratio;
   const titleFitCache = new Map();
   const textWidthCache = new Map();
   const titleStyleCache = new Map();
@@ -174,6 +180,8 @@ window.MDManager = window.MDManager || {};
     const closedTasks = /** @type {HTMLElement[]} */ ([...timeline.querySelectorAll(".archive-tasks[hidden]")]);
     closedTasks.forEach(tasks => { tasks.hidden = false; });
     const expandedHeights = periods.map(period => period.scrollHeight);
+    const timelineLeft = timeline.getBoundingClientRect().left;
+    const periodLefts = periods.map(period => period.getBoundingClientRect().left - timelineLeft);
     closedTasks.forEach(tasks => { tasks.hidden = true; });
     /** @type {number[]} */
     const rowHeights = [];
@@ -182,6 +190,14 @@ window.MDManager = window.MDManager || {};
       rowHeights[row] = Math.max(rowHeights[row] || 0, height);
     });
     periods.forEach((period, index) => { period.style.minHeight = `${rowHeights[Math.floor(index / columns)]}px`; });
+    // Distributed grid columns land on fractional positions, which rasterises every period's dot,
+    // connector and card border differently. A relative offset pulls each period onto the device
+    // pixel grid without changing how the grid distributes the columns.
+    const pixelRatio = window.devicePixelRatio || 1;
+    periods.forEach((period, index) => {
+      const drift = snapToDevicePixel(periodLefts[index], pixelRatio) - periodLefts[index];
+      if (drift) period.style.left = `${(parseFloat(period.style.left) || 0) + drift}px`;
+    });
     schedule({ archivePath: true });
   }
 
@@ -192,11 +208,6 @@ window.MDManager = window.MDManager || {};
    */
   function applyArchiveDateLayout(timeline) {
     const style = getComputedStyle(timeline);
-    const leftInset = parseFloat(style.paddingLeft) || 0;
-    const rightInset = parseFloat(style.paddingRight) || 0;
-    const axisTop = parseFloat(style.paddingTop) || 0;
-    const timelineWidth = timeline.clientWidth;
-    const axisWidth = Math.max(1, timelineWidth - leftInset - rightInset);
     const lines = /** @type {SVGSVGElement | null} */ (timeline.querySelector(".archive-date-lines"));
     const axis = /** @type {SVGPathElement | null} */ (lines?.querySelector(".archive-date-axis-line") || null);
     const fromTime = Number(timeline.dataset.fromTime);
@@ -208,10 +219,34 @@ window.MDManager = window.MDManager || {};
     const markers = /** @type {HTMLElement[]} */ ([...timeline.querySelectorAll(".archive-date-marker")]);
     const guides = /** @type {SVGPathElement[]} */ ([...lines.querySelectorAll(".archive-date-guide")]);
     const unmatched = /** @type {HTMLElement | null} */ (timeline.querySelector(".archive-date-unmatched"));
+    const pixelRatio = window.devicePixelRatio || 1;
+    /** @param {number} value */
+    const snap = value => snapToDevicePixel(value, pixelRatio);
+    /** @param {number} value */
+    const snapUp = value => Math.ceil(value * pixelRatio) / pixelRatio;
+    const cardBorder = cards.length ? parseFloat(getComputedStyle(/** @type {HTMLElement} */ (cards[0].firstElementChild)).borderLeftWidth) || 0 : 0;
+    const tickWidth = ticks.length ? parseFloat(getComputedStyle(ticks[0]).width) || 0 : 0;
+    // Date labels stand above their own dot, so their footprint is measured relative to the axis the
+    // dot sits on. Only the main labels do, the subordinate ones hang below the axis.
+    const labels = markers.filter(marker => !marker.classList.contains("archive-date-marker-sub")).map(marker => {
+      const label = /** @type {HTMLElement} */ (marker.firstElementChild);
+      const dot = marker.getBoundingClientRect();
+      const bounds = label.getBoundingClientRect();
+      return { time: Number(marker.dataset.time), width: bounds.width, reach: dot.top + dot.height / 2 - bounds.top };
+    });
+    // A date sits on the centre of the card border it opens, not on that border's outer edge, so the
+    // guide covering the border still drops exactly out of the dot. The timeline padding is one half
+    // border short of the axis inset, which keeps the outermost cards inside the padding box.
+    const guideInset = cardBorder / 2;
+    const leftInset = (parseFloat(style.paddingLeft) || 0) + guideInset;
+    const rightInset = (parseFloat(style.paddingRight) || 0) + guideInset;
+    const axisTop = parseFloat(style.paddingTop) || 0;
+    const timelineWidth = timeline.clientWidth;
+    const axisWidth = Math.max(1, timelineWidth - leftInset - rightInset);
     const totalSpan = Math.max(1, toTime - fromTime);
     const cardTimes = cards.map(card => ({ start: Number(card.dataset.start), end: Number(card.dataset.end) }));
     const longestRange = cardTimes.reduce((longest, times) => Math.max(longest, times.end - times.start), 0);
-    const minimumWidth = Math.min(archiveMinimumCardWidth, axisWidth);
+    const minimumWidth = snap(Math.min(archiveMinimumCardWidth, axisWidth));
 
     // Distinct point dates need a card width plus a lane gap between them, otherwise their columns
     // interleave into one deep pile that no longer says which card belongs to which date. Ranges are
@@ -239,17 +274,41 @@ window.MDManager = window.MDManager || {};
     /** @param {number} time @param {number} row */
     const xOf = (time, row) => {
       const offset = Math.max(0, Math.min(1, (time - fromTime - row * rowSpan) / rowSpan));
-      return leftInset + (row % 2 === 0 ? offset : 1 - offset) * axisWidth;
+      return snap(leftInset + (row % 2 === 0 ? offset : 1 - offset) * axisWidth);
     };
 
-    const geometry = cards.map((card, index) => {
+    const placements = cards.map((card, index) => {
       const { start, end } = cardTimes[index];
       const row = rowOf(start);
       const startX = xOf(start, row);
       const endX = xOf(end, row);
-      const width = Math.max(minimumWidth, Math.abs(endX - startX));
-      const anchored = row % 2 === 0 ? Math.min(startX, endX) : Math.max(startX, endX) - width;
-      const left = Math.max(leftInset, Math.min(anchored, leftInset + axisWidth - width));
+      return { card, row, startX, endX, span: Math.abs(endX - startX) + cardBorder };
+    });
+
+    // A date at the closing end of a row has no room left to run along the row, so its card turns
+    // back into the row and meets the next column head on. Both then have to share the gap between
+    // their dates, which is the one case where the card minimum gives way instead of the columns
+    // piling up on top of each other. Half the minimum is the floor; below that piling up reads
+    // better than a sliver of a card.
+    let cardMinimum = minimumWidth;
+    for (let row = 0; row < rowCount; row += 1) {
+      const closing = row % 2 === 0 ? leftInset + axisWidth + guideInset : leftInset - guideInset;
+      const inward = row % 2 === 0 ? -1 : 1;
+      const rowPlacements = placements.filter(item => item.row === row);
+      const reach = rowPlacements.map(item => Math.min((item.startX - closing) * inward, (item.endX - closing) * inward));
+      if (!rowPlacements.some((item, index) => item.span < minimumWidth && reach[index] < minimumWidth)) continue;
+      const room = rowPlacements.reduce((closest, item, index) => {
+        if (reach[index] < minimumWidth) return closest;
+        return Math.min(closest, item.span < minimumWidth ? (reach[index] - archiveLaneGap) / 2 : reach[index] - archiveLaneGap);
+      }, Number.POSITIVE_INFINITY);
+      cardMinimum = Math.min(cardMinimum, room);
+    }
+    cardMinimum = snap(Math.max(minimumWidth / 2, cardMinimum));
+
+    const geometry = placements.map(({ card, row, startX, endX, span }) => {
+      const width = Math.max(cardMinimum, span);
+      const anchored = row % 2 === 0 ? Math.min(startX, endX) - guideInset : Math.max(startX, endX) + guideInset - width;
+      const left = Math.max(leftInset - guideInset, Math.min(anchored, leftInset + axisWidth + guideInset - width));
       return { card, row, startX, endX, left, right: left + width, width, lane: 0, top: 0, height: 0 };
     });
 
@@ -268,10 +327,9 @@ window.MDManager = window.MDManager || {};
       item.lane = lane;
     }
 
-    const cardHeights = geometry.map(item => item.card.offsetHeight);
+    // Rounded heights would let a reserved gap drift by the rounding, so the exact box is measured.
+    const cardHeights = geometry.map(item => item.card.getBoundingClientRect().height);
     const unmatchedHeight = unmatched ? unmatched.offsetHeight : 0;
-    const cardBorder = geometry.length ? parseFloat(getComputedStyle(/** @type {HTMLElement} */ (geometry[0].card.firstElementChild)).borderLeftWidth) || 0 : 0;
-    const guideInset = cardBorder / 2;
     // Card widths are set above, so the shared title fitter has to run here rather than in runLayout.
     fitTitles(/** @type {HTMLElement[]} */ ([...timeline.querySelectorAll(".archive-feature-title")]));
 
@@ -279,24 +337,47 @@ window.MDManager = window.MDManager || {};
 
     // A card only clears the cards it actually overlaps horizontally, so expanding one stack never
     // reserves space under an unrelated date. Lanes ascend, so every lower lane is already placed.
+    /** @type {{left: number, right: number, reach: number}[][]} */
+    const rowLabels = Array.from({ length: rowCount }, () => []);
+    for (const label of labels) {
+      const row = rowOf(label.time);
+      const x = xOf(label.time, row);
+      rowLabels[row].push({ left: x - label.width / 2, right: x + label.width / 2, reach: label.reach });
+    }
+
     /** @type {number[]} */
     const rowAxis = [];
+    /** @type {{left: number, right: number, bottom: number}[]} */
+    let previousRow = [];
     let cursor = axisTop;
     for (let row = 0; row < rowCount; row += 1) {
-      rowAxis[row] = cursor;
+      // Where the timeline turns back under a filled row, the labels of the new row need room above
+      // the axis. They only need it from the cards standing over them, so a row that turns back into
+      // free space keeps the plain row gap.
+      let clearance = cursor;
+      for (const label of rowLabels[row]) {
+        for (const card of previousRow) {
+          if (card.right <= label.left || card.left >= label.right) continue;
+          clearance = Math.max(clearance, card.bottom + archiveLaneGap + label.reach);
+        }
+      }
+      // Rounding up keeps a reserved gap a gap instead of shaving half a pixel off it.
+      const axisY = snapUp(clearance);
+      rowAxis[row] = axisY;
       const rowItems = geometry.filter(item => item.row === row).sort((left, right) => left.lane - right.lane || left.left - right.left);
-      let bottom = cursor + archiveAxisGap;
+      let bottom = axisY + archiveAxisGap;
       for (const item of rowItems) {
-        let top = cursor + archiveAxisGap;
+        let top = axisY + archiveAxisGap;
         for (const placed of rowItems) {
           if (placed.lane >= item.lane) break;
           if (placed.left < item.right + archiveLaneGap && item.left < placed.right + archiveLaneGap) {
             top = Math.max(top, placed.top + placed.height + archiveLaneGap);
           }
         }
-        item.top = top;
-        bottom = Math.max(bottom, top + item.height);
+        item.top = snap(top);
+        bottom = Math.max(bottom, item.top + item.height);
       }
+      previousRow = rowItems.map(item => ({ left: item.left, right: item.right, bottom: item.top + item.height }));
       cursor = bottom + archiveRowGap;
     }
 
@@ -306,9 +387,12 @@ window.MDManager = window.MDManager || {};
       item.card.style.top = `${item.top}px`;
     });
 
+    // Ticks are one pixel wide, so their box is snapped by its left edge instead of by its centre.
+    // A half pixel centre offset would smear every tick across two device pixels, and it would smear
+    // each of them by a different amount.
     for (const tick of ticks) {
       const row = rowOf(Number(tick.dataset.time));
-      tick.style.left = `${xOf(Number(tick.dataset.time), row)}px`;
+      tick.style.left = `${snap(xOf(Number(tick.dataset.time), row) - tickWidth / 2)}px`;
       tick.style.top = `${rowAxis[row]}px`;
     }
     for (const marker of markers) {
@@ -331,9 +415,9 @@ window.MDManager = window.MDManager || {};
       const anchorX = guide.classList.contains("archive-date-guide-end") ? item.endX
         : subordinate ? xOf(Number(guide.dataset.time), item.row)
           : item.startX;
-      const x = Math.min(Math.max(anchorX, item.left + guideInset), item.right - guideInset);
+      const x = snap(Math.min(Math.max(anchorX, item.left + guideInset), item.right - guideInset));
       const bottom = item.top + (subordinate ? 2 : 10);
-      const key = `${subordinate ? "sub" : "main"}:${item.row}:${Math.round(x * 2)}`;
+      const key = `${subordinate ? "sub" : "main"}:${item.row}:${Math.round(x * pixelRatio)}`;
       const current = columns.get(key);
       if (current && current.bottom >= bottom) {
         guide.removeAttribute("d");
@@ -358,7 +442,7 @@ window.MDManager = window.MDManager || {};
     }
     axis.setAttribute("d", data);
 
-    if (unmatched) unmatched.style.top = `${cursor}px`;
+    if (unmatched) unmatched.style.top = `${snapUp(cursor)}px`;
     const height = Math.max(cursor + (unmatched ? unmatchedHeight + 28 : 0), axisTop + 120);
     timeline.style.minHeight = `${height}px`;
     lines.style.height = `${height}px`;

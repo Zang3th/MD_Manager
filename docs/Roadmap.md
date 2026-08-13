@@ -241,14 +241,16 @@
 - [x] ~#Info und #Warn werden im Markdown an die falsche Stelle geschoben~
 - [x] ~Abstände innerhalb von #Tags (oben und unten) sind nicht einheitlich~
 - [ ] Edit-Dialog im Hochkantmodus ist manchmal immer noch buggy
+- [ ] Code-Review + lose Enden aufräumen
+- [ ] Tests streamlinen
 
 #### Archiv
 - [x] ~Zeiträume müssen im Archiv-Zeitstrahl auch dargestellt werden können~
 - [x] ~Sortierung nach Datum und Version muss visuell dieselben Marker + Dots nutzen~
 - [x] ~Vertikale Marker müssen in jedem Fall dieselbe Farbe + Dicke haben~
 - [x] ~"Super-Dots" abschaffen~
-- [ ] Linien treffen manchmal nicht zentral den Dot auf der Timeline
-- [ ] Linien haben weiterhin unter bestimmten Umständen verschiedene Farben/Dicke
+- [x] ~Linien treffen manchmal nicht zentral den Dot auf der Timeline~
+- [x] ~Linien haben weiterhin unter bestimmten Umständen verschiedene Farben/Dicke~
 
 ### Zoom
 
