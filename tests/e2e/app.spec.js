@@ -1766,6 +1766,38 @@ test("Archive is an exclusive pseudo-3D timeline with date and version controls"
   expect(Math.abs(archiveBounds.y + archiveBounds.height - panelBounds.y - panelBounds.height - 12)).toBeLessThanOrEqual(2);
   await expect(archive.locator(".archive-control-panel")).toHaveCSS("border-top-width", "0px");
   await expect(archive.locator(".archive-order button").first()).toHaveCSS("border-top-width", "2px");
+  const controlRhythm = await archive.locator(".archive-control-panel").evaluate(node => {
+    const panel = node.getBoundingClientRect();
+    const measure = (/** @type {string} */ selector) => node.querySelector(selector).getBoundingClientRect();
+    const header = measure(".archive-control-panel-header");
+    const title = measure(".archive-control-title");
+    const close = measure(".archive-controls-close");
+    const label = measure(".archive-control-label");
+    const order = measure(".archive-order");
+    return {
+      closeTop: close.top - header.top,
+      closeRight: panel.right - close.right,
+      closeSize: close.width,
+      headerHeight: header.height,
+      titleLeft: title.left - panel.left,
+      labelLeft: label.left - panel.left,
+      orderRight: panel.right - order.right
+    };
+  });
+  expect(Math.abs(controlRhythm.closeTop - controlRhythm.closeRight)).toBeLessThanOrEqual(1);
+  expect(Math.abs(controlRhythm.titleLeft - controlRhythm.labelLeft)).toBeLessThanOrEqual(.5);
+  expect(Math.abs(controlRhythm.titleLeft - controlRhythm.orderRight)).toBeLessThanOrEqual(.5);
+  expect(controlRhythm.closeSize).toBe(24);
+  expect(Math.round(controlRhythm.headerHeight)).toBe(42);
+  const timelineInset = await archive.evaluate(node => {
+    const bounds = node.querySelector(".archive-content").getBoundingClientRect();
+    const endpoints = [...node.querySelectorAll(".archive-date-marker-endpoint")].map(marker => marker.getBoundingClientRect());
+    return {
+      left: Math.round(endpoints[0].left + endpoints[0].width / 2 - bounds.left),
+      right: Math.round(bounds.right - (endpoints[1].left + endpoints[1].width / 2))
+    };
+  });
+  expect(timelineInset).toEqual({ left: 90, right: 90 });
   await expect(archive.locator(".archive-date-axis-line")).toHaveCount(1);
   await expect(archive.locator(".archive-date-tick")).toHaveCount(12);
   await expect(archive.locator(".archive-date-tick-major")).toHaveCount(4);
@@ -1821,7 +1853,31 @@ test("Archive is an exclusive pseudo-3D timeline with date and version controls"
   await expect(page.locator("#backlog")).toBeHidden();
   await expect(page.locator("#projectStats")).toBeHidden();
 
+  const dateStroke = await archive.locator(".archive-date-guide[d]").first().evaluate(node => getComputedStyle(node).stroke);
   await archive.locator('[data-archive-order="version"]').click();
+  const versionConnector = await archive.locator(".archive-period-dot").first().evaluate(node => {
+    const line = getComputedStyle(node, "::after");
+    const dot = node.getBoundingClientRect();
+    const feature = node.closest(".archive-period").querySelector(".archive-feature");
+    const card = feature.getBoundingClientRect();
+    const lineBottom = dot.top + (parseFloat(getComputedStyle(node).borderTopWidth) || 0) + parseFloat(line.top) + parseFloat(line.height);
+    return {
+      width: line.width,
+      gradient: line.backgroundImage,
+      colour: line.backgroundColor,
+      onBorder: Math.abs(dot.left + dot.width / 2 - card.left) <= 1,
+      reachesCard: lineBottom >= card.top,
+      overlap: lineBottom - card.top,
+      radius: parseFloat(getComputedStyle(feature).borderTopLeftRadius)
+    };
+  });
+  expect(versionConnector.width).toBe("1px");
+  expect(versionConnector.gradient).toBe("none");
+  expect(versionConnector.colour).toBe(dateStroke);
+  expect(versionConnector.onBorder).toBe(true);
+  expect(versionConnector.reachesCard).toBe(true);
+  // The stroke has to clear the card's rounded corner, otherwise it ends where no border is painted.
+  expect(versionConnector.overlap).toBeGreaterThanOrEqual(versionConnector.radius);
   await expect(archive.locator(".archive-period-title")).toHaveText(["v1.0.0", "v2.0.0", "Without version"]);
   await expect(archive.locator(".archive-feature-title")).toHaveText(["First release", "Versioned only", "Later release", "Metadata free"]);
   await expect(archive.locator(".archive-feature-meta")).toHaveText(["15.01.2024", "01.02.2025"]);
@@ -1906,21 +1962,35 @@ test("Archive shows multiple work ranges proportionally with one existing timeli
       const bounds = guide.getBoundingClientRect();
       return bounds.left + bounds.width / 2;
     };
+    const feature = node.querySelector(".archive-date-card .archive-feature");
+    const border = parseFloat(getComputedStyle(feature).borderLeftWidth) || 0;
+    const guide = node.querySelector(".archive-date-guide-start").getBoundingClientRect();
     return {
       width: card.width,
       start: centre(node.querySelector(".archive-date-guide-start")) - card.left,
       endGap: Math.abs(centre(node.querySelector(".archive-date-guide-end")) - card.right),
-      internal: [...node.querySelectorAll(".archive-date-guide-sub")].map(guide => centre(guide) - card.left)
+      internal: [...node.querySelectorAll(".archive-date-guide-sub")].map(guide => centre(guide) - card.left),
+      borderAligned: guide.left >= card.left - .01 && guide.right <= card.left + border + .01
     };
   });
-  expect(attachmentGeometry.start).toBeCloseTo(0, 0);
+  expect(Math.abs(attachmentGeometry.start)).toBeLessThanOrEqual(1);
   expect(attachmentGeometry.endGap).toBeLessThanOrEqual(1);
+  expect(attachmentGeometry.borderAligned).toBe(true);
   expect(attachmentGeometry.internal.every(position => position > 0 && position < attachmentGeometry.width)).toBe(true);
   const gap = await cards.locator(".archive-feature-inactive").evaluate(node => ({ left: parseFloat(node.style.left), width: parseFloat(node.style.width) }));
   expect(gap.left).toBeCloseTo(28 / 178 * 100, 4);
   expect(gap.width).toBeCloseTo(135 / 178 * 100, 4);
   await archive.locator('[data-archive-order="version"]').click();
-  await expect(archive.locator(".archive-feature-meta")).toHaveText("09.12.25 – 06.01.26 · 21.05.26 – 05.06.26");
+  await expect(archive.locator(".archive-feature-meta > span")).toHaveText(["09.12.25 – 06.01.26", "21.05.26 – 05.06.26"]);
+  const stackedMeta = await archive.locator(".archive-feature-meta").evaluate(node => {
+    const lines = [...node.querySelectorAll(":scope > span")].map(line => line.getBoundingClientRect());
+    return {
+      sameColumn: Math.abs(lines[0].left - lines[1].left) <= .5,
+      belowEachOther: lines[1].top >= lines[0].bottom - .5,
+      separated: lines[1].top - lines[0].top > 8
+    };
+  });
+  expect(stackedMeta).toEqual({ sameColumn: true, belowEachOther: true, separated: true });
   await archive.locator('[data-archive-order="date"]').click();
   const wideCard = archive.locator(".archive-feature");
   await wideCard.locator(".archive-feature-toggle").click();
@@ -1985,20 +2055,19 @@ test("Archive draws the four documented date cases with straight axis connection
   await expect(archive.locator(".archive-feature")).toHaveCount(3);
   await expect(archive.locator(".archive-date-marker-main")).toHaveCount(3);
   expect(await archive.locator(".archive-date-card").evaluateAll(cards => cards.map(card => card.getAttribute("data-lane")))).toEqual(["0", "1", "0"]);
-  await expect(archive.locator(".archive-date-marker-shared")).toHaveCount(1);
-  await expect(archive.locator(".archive-date-guide-shared,.archive-date-shared-dot")).toHaveCount(0);
-  expect(await archive.locator(".archive-date-marker").evaluateAll(markers => {
-    const shadow = (/** @type {Element} */ marker) => getComputedStyle(marker).boxShadow;
-    const shared = markers.filter(marker => marker.classList.contains("archive-date-marker-shared"));
-    const plain = markers.filter(marker => !marker.classList.contains("archive-date-marker-shared") && marker.classList.contains("archive-date-marker-main"));
-    return shared.every(marker => plain.every(other => shadow(marker) !== shadow(other)));
-  })).toBe(true);
+  await expect(archive.locator(".archive-date-marker-shared,.archive-date-guide-shared,.archive-date-shared-dot")).toHaveCount(0);
+  expect(await archive.locator(".archive-date-marker-main").evaluateAll(markers => new Set(markers.map(marker => {
+    const style = getComputedStyle(marker);
+    return [style.width, style.height, style.borderWidth, style.borderColor, style.backgroundColor, style.boxShadow].join("|");
+  })).size)).toBe(1);
+  await expect(archive.locator(".archive-date-guide")).toHaveCount(4);
+  await expect(archive.locator(".archive-date-guide[d]")).toHaveCount(3);
 
   const connections = await archive.locator(".archive-date-timeline").evaluate(node => {
     const cards = [...node.querySelectorAll(".archive-date-card")];
     const marker = node.querySelector(".archive-date-marker").getBoundingClientRect();
     const axisY = marker.top + marker.height / 2;
-    return [...node.querySelectorAll(".archive-date-guide")].map(guide => {
+    return [...node.querySelectorAll(".archive-date-guide[d]")].map(guide => {
       const path = /** @type {SVGPathElement} */ (guide);
       const bounds = guide.getBoundingClientRect();
       const card = cards[Number(path.dataset.entry)].getBoundingClientRect();
@@ -2013,18 +2082,19 @@ test("Archive draws the four documented date cases with straight axis connection
         onNearEdge: Math.abs(centre - edge) <= 1.5,
         reachesCard: Math.abs(bounds.bottom - card.top - 10) <= 2,
         centre,
-        stroke: getComputedStyle(guide).stroke
+        paint: [getComputedStyle(guide).stroke, getComputedStyle(guide).strokeWidth, getComputedStyle(guide).opacity].join("|")
       };
     });
   });
-  expect(connections).toHaveLength(4);
+  expect(connections).toHaveLength(3);
   expect(connections.every(guide => guide.straight && guide.vertical && guide.startsAtAxis && guide.onNearEdge && guide.reachesCard)).toBe(true);
-  expect(new Set(connections.map(guide => guide.stroke)).size).toBe(1);
-  expect(new Set(connections.filter(guide => guide.entry !== "2").map(guide => Math.round(guide.centre)))).toEqual(new Set([Math.round(connections[0].centre)]));
+  expect(new Set(connections.map(guide => guide.paint)).size).toBe(1);
+  // The 10px guide overlap has to cover the card's rounded corner, or the stroke ends in the cut-out.
+  expect(await archive.locator(".archive-date-card .archive-feature").first().evaluate(node => parseFloat(getComputedStyle(node).borderTopLeftRadius))).toBeLessThanOrEqual(10);
 
   const stack = await archive.locator(".archive-date-timeline").evaluate(node => {
     const points = [...node.querySelectorAll(".archive-date-card-point")].map(card => card.getBoundingClientRect());
-    const guides = [...node.querySelectorAll(".archive-date-guide-start")].filter(guide => /** @type {SVGPathElement} */ (guide).dataset.entry !== "2").map(guide => guide.getBoundingClientRect());
+    const guides = [...node.querySelectorAll(".archive-date-guide-start[d]")].filter(guide => /** @type {SVGPathElement} */ (guide).dataset.entry !== "2").map(guide => guide.getBoundingClientRect());
     const deepest = Math.max(...points.map(card => card.top));
     return {
       sameColumn: Math.max(...points.map(card => card.left)) - Math.min(...points.map(card => card.left)) <= 1,
@@ -2039,6 +2109,52 @@ test("Archive draws the four documented date cases with straight axis connection
   expect(stack.reachesLast).toBe(true);
   expect(stack.markerLayer).toBeGreaterThan(stack.lineLayer);
   await expect(archive.locator("#archiveResolution,.archive-resolution")).toHaveCount(0);
+});
+
+test("Archive expands a shared date without disturbing other dates or shifting horizontally", async ({ page }) => {
+  const tasks = Array.from({ length: 12 }, (_, index) => `### Task ${index + 1}\n- [x] ~done~`).join("\n");
+  await page.setViewportSize({ width: 1440, height: 520 });
+  await openFixture(page, `# Stacks\n\n#Archive\n# Archive\n\n## Alpha at the first date with a title far too long for its own card\n#Date\n- 01.02.26\n${tasks}\n\n## Beta at the first date\n#Date\n- 01.02.26\n### Task\n- [x] ~done~\n\n## Gamma at the second date\n#Date\n- 20.02.26\n### Task\n- [x] ~done~\n\n## Delta at the second date\n#Date\n- 20.02.26\n### Task\n- [x] ~done~`);
+  await toggleArchiveFromView(page);
+  const archive = page.locator("#archive");
+  const content = archive.locator(":scope > .archive-content");
+  const settle = () => page.evaluate(async () => {
+    await document.fonts.ready;
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  });
+  const cards = () => archive.locator(".archive-date-card").evaluateAll(nodes => nodes.map(node => {
+    const card = /** @type {HTMLElement} */ (node);
+    return { lane: card.getAttribute("data-lane"), top: Math.round(parseFloat(card.style.top)), left: Math.round(parseFloat(card.style.left)), height: card.offsetHeight };
+  }));
+
+  await settle();
+  const before = await cards();
+  const widthBefore = await content.evaluate(node => node.clientWidth);
+  expect(before.map(card => card.lane)).toEqual(["0", "1", "0", "1"]);
+  expect(await content.evaluate(node => node.scrollHeight <= node.clientHeight + 1)).toBe(true);
+
+  await archive.locator(".archive-feature-toggle").first().click();
+  await settle();
+  const after = await cards();
+  expect(after[0].height).toBeGreaterThan(before[0].height);
+  expect(after[1].top).toBeGreaterThan(before[1].top);
+  expect(after.slice(2)).toEqual(before.slice(2));
+  expect(await content.evaluate(node => node.scrollHeight > node.clientHeight)).toBe(true);
+  expect(await content.evaluate(node => node.clientWidth)).toBe(widthBefore);
+  expect(await content.evaluate(node => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
+
+  const title = archive.locator(".archive-feature-title").first();
+  await expect(title).toHaveCSS("text-overflow", "clip");
+  const clipped = await title.evaluate(node => ({ shown: node.querySelector(".title-text").textContent || "", full: node.dataset.fullTitle || "" }));
+  expect(clipped.shown.length).toBeLessThan(clipped.full.length);
+  expect(clipped.full.startsWith(clipped.shown)).toBe(true);
+  expect(clipped.shown).not.toContain("…");
+  await title.hover();
+  await expect(title).toHaveClass(/title-scroll/);
+  expect(await title.evaluate(node => node.querySelector(".title-text").getAttribute("data-scroll-text"))).toBe(clipped.full);
+  await page.mouse.move(5, 5);
+  await expect(title).not.toHaveClass(/title-hover/);
+  expect(await title.evaluate(node => node.querySelector(".title-text").textContent)).toBe(clipped.shown);
 });
 
 test("Archive wraps a long date timeline into a snake without horizontal scrolling", async ({ page }) => {
@@ -2087,7 +2203,6 @@ test("Archive wraps a long date timeline into a snake without horizontal scrolli
   expect(secondRow.length).toBeGreaterThan(1);
   expect(secondRow.every((card, index) => index === 0 || card.left < secondRow[index - 1].left)).toBe(true);
   expect(await content.evaluate(node => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
-  expect(await content.evaluate(node => node.scrollHeight > node.clientHeight)).toBe(true);
 
   await page.setViewportSize({ width: 760, height: 600 });
   await expect.poll(() => archive.locator(".archive-date-timeline").evaluate(node => new Set([...node.querySelectorAll(".archive-date-card")].map(card => /** @type {HTMLElement} */ (card).dataset.row)).size)).toBeGreaterThan(2);
@@ -2166,7 +2281,7 @@ test("Archive wraps a long timeline into a responsive vertical snake without hor
   expect(await content.evaluate(node => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
   expect(await content.evaluate(node => node.scrollHeight > node.clientHeight)).toBe(true);
   await page.setViewportSize({ width: 700, height: 500 });
-  await expect(timeline).toHaveAttribute("data-columns", "2");
+  await expect(timeline).toHaveAttribute("data-columns", "1");
   expect(await content.evaluate(node => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
 });
 

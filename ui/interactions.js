@@ -1039,18 +1039,18 @@ window.MDManager = window.MDManager || {};
 
   /** @param {MouseEvent} event */
   function handleTitleEnter(event) {
-    const header = eventElement(event).closest(".card-header, .release-heading, .backlog-header");
+    const header = eventElement(event).closest(".card-header, .release-heading, .backlog-header, .archive-feature-toggle");
     if (!header || header.contains(/** @type {Node | null} */ (event.relatedTarget))) return;
-    const title = header.querySelector(".card-title, .release-title, .backlog-title");
+    const title = header.querySelector(".card-title, .release-title, .backlog-title, .archive-feature-title");
     if (title?.classList.contains("is-editing")) return;
     if (title) app.layout.startTitleScroll(title);
   }
 
   /** @param {MouseEvent} event */
   function handleTitleLeave(event) {
-    const header = eventElement(event).closest(".card-header, .release-heading, .backlog-header");
+    const header = eventElement(event).closest(".card-header, .release-heading, .backlog-header, .archive-feature-toggle");
     if (!header || header.contains(/** @type {Node | null} */ (event.relatedTarget))) return;
-    const title = header.querySelector(".card-title, .release-title, .backlog-title");
+    const title = header.querySelector(".card-title, .release-title, .backlog-title, .archive-feature-title");
     if (title?.classList.contains("is-editing")) return;
     if (title) app.layout.stopTitleScroll(title);
   }
@@ -1090,6 +1090,8 @@ window.MDManager = window.MDManager || {};
   document.getElementById("content").addEventListener("pointerdown", startFeatureHold);
   document.addEventListener("pointerup", clearFeatureHold);
   document.addEventListener("pointercancel", clearFeatureHold);
+  document.getElementById("archive").addEventListener("mouseover", handleTitleEnter);
+  document.getElementById("archive").addEventListener("mouseout", handleTitleLeave);
   document.getElementById("archive").addEventListener("click", event => {
     const target = eventElement(event);
     if (target.closest(".archive-controls-close")) {
@@ -1135,6 +1137,7 @@ window.MDManager = window.MDManager || {};
     button.setAttribute("aria-expanded", String(open));
     featureElement.classList.toggle("expanded", open);
     featureElement.querySelector(".archive-tasks").hidden = !open;
+    if (featureElement.closest(".archive-date-timeline")) app.layout.archiveTimeline();
   });
   document.getElementById("toggleBacklog").addEventListener("click", toggleBacklog);
   document.getElementById("addFeature").addEventListener("click", () => {

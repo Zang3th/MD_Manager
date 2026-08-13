@@ -240,8 +240,14 @@
 
 - [x] ~#Info und #Warn werden im Markdown an die falsche Stelle geschoben~
 - [x] ~Abstände innerhalb von #Tags (oben und unten) sind nicht einheitlich~
-- [ ] Zeiträume müssen im Archiv-Zeitstrahl auch dargestellt werden können
+- [ ] 1px Borders abschaffen
 - [ ] Edit-Dialog im Hochkantmodus ist manchmal immer noch buggy
+
+#### Archiv
+- [x] ~Zeiträume müssen im Archiv-Zeitstrahl auch dargestellt werden können~
+- [x] ~Sortierung nach Datum und Version muss visuell dieselben Marker + Dots nutzen~
+- [x] ~Vertikale Marker müssen in jedem Fall dieselbe Farbe + Dicke haben~
+- [x] ~"Super-Dots" abschaffen~
 
 ### Zoom
 

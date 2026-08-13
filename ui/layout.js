@@ -4,7 +4,7 @@ window.MDManager = window.MDManager || {};
   const dayMs = 24 * 60 * 60 * 1000;
   const archiveTurnInset = 8;
   const archiveTurnHandleScale = 2 / 3;
-  const archiveMinimumCardWidth = 240;
+  const archiveMinimumCardWidth = 220;
   const archiveLaneGap = 16;
   const archiveAxisGap = 46;
   const archiveRowGap = 34;
@@ -35,7 +35,7 @@ window.MDManager = window.MDManager || {};
 
   /** @param {HTMLElement} title */
   function titleStyle(title) {
-    const type = title.classList.contains("release-title") ? "feature" : title.classList.contains("backlog-title") ? "backlog" : "task";
+    const type = title.classList.contains("release-title") ? "feature" : title.classList.contains("backlog-title") ? "backlog" : title.classList.contains("archive-feature-title") ? "archive" : "task";
     const key = `${layoutKey()}|${type}`;
     if (!titleStyleCache.has(key)) {
       const style = getComputedStyle(title);
@@ -87,7 +87,7 @@ window.MDManager = window.MDManager || {};
 
   /** @param {Iterable<HTMLElement>} [targets] */
   function fitTitles(targets) {
-    const titles = targets ? [...targets] : /** @type {HTMLElement[]} */ ([...document.querySelectorAll(".release-title, .card-title, .backlog-title")]);
+    const titles = targets ? [...targets] : /** @type {HTMLElement[]} */ ([...document.querySelectorAll(".release-title, .card-title, .backlog-title, .archive-feature-title")]);
     const values = titles.map(title => {
       if (title.closest("[hidden]")) return title.dataset.fullTitle;
       const style = titleStyle(title);
@@ -238,7 +238,7 @@ window.MDManager = window.MDManager || {};
       const width = Math.max(minimumWidth, Math.abs(endX - startX));
       const anchored = row % 2 === 0 ? Math.min(startX, endX) : Math.max(startX, endX) - width;
       const left = Math.max(leftInset, Math.min(anchored, leftInset + axisWidth - width));
-      return { card, row, startX, endX, left, right: left + width, width, lane: 0, top: 0 };
+      return { card, row, startX, endX, left, right: left + width, width, lane: 0, top: 0, height: 0 };
     });
 
     for (const item of geometry) {
@@ -258,29 +258,37 @@ window.MDManager = window.MDManager || {};
 
     const cardHeights = geometry.map(item => item.card.offsetHeight);
     const unmatchedHeight = unmatched ? unmatched.offsetHeight : 0;
+    const cardBorder = geometry.length ? parseFloat(getComputedStyle(/** @type {HTMLElement} */ (geometry[0].card.firstElementChild)).borderLeftWidth) || 0 : 0;
+    const guideInset = cardBorder / 2;
+    // Card widths are set above, so the shared title fitter has to run here rather than in runLayout.
+    fitTitles(/** @type {HTMLElement[]} */ ([...timeline.querySelectorAll(".archive-feature-title")]));
 
+    geometry.forEach((item, index) => { item.height = cardHeights[index]; });
+
+    // A card only clears the cards it actually overlaps horizontally, so expanding one stack never
+    // reserves space under an unrelated date. Lanes ascend, so every lower lane is already placed.
     /** @type {number[]} */
     const rowAxis = [];
-    /** @type {number[][]} */
-    const laneTops = [];
     let cursor = axisTop;
     for (let row = 0; row < rowCount; row += 1) {
       rowAxis[row] = cursor;
-      const heights = laneRights[row].map(() => 0);
-      geometry.forEach((item, index) => {
-        if (item.row === row) heights[item.lane] = Math.max(heights[item.lane], cardHeights[index]);
-      });
-      let top = cursor + archiveAxisGap;
-      laneTops[row] = [];
-      for (let lane = 0; lane < heights.length; lane += 1) {
-        laneTops[row][lane] = top;
-        top += heights[lane] + archiveLaneGap;
+      const rowItems = geometry.filter(item => item.row === row).sort((left, right) => left.lane - right.lane || left.left - right.left);
+      let bottom = cursor + archiveAxisGap;
+      for (const item of rowItems) {
+        let top = cursor + archiveAxisGap;
+        for (const placed of rowItems) {
+          if (placed.lane >= item.lane) break;
+          if (placed.left < item.right + archiveLaneGap && item.left < placed.right + archiveLaneGap) {
+            top = Math.max(top, placed.top + placed.height + archiveLaneGap);
+          }
+        }
+        item.top = top;
+        bottom = Math.max(bottom, top + item.height);
       }
-      cursor = (heights.length ? top - archiveLaneGap : cursor + archiveAxisGap) + archiveRowGap;
+      cursor = bottom + archiveRowGap;
     }
 
     geometry.forEach(item => {
-      item.top = laneTops[item.row][item.lane];
       item.card.dataset.row = String(item.row);
       item.card.dataset.lane = String(item.lane);
       item.card.style.top = `${item.top}px`;
@@ -297,6 +305,10 @@ window.MDManager = window.MDManager || {};
       marker.style.top = `${rowAxis[row]}px`;
     }
 
+    // Guides that share a column would stack their strokes and read darker than a single one, so only
+    // the deepest of each column is drawn. It covers every shorter one exactly.
+    /** @type {Map<string, {guide: SVGPathElement, x: number, row: number, bottom: number}>} */
+    const columns = new Map();
     for (const guide of guides) {
       const item = geometry[Number(guide.dataset.entry)];
       if (!item) {
@@ -307,8 +319,17 @@ window.MDManager = window.MDManager || {};
       const anchorX = guide.classList.contains("archive-date-guide-end") ? item.endX
         : subordinate ? xOf(Number(guide.dataset.time), item.row)
           : item.startX;
-      const x = Math.min(Math.max(anchorX, item.left), item.right);
-      guide.setAttribute("d", `M ${x} ${rowAxis[item.row]} L ${x} ${item.top + (subordinate ? 2 : 10)}`);
+      const x = Math.min(Math.max(anchorX, item.left + guideInset), item.right - guideInset);
+      const bottom = item.top + (subordinate ? 2 : 10);
+      const key = `${subordinate ? "sub" : "main"}:${item.row}:${Math.round(x * 2)}`;
+      const current = columns.get(key);
+      if (current && current.bottom >= bottom) {
+        guide.removeAttribute("d");
+        continue;
+      }
+      if (current) current.guide.removeAttribute("d");
+      columns.set(key, { guide, x, row: item.row, bottom });
+      guide.setAttribute("d", `M ${x} ${rowAxis[item.row]} L ${x} ${bottom}`);
     }
 
     let data = "";
@@ -408,7 +429,7 @@ window.MDManager = window.MDManager || {};
   }
 
   function archiveTimeline() {
-    schedule({ archive: true });
+    schedule({ archive: true, titles: true });
   }
 
   function contentOverflowChanged() {

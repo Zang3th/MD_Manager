@@ -194,9 +194,9 @@ window.MDManager = window.MDManager || {};
     const expanded = expandedFeatures.has(featureIndex);
     const visibleTasks = feature.tasks.filter(task => !task.ignored);
     const version = feature.version ? (/^v/i.test(feature.version.trim()) ? feature.version.trim() : `v${feature.version.trim()}`) : "";
-    const dates = feature.dates.filter(date => date.from || date.to).map(date => [date.from, date.to && date.to !== date.from ? date.to : ""].filter(Boolean).join(" – ")).join(" · ");
+    const dates = feature.dates.filter(date => date.from || date.to).map(date => [date.from, date.to && date.to !== date.from ? date.to : ""].filter(Boolean).join(" – "));
     const entryRanges = entry?.ranges || [];
-    const metadata = order === "date" ? version : dates;
+    const metadata = order === "date" ? (version ? [version] : []) : dates;
     let inactive = "";
     if (order === "date" && entry?.date && entry.endDate && entryRanges.length > 1) {
       const duration = entry.endDate.time - entry.date.time;
@@ -213,8 +213,8 @@ window.MDManager = window.MDManager || {};
     const tasksId = `archiveTasks${featureIndex}`;
     return `<article class="archive-feature${expanded ? " expanded" : ""}" data-feature="${featureIndex}">${inactive}
       <button class="archive-feature-toggle" type="button" aria-expanded="${expanded}" aria-controls="${tasksId}">
-        <span class="archive-feature-title">${escapeHtml(feature.title)}</span>
-        ${metadata ? `<span class="archive-feature-meta">${escapeHtml(metadata)}</span>` : ""}
+        <span class="archive-feature-title" data-full-title="${escapeHtml(feature.title)}"><span class="title-text">${escapeHtml(feature.title)}</span></span>
+        ${metadata.length ? `<span class="archive-feature-meta">${metadata.map(line => `<span>${escapeHtml(line)}</span>`).join("")}</span>` : ""}
       </button>
       <div class="archive-tasks" id="${tasksId}"${expanded ? "" : " hidden"}>${visibleTasks.length ? `<ul>${visibleTasks.map(task => `<li>${escapeHtml(task.title)}</li>`).join("")}</ul>` : '<p class="archive-no-tasks">No tasks</p>'}</div>
       <button class="archive-unarchive" data-unarchive-feature="${featureIndex}" type="button" aria-label="Move to Workspace" data-tooltip="Move to Workspace">${unarchiveIcon}</button>
@@ -227,15 +227,12 @@ window.MDManager = window.MDManager || {};
     if (timeline.fromTime === undefined || timeline.toTime === undefined) return unmatched;
     /** @type {Map<number, string>} */
     const markerLevels = new Map();
-    /** @type {Map<number, number>} */
-    const pointCounts = new Map();
     const entries = (timeline.entries || []).filter(entry => entry.date);
     for (const entry of entries) {
       const start = /** @type {MDArchiveDate} */ (entry.date);
       const end = entry.endDate || start;
       markerLevels.set(start.time, "main");
       markerLevels.set(end.time, "main");
-      if (!entry.endDate) pointCounts.set(start.time, (pointCounts.get(start.time) || 0) + 1);
       for (const range of entry.ranges || []) {
         if (!markerLevels.has(range.from.time)) markerLevels.set(range.from.time, "sub");
         if (range.to && !markerLevels.has(range.to.time)) markerLevels.set(range.to.time, "sub");
@@ -243,8 +240,7 @@ window.MDManager = window.MDManager || {};
     }
     const markers = (timeline.markers || []).map(date => {
       const endpoint = date.time === timeline.fromTime || date.time === timeline.toTime;
-      const shared = (pointCounts.get(date.time) || 0) > 1 ? " archive-date-marker-shared" : "";
-      return `<span class="archive-date-marker archive-date-marker-${markerLevels.get(date.time) || "sub"}${endpoint ? " archive-date-marker-endpoint" : ""}${shared}" data-time="${date.time}"><span>${escapeHtml(date.value)}</span></span>`;
+      return `<span class="archive-date-marker archive-date-marker-${markerLevels.get(date.time) || "sub"}${endpoint ? " archive-date-marker-endpoint" : ""}" data-time="${date.time}"><span>${escapeHtml(date.value)}</span></span>`;
     }).join("");
     const ticks = (timeline.ticks || []).map(tick => `<span class="archive-date-tick archive-date-tick-${tick.level}" data-time="${tick.time}"></span>`).join("");
     /** @type {string[]} */
@@ -321,7 +317,7 @@ window.MDManager = window.MDManager || {};
     const stage = count ? `<div class="archive-stage"><div class="archive-timeline${order === "date" ? " archive-date-timeline" : ""}"${datasetAttributes(timelineContents.dataset)}>${timelineContents.timeline}</div></div>` : '<div class="archive-stage archive-stage-empty"><div class="empty start-screen archive-empty"><p class="recent-files-empty">No archived features yet.</p></div></div>';
     return `<div class="archive-summary"><div class="archive-summary-line"><h2 class="archive-title">Archive</h2><span class="archive-summary-separator" aria-hidden="true">/</span><span class="archive-count">${count} ${count === 1 ? "Feature" : "Features"}</span></div>${count ? timelineContents.range : ""}</div>
       <div class="archive-content">${stage}</div>
-      <aside class="archive-control-panel" aria-label="Timeline controls"${controlsOpen ? "" : " hidden"}><div class="archive-control-panel-header"><span>Timeline controls</span><button class="archive-controls-close" type="button" aria-label="Close timeline controls" data-tooltip="Close timeline controls">${deleteIcon}</button></div><div class="archive-controls">
+      <aside class="archive-control-panel" aria-label="Timeline controls"${controlsOpen ? "" : " hidden"}><div class="archive-control-panel-header"><span class="archive-control-title">Timeline controls</span><button class="archive-controls-close" type="button" aria-label="Close timeline controls" data-tooltip="Close timeline controls">${deleteIcon}</button></div><div class="archive-controls">
         <div class="archive-control-group"><span class="archive-control-label">Sort by</span><div class="archive-order" role="group" aria-label="Archive order"><button type="button" data-archive-order="date" aria-pressed="${order === "date"}">Date</button><button type="button" data-archive-order="version" aria-pressed="${order === "version"}">Version</button></div></div>
       </div></aside>`;
   }
