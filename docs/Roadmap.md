@@ -240,7 +240,6 @@
 
 - [x] ~#Info und #Warn werden im Markdown an die falsche Stelle geschoben~
 - [x] ~Abstände innerhalb von #Tags (oben und unten) sind nicht einheitlich~
-- [ ] 1px Borders abschaffen
 - [ ] Edit-Dialog im Hochkantmodus ist manchmal immer noch buggy
 
 #### Archiv
@@ -248,6 +247,8 @@
 - [x] ~Sortierung nach Datum und Version muss visuell dieselben Marker + Dots nutzen~
 - [x] ~Vertikale Marker müssen in jedem Fall dieselbe Farbe + Dicke haben~
 - [x] ~"Super-Dots" abschaffen~
+- [ ] Linien treffen manchmal nicht zentral den Dot auf der Timeline
+- [ ] Linien haben weiterhin unter bestimmten Umständen verschiedene Farben/Dicke
 
 ### Zoom
 
@@ -401,7 +402,7 @@ Stats und Backlog bleiben davon unberührt.
 - [x] ~Backlog-Aufgaben in einer eigenen Seitenleiste darstellen~
 - [x] ~Verschieben von Aufgaben zwischen Releases und Backlog ermöglichen~
 
-## Anwendungssteuerung
+## Bedienung
 
 #Version
 - 0.0.6
@@ -475,7 +476,7 @@ Stats und Backlog bleiben davon unberührt.
 - [x] ~Layout- und Größenänderungsarbeiten bündeln~
 - [x] ~Responsive Interaktionen mit repräsentativen Daten sicherstellen~
 
-## Wartung und Refactoring
+## Refactoring
 
 #Version
 - 0.0.11
@@ -541,7 +542,7 @@ Stats und Backlog bleiben davon unberührt.
 - [x] ~Aufgabentitel, Markdown, Labels, Infos und Warnungen bearbeiten~
 - [x] ~Einheitliches Verhalten für Speichern, Abbrechen, Schließen und Tastatur ergänzen~
 
-## Neu-Erstellung und Hilfe
+## Erstellung und Hilfe
 
 #Version
 - 0.0.15

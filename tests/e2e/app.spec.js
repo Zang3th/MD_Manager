@@ -1729,6 +1729,87 @@ test("last Workspace feature remains reachable while Backlog is visible", async 
   }).toBeGreaterThanOrEqual(11);
 });
 
+test("Archive cards use a stable 2px frame and a borderless unarchive action", async ({ page }) => {
+  await openFixture(page, `${fixture}\n\n#Archive\n# Finished Releases\n\n## Archived feature\n#Date\n- 15.01.2024\n### Finished task\n- [x] ~done~`);
+  await toggleArchiveFromView(page);
+
+  const card = page.locator("#archive .archive-feature");
+  const action = card.locator(".archive-unarchive");
+  await expect(card).toHaveCSS("border-top-width", "2px");
+  await expect(action).toHaveCSS("border-top-width", "0px");
+  await expect(action).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  await expect(action).toHaveCSS("transform", "none");
+  const actionGeometry = () => card.evaluate(node => {
+    const cardBounds = node.getBoundingClientRect();
+    const actionBounds = node.querySelector(".archive-unarchive").getBoundingClientRect();
+    const stable = (/** @type {number} */ value) => Math.round(value * 1000) / 1000;
+    return {
+      top: stable(actionBounds.top - cardBounds.top),
+      right: stable(cardBounds.right - actionBounds.right),
+      width: stable(actionBounds.width),
+      height: stable(actionBounds.height)
+    };
+  });
+  const restingGeometry = await actionGeometry();
+
+  await card.hover();
+  await expect(action).toHaveCSS("opacity", "1");
+  await expect(action).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  await expect(action).toHaveCSS("transform", "none");
+  expect(await actionGeometry()).toEqual(restingGeometry);
+  expect(await card.evaluate(node => getComputedStyle(node).boxShadow)).not.toContain("0px 0px 0px 1px");
+});
+
+test("Expanded archive cards keep their resting colors outside hover", async ({ page }) => {
+  await openFixture(page, `${fixture}\n\n#Archive\n# Finished Releases\n\n## Archived feature\n#Date\n- 15.01.2024\n### Finished task\n- [x] ~done~`);
+  await toggleArchiveFromView(page);
+
+  const card = page.locator("#archive .archive-feature");
+  const toggle = card.locator(".archive-feature-toggle");
+  const colors = () => card.evaluate(node => ({
+    border: getComputedStyle(node).borderTopColor,
+    surface: getComputedStyle(node.querySelector(".archive-feature-toggle")).backgroundColor
+  }));
+  const restingColors = await colors();
+
+  await card.hover();
+  await expect.poll(colors).not.toEqual(restingColors);
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await page.mouse.move(0, 0);
+  await expect.poll(colors).toEqual(restingColors);
+});
+
+test("Archive pause hatching is subdued and vertical connectors keep a stable one-pixel color", async ({ page }) => {
+  await openFixture(page, `${fixture}\n\n#Archive\n# Finished Releases\n\n## Paused feature\n#Version\n- 1.0.0\n#Date\n- 09.12.25 - 06.01.26\n- 21.05.26 - 05.06.26\n### Finished task\n- [x] ~done~\n\n## Unmatched feature\n### Finished task\n- [x] ~done~`);
+  await toggleArchiveFromView(page);
+
+  await expect(page.locator("#archive .archive-feature-inactive")).toHaveCSS("opacity", "0.6");
+  const dateGuides = await page.locator("#archive .archive-date-guide").evaluateAll(guides => guides.map(guide => {
+    const style = getComputedStyle(guide);
+    return { width: style.strokeWidth, colour: style.stroke, opacity: style.opacity };
+  }));
+  expect([...new Set(dateGuides.map(guide => guide.width))]).toEqual(["1px"]);
+  expect([...new Set(dateGuides.map(guide => guide.colour))]).toHaveLength(1);
+  expect([...new Set(dateGuides.map(guide => guide.opacity))]).toEqual(["1"]);
+
+  await page.locator('[data-archive-order="version"]').click();
+  const connectorStyles = () => page.locator("#archive .archive-period-dot").evaluateAll(dots => dots.map(dot => {
+    const style = getComputedStyle(dot, "::after");
+    return { width: style.width, colour: style.backgroundColor };
+  }));
+  const restingConnectors = await connectorStyles();
+  expect([...new Set(restingConnectors.map(connector => connector.width))]).toEqual(["1px"]);
+  expect([...new Set(restingConnectors.map(connector => connector.colour))]).toHaveLength(1);
+
+  const card = page.locator("#archive .archive-feature").first();
+  await card.hover();
+  expect(await connectorStyles()).toEqual(restingConnectors);
+  await card.locator(".archive-feature-toggle").click();
+  await page.mouse.move(0, 0);
+  expect(await connectorStyles()).toEqual(restingConnectors);
+});
+
 test("Archive is an exclusive pseudo-3D timeline with date and version controls", async ({ page }) => {
   const archived = `${fixture}\n\n#Archive\n# Finished Releases\n\n## First release\n#Version\n- 1.0.0\n#Date\n- 15.01.2024\n### First task\n- [x] ~done detail~\n### Second task\n- [x] ~another detail~\n\n## Later release\n#Date\n- 01.02.2025\n### Later task\n- [x] ~hidden todo~\n\n## Versioned only\n#Version\n- 2.0.0\n### Version task\n- [x] ~version detail~\n\n## Metadata free\n### Last task\n- [x] ~last detail~`;
   await openFixture(page, archived);
