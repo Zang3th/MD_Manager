@@ -2157,6 +2157,35 @@ test("Archive expands a shared date without disturbing other dates or shifting h
   expect(await title.evaluate(node => node.querySelector(".title-text").textContent)).toBe(clipped.shown);
 });
 
+test("Archive separates dense neighbouring dates instead of stacking them into one pile", async ({ page }) => {
+  const cluster = (/** @type {string} */ prefix, /** @type {string} */ date) => Array.from({ length: 5 }, (_, index) => `## ${prefix}${index}\n#Date\n- ${date}\n### Task\n- [x] ~done~`).join("\n\n");
+  await openFixture(page, `# Dense\n\n#Archive\n# Archive\n\n${cluster("X", "01.02.26")}\n\n${cluster("Y", "02.02.26")}\n\n## Edge\n#Date\n- 03.03.26\n### Task\n- [x] ~done~`);
+  await toggleArchiveFromView(page);
+  const archive = page.locator("#archive");
+
+  const cards = await archive.locator(".archive-date-card").evaluateAll(nodes => nodes.map(node => {
+    const card = /** @type {HTMLElement} */ (node);
+    return {
+      title: card.querySelector(".archive-feature-title").getAttribute("data-full-title") || "",
+      row: card.dataset.row,
+      lane: Number(card.dataset.lane),
+      left: Math.round(parseFloat(card.style.left))
+    };
+  }));
+  const first = cards.filter(card => card.title.startsWith("X"));
+  const second = cards.filter(card => card.title.startsWith("Y"));
+  expect(first).toHaveLength(5);
+  expect(second).toHaveLength(5);
+
+  expect(new Set(first.map(card => card.left)).size).toBe(1);
+  expect(new Set(second.map(card => card.left)).size).toBe(1);
+  expect(first[0].row).toBe(second[0].row);
+  expect(second[0].left - first[0].left).toBeGreaterThanOrEqual(236);
+  expect(Math.max(...first.map(card => card.lane))).toBe(4);
+  expect(Math.max(...second.map(card => card.lane))).toBe(4);
+  expect(await archive.locator(":scope > .archive-content").evaluate(node => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
+});
+
 test("Archive wraps a long date timeline into a snake without horizontal scrolling", async ({ page }) => {
   const features = Array.from({ length: 12 }, (_, index) => `## Release ${index + 1}\n#Date\n- 01.01.${20 + index}\n### Task\n- [x] ~done~`).join("\n\n");
   await page.setViewportSize({ width: 1440, height: 600 });
@@ -2172,8 +2201,7 @@ test("Archive wraps a long date timeline into a snake without horizontal scrolli
       leftInset: parseFloat(style.paddingLeft),
       rightInset: parseFloat(style.paddingRight),
       width: node.clientWidth,
-      commands: (data.match(/[A-Za-z]/g) || []).join(""),
-      values: (data.match(/-?\d+(?:\.\d+)?/g) || []).map(Number),
+      data,
       cards: [...node.querySelectorAll(".archive-date-card")].map(element => {
         const card = /** @type {HTMLElement} */ (element);
         return {
@@ -2186,22 +2214,33 @@ test("Archive wraps a long date timeline into a snake without horizontal scrolli
     };
   });
 
-  expect(plan.commands).toBe("MLCL");
-  expect(plan.values).toHaveLength(12);
-  const [, firstRowY, exitX, , controlAX, controlAY, controlBX, controlBY, returnX, secondRowY] = plan.values;
-  expect(controlAY).toBeCloseTo(firstRowY, 5);
-  expect(controlBY).toBeCloseTo(secondRowY, 5);
-  expect(controlAX).toBeCloseTo(controlBX, 5);
-  expect(returnX).toBeCloseTo(exitX, 5);
-  expect(controlAX).toBeGreaterThan(exitX);
-  expect(secondRowY).toBeGreaterThan(firstRowY);
-  expect(Math.abs(controlAX - exitX) * .75 / (plan.width - 8 - exitX)).toBeCloseTo(.5, 2);
+  const segments = plan.data.match(/[MLC][^MLC]*/g) || [];
+  const numbers = (/** @type {string} */ segment) => (segment.match(/-?\d+(?:\.\d+)?/g) || []).map(Number);
+  expect(segments.map(segment => segment[0]).join("")).toMatch(/^ML(CL)+$/);
+  const straights = segments.filter(segment => segment[0] === "L").map(numbers);
+  const turns = segments.filter(segment => segment[0] === "C").map(numbers);
+  expect(turns.length).toBeGreaterThanOrEqual(1);
+  turns.forEach((turn, index) => {
+    const [controlAX, controlAY, controlBX, controlBY, returnX, nextRowY] = turn;
+    const [exitX, rowY] = straights[index];
+    const outward = index % 2 === 0;
+    expect(controlAY).toBeCloseTo(rowY, 5);
+    expect(controlBY).toBeCloseTo(nextRowY, 5);
+    expect(nextRowY).toBeCloseTo(straights[index + 1][1], 5);
+    expect(controlAX).toBeCloseTo(controlBX, 5);
+    expect(returnX).toBeCloseTo(exitX, 5);
+    expect(nextRowY).toBeGreaterThan(rowY);
+    expect(outward ? controlAX > exitX : controlAX < exitX).toBe(true);
+    expect(Math.abs(controlAX - exitX) * .75 / (outward ? plan.width - 8 - exitX : exitX - 8)).toBeCloseTo(.5, 2);
+  });
 
-  expect([...new Set(plan.cards.map(card => card.row))]).toEqual([0, 1]);
+  expect([...new Set(plan.cards.map(card => card.row))].length).toBeGreaterThan(1);
   expect(plan.cards.every(card => card.left >= plan.leftInset - .5 && card.right <= plan.width - plan.rightInset + .5)).toBe(true);
   const secondRow = plan.cards.filter(card => card.row === 1).sort((left, right) => left.time - right.time);
   expect(secondRow.length).toBeGreaterThan(1);
   expect(secondRow.every((card, index) => index === 0 || card.left < secondRow[index - 1].left)).toBe(true);
+  const firstRow = plan.cards.filter(card => card.row === 0).sort((left, right) => left.time - right.time);
+  expect(firstRow.every((card, index) => index === 0 || card.left > firstRow[index - 1].left)).toBe(true);
   expect(await content.evaluate(node => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
 
   await page.setViewportSize({ width: 760, height: 600 });

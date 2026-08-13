@@ -8,7 +8,7 @@ window.MDManager = window.MDManager || {};
   const archiveLaneGap = 16;
   const archiveAxisGap = 46;
   const archiveRowGap = 34;
-  const archiveMaximumRows = 24;
+  const archiveMaximumRows = 8;
   /** @type {Record<string, {pixels: number, span: number}>} */
   const archiveRulerPitch = {
     day: { pixels: 26, span: dayMs },
@@ -213,8 +213,20 @@ window.MDManager = window.MDManager || {};
     const longestRange = cardTimes.reduce((longest, times) => Math.max(longest, times.end - times.start), 0);
     const minimumWidth = Math.min(archiveMinimumCardWidth, axisWidth);
 
+    // Distinct point dates need a card width plus a lane gap between them, otherwise their columns
+    // interleave into one deep pile that no longer says which card belongs to which date. Ranges are
+    // excluded: overlapping ranges are concurrent work, and stacking those is the honest picture.
+    const pointStarts = [...new Set(cardTimes.filter(times => times.end === times.start).map(times => times.start))].sort((left, right) => left - right);
+    let closest = 0;
+    for (let index = 1; index < pointStarts.length; index += 1) {
+      const distance = pointStarts[index] - pointStarts[index - 1];
+      if (distance > 0 && (closest === 0 || distance < closest)) closest = distance;
+    }
+
     const pitch = archiveRulerPitch[timeline.dataset.scale || "day"] || archiveRulerPitch.day;
-    let scale = Math.max(axisWidth / totalSpan, pitch.pixels / pitch.span);
+    const densityScale = closest ? (minimumWidth + archiveLaneGap) / closest : 0;
+    let scale = Math.max(axisWidth / totalSpan, pitch.pixels / pitch.span, densityScale);
+    scale = Math.min(scale, archiveMaximumRows * axisWidth / totalSpan);
     if (longestRange > 0) scale = Math.min(scale, axisWidth / longestRange);
     let rowCount = Math.max(1, Math.min(archiveMaximumRows, Math.ceil(totalSpan * scale / axisWidth - 1e-9)));
     let rowSpan = totalSpan / rowCount;
