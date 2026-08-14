@@ -102,6 +102,7 @@ window.MDManager = window.MDManager || {};
   let diskStamp = "";
   let serializedMarkdown = "";
   let savedMarkdown = "";
+  let featureWidth = 380;
   /** @type {{markdown: string, stamp: string} | null} */
   let externalChange = null;
   let checkingExternal = false;
@@ -111,7 +112,7 @@ window.MDManager = window.MDManager || {};
   /** @param {MDViewState} [viewState] */
   function render(viewState) {
     if (!project || !fileHandle) return;
-    app.render.project(project, viewState, fileHandle.name);
+    app.render.project(project, viewState, fileHandle.name, featureWidth);
     app.interactions.setProject(project, executeAction);
     app.interactions.restoreViewState(viewState);
     updateUndoSystemControls();
@@ -150,6 +151,30 @@ window.MDManager = window.MDManager || {};
     return typeof error === "object" && error !== null && /** @type {{name?: unknown}} */ (error).name === "NotFoundError";
   }
 
+  /** @param {number | undefined} width */
+  function normalizedFeatureWidth(width) {
+    return [380, 460, 540].includes(width || 0) ? /** @type {380 | 460 | 540} */ (width) : 380;
+  }
+
+  /** @param {MDFileHandle} handle */
+  async function rememberedFeatureWidth(handle) {
+    for (const entry of recentFiles) {
+      if (await entry.handle.isSameEntry(handle)) return normalizedFeatureWidth(entry.featureWidth);
+    }
+    return 380;
+  }
+
+  function rememberOpenedFile() {
+    if (!fileHandle || !project) return;
+    const activeHandle = fileHandle;
+    app.files.remember(activeHandle, project.title, featureWidth).then((/** @type {MDRecentFile | undefined} */ record) => {
+      if (!record) return;
+      recentFiles = recentFiles.filter(entry => entry.id !== record.id).concat(record).sort((left, right) => right.openedAt - left.openedAt).slice(0, 5);
+    }).catch((/** @type {Error} */ error) => {
+      app.notifications.show("error", "Recent files", "The recent-files list could not be updated.", undefined, `Recent-files list could not be updated: ${error.message}`, "MDM-101");
+    });
+  }
+
   /** @param {MDUndoAction} action @param {{render?: boolean}} [options] @returns {boolean} */
   function executeAction(action, options = {}) {
     if (!undoSystem) return false;
@@ -185,8 +210,8 @@ window.MDManager = window.MDManager || {};
     app.notifications.show("info", "File saved", [{ value: fileHandle.name }, " saved."]);
   }
 
-  /** @param {MDOpenedFile | null} opened */
-  async function useOpenedFile(opened) {
+  /** @param {MDOpenedFile | null} opened @param {number} [rememberedWidth] */
+  async function useOpenedFile(opened, rememberedWidth = 380) {
     if (!opened) return;
     const openedProject = app.markdown.parse(opened.markdown);
     fileHandle = opened.handle;
@@ -197,13 +222,12 @@ window.MDManager = window.MDManager || {};
     diskStamp = opened.stamp || "";
     externalChange = null;
     undoSystem = app.undoSystem.create();
+    featureWidth = normalizedFeatureWidth(rememberedWidth);
     render();
     app.interactions.startClock();
     app.notifications.show("info", "File loaded", [{ value: fileHandle.name }, " is ready."]);
     showMarkdownWarnings(openedProject);
-    app.files.remember(fileHandle, openedProject.title).catch((/** @type {Error} */ error) => {
-      app.notifications.show("error", "Recent files", "The recent-files list could not be updated.", undefined, `Recent-files list could not be updated: ${error.message}`, "MDM-101");
-    });
+    rememberOpenedFile();
   }
 
   async function checkExternalChange() {
@@ -283,7 +307,7 @@ window.MDManager = window.MDManager || {};
     let opened = null;
     try {
       opened = await app.files.open();
-      await useOpenedFile(opened);
+      await useOpenedFile(opened, opened ? await rememberedFeatureWidth(opened.handle) : 380);
     } catch (error) {
       if (!(error instanceof Error)) throw error;
       if (error.name === "AbortError") return;
@@ -294,7 +318,7 @@ window.MDManager = window.MDManager || {};
 
   app.interactions.setOpenRecent(async (/** @type {number} */ index) => {
     try {
-      await useOpenedFile(await app.files.read(recentFiles[index].handle));
+      await useOpenedFile(await app.files.read(recentFiles[index].handle), recentFiles[index].featureWidth);
     } catch (error) {
       if (!(error instanceof Error)) throw error;
       const formatError = error.name === "MarkdownFormatError";
@@ -347,6 +371,11 @@ window.MDManager = window.MDManager || {};
     },
     reloadExternal,
     overwriteExternal
+  });
+
+  app.interactions.setFeatureWidthCommitted((/** @type {number} */ width) => {
+    featureWidth = normalizedFeatureWidth(width);
+    rememberOpenedFile();
   });
 
   window.addEventListener("focus", () => { void checkExternalChange(); });

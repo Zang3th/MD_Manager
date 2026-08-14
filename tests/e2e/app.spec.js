@@ -399,7 +399,7 @@ test("symbols, progress values, and the clock stay optically aligned in their co
   });
   expect(rasterContract.visualizations.every(className => className === "archive-timeline-line")).toBe(true);
   expect(rasterContract.visualizations.length).toBeLessThanOrEqual(1);
-  expect(rasterContract.definitions.length).toBe(25);
+  expect(rasterContract.definitions.length).toBe(26);
   for (const definition of rasterContract.definitions) {
     const [x, y, width, height] = definition.ink;
     expect(definition.ink.every(Number.isFinite), `${definition.id} has finite source geometry`).toBe(true);
@@ -2964,6 +2964,170 @@ test("statistics can close and reopen in Workspace and are unavailable in Archiv
   await page.keyboard.press("a");
   await expect(stats).toBeHidden();
   await expect(page.locator("#toggleStats")).toBeHidden();
+});
+
+test("Workspace zoom changes only feature-card width and stays available across view rerenders", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  const zoomFixture = fixture.replace("\n#Backlog", "\n\n## Third Feature\n### Third Task\n- [ ] pending\n\n## Fourth Feature\n### Fourth Task\n- [ ] pending\n\n## Fifth Feature\n### Fifth Task\n- [ ] pending\n\n#Backlog");
+  await openFixture(page, `${zoomFixture}\n\n#Archive\n# Archive\n\n## Archived Feature\n#Date\n- 2025-01-01\n### Done\n- [x] ~done~`);
+  const zoom = page.locator("#workspaceZoom");
+  const button = page.locator("#toggleWorkspaceZoom");
+  const sliderPanel = page.locator("#workspaceZoomSlider");
+  const slider = page.locator("#featureWidth");
+  const releases = page.locator("#content > .release");
+  const stats = page.locator("#projectStats");
+  const content = page.locator("#content");
+  const anchoredRelease = releases.nth(2);
+
+  await expect(zoom).toBeVisible();
+  await expect(button).toHaveAccessibleName("Feature card zoom: 100%");
+  await expect(button.locator("use")).toHaveAttribute("href", "#icon-zoom");
+  await expect(button).not.toHaveAttribute("data-tooltip");
+  await expect(button).toHaveCSS("border-top-width", "0px");
+  await expect(page.locator("#featureZoomValue")).toHaveText("100%");
+  await expect(releases.first()).toHaveCSS("width", "380px");
+  await expect(slider).toBeHidden();
+
+  await button.hover();
+  await expect(slider).toBeHidden();
+  await button.focus();
+  await expect(slider).toBeHidden();
+  await button.press("Enter");
+  await expect(slider).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(slider).toBeHidden();
+  await button.click();
+  await expect(slider).toBeVisible();
+  await expect(slider).toBeFocused();
+  await expect(sliderPanel).toHaveCSS("border-top-width", "0px");
+  await expect(sliderPanel.locator(".workspace-zoom-stops > span")).toHaveCount(3);
+  await expect(sliderPanel.locator(".workspace-zoom-stops")).toBeVisible();
+
+  // The thumb centre rests half a thumb width in from each track edge, so the stop marking a step
+  // has to sit there too. Laying the stops out by their own edges would offset the outer two by
+  // half a stop and the thumb would visibly miss them.
+  await sliderPanel.evaluate(node => Promise.all(node.getAnimations().map(animation => animation.finished)));
+  const stopGeometry = await page.locator(".workspace-zoom-track").evaluate(node => {
+    const trackBounds = node.getBoundingClientRect();
+    return {
+      trackWidth: trackBounds.width,
+      centers: [...node.querySelectorAll(".workspace-zoom-stops > span")].map(stop => {
+        const bounds = stop.getBoundingClientRect();
+        return bounds.left + bounds.width / 2 - trackBounds.left;
+      })
+    };
+  });
+  const thumbRadius = 8;
+  expect(stopGeometry.centers).toEqual([thumbRadius, stopGeometry.trackWidth / 2, stopGeometry.trackWidth - thumbRadius]);
+
+  await anchoredRelease.evaluate(node => {
+    const content = document.getElementById("content");
+    const featureBounds = node.getBoundingClientRect();
+    const contentBounds = content.getBoundingClientRect();
+    content.scrollLeft += featureBounds.left + featureBounds.width / 2 - (contentBounds.left + contentBounds.width / 2);
+  });
+  await settleLayout(page);
+  const anchoredCenter = await anchoredRelease.evaluate(node => {
+    const bounds = node.getBoundingClientRect();
+    return bounds.left + bounds.width / 2;
+  });
+  const viewportCenter = await content.evaluate(node => {
+    const bounds = node.getBoundingClientRect();
+    return bounds.left + bounds.width / 2;
+  });
+  expect(Math.abs(anchoredCenter - viewportCenter)).toBeLessThanOrEqual(1);
+
+  await page.evaluate(() => {
+    window.MDManager.files.remember = async (/** @type {unknown} */ _handle, /** @type {string} */ _title, /** @type {number} */ width) => { window.__rememberedFeatureWidth = width; };
+  });
+  await page.evaluate(({ featureIndex, expectedCenter }) => {
+    window.__zoomAnchorDeltas = [];
+    document.getElementById("featureWidth").addEventListener("input", () => {
+      const release = document.querySelectorAll("#content > .release")[featureIndex];
+      const deadline = performance.now() + 260;
+      const sample = (/** @type {number} */ timestamp) => {
+        const bounds = release.getBoundingClientRect();
+        window.__zoomAnchorDeltas.push(Math.abs(bounds.left + bounds.width / 2 - expectedCenter));
+        if (timestamp < deadline) requestAnimationFrame(sample);
+      };
+      requestAnimationFrame(sample);
+    }, { once: true });
+  }, { featureIndex: 2, expectedCenter: anchoredCenter });
+  await slider.press("ArrowRight");
+  await expect(page.locator("#featureZoomValue")).toHaveText("120%");
+  await expect(slider).toHaveAttribute("aria-valuetext", "120%, 460 pixels");
+  await expect(releases.first()).toHaveCSS("width", "460px");
+  await expect.poll(() => anchoredRelease.evaluate((node, expectedCenter) => {
+    const bounds = node.getBoundingClientRect();
+    return Math.abs(bounds.left + bounds.width / 2 - expectedCenter);
+  }, anchoredCenter)).toBeLessThanOrEqual(1);
+  await expect.poll(() => page.evaluate(() => window.__zoomAnchorDeltas.length)).toBeGreaterThan(3);
+  expect(await page.evaluate(() => Math.max(...window.__zoomAnchorDeltas))).toBeLessThanOrEqual(1);
+  await expect.poll(() => page.evaluate(() => window.__rememberedFeatureWidth)).toBe(460);
+  await expect(stats).toHaveCSS("width", "360px");
+  await expect(page.locator("#saveFile")).not.toHaveClass(/dirty/);
+
+  await toggleBacklogFromView(page);
+  const backlogWidth = await page.locator("#backlog").evaluate(node => node.getBoundingClientRect().width);
+  await slider.evaluate(input => {
+    const range = /** @type {HTMLInputElement} */ (input);
+    range.value = "2";
+    range.dispatchEvent(new Event("input", { bubbles: true }));
+    range.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await expect(page.locator("#featureZoomValue")).toHaveText("140%");
+  await expect(releases.first()).toHaveCSS("width", "540px");
+  await expect.poll(() => page.locator("#backlog").evaluate(node => node.getBoundingClientRect().width)).toBe(backlogWidth);
+
+  await page.keyboard.press("a");
+  await expect(zoom).toBeHidden();
+  const archiveWidth = await page.locator("#archive .archive-feature").first().evaluate(node => node.getBoundingClientRect().width).catch(() => 0);
+  await page.keyboard.press("w");
+  await expect(zoom).toBeVisible();
+  await expect(page.locator("#featureZoomValue")).toHaveText("140%");
+  await expect(releases.first()).toHaveCSS("width", "540px");
+  expect(archiveWidth).toBeLessThan(540);
+});
+
+test("Workspace zoom holds the spot under the viewport centre from any scroll position", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  const zoomFixture = `# Test Project\n\n${Array.from({ length: 12 }, (_, index) => `## Feature ${index}\n### Task ${index}\n- [ ] pending`).join("\n\n")}\n\n#Backlog\n## Later\n### Deferred Task\n- [ ] someday`;
+  await openFixture(page, zoomFixture);
+  await page.locator("#toggleWorkspaceZoom").click();
+  await expect(page.locator("#featureWidth")).toBeVisible();
+  await settleLayout(page);
+
+  // A centred card is the one position a card-centre anchor also gets right, so the offsets below
+  // park the viewport centre inside a card and in the gap between two instead.
+  for (const offset of [-190, -120, -20, 60, 190, 220]) {
+    const displacement = await page.evaluate(async shift => {
+      const content = document.getElementById("content");
+      const slider = /** @type {HTMLInputElement} */ (document.getElementById("featureWidth"));
+      slider.value = "0";
+      slider.dispatchEvent(new Event("input", { bubbles: true }));
+      await new Promise(resolve => setTimeout(resolve, 400));
+
+      const contentBounds = content.getBoundingClientRect();
+      const viewportCenter = (contentBounds.left + contentBounds.right) / 2;
+      const releases = () => /** @type {HTMLElement[]} */ ([...content.querySelectorAll(":scope > .release")]);
+      const middle = releases()[5].getBoundingClientRect();
+      content.scrollLeft += middle.left + middle.width / 2 - viewportCenter + shift;
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+      const rects = releases().map(release => release.getBoundingClientRect());
+      const covering = rects.findIndex(rect => rect.left <= viewportCenter && viewportCenter <= rect.right);
+      const index = covering < 0 ? rects.findIndex(rect => rect.left > viewportCenter) : covering;
+      const fraction = covering < 0 ? 0 : (viewportCenter - rects[index].left) / rects[index].width;
+
+      slider.value = "1";
+      slider.dispatchEvent(new Event("input", { bubbles: true }));
+      await new Promise(resolve => setTimeout(resolve, 700));
+
+      const moved = releases()[index].getBoundingClientRect();
+      return Math.abs(moved.left + fraction * moved.width - viewportCenter);
+    }, offset);
+    expect(displacement, `offset ${offset} keeps the centred spot in place`).toBeLessThanOrEqual(1);
+  }
 });
 
 test("Archive round-trips preserve open and closed Workspace panels", async ({ page }) => {

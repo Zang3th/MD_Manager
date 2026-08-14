@@ -18,6 +18,8 @@ window.MDManager = window.MDManager || {};
   let createProject = null;
   /** @type {(() => Promise<void>) | null} */
   let save = null;
+  /** @type {((width: number) => void) | null} */
+  let featureWidthCommitted = null;
   /** @type {(() => void) | null} */
   let undo = null;
   /** @type {(() => void) | null} */
@@ -47,6 +49,11 @@ window.MDManager = window.MDManager || {};
   let dragViewState = null;
   /** @type {HTMLElement | null} */
   let todoDropPreview = null;
+  let workspaceZoomPinned = false;
+  /** @type {{release: HTMLElement, fraction: number, screenX: number, startedAt: number} | null} */
+  let workspaceZoomAnchor = null;
+  /** @type {number | null} */
+  let workspaceZoomAnchorFrame = null;
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   const clipboardIndicatorTemplate = /** @type {HTMLTemplateElement} */ (document.getElementById("clipboardIndicatorTemplate"));
   const clipboardResizeObserver = new ResizeObserver(scheduleClipboardPosition);
@@ -444,6 +451,73 @@ window.MDManager = window.MDManager || {};
     document.getElementById("toggleHelp").setAttribute("aria-expanded", "false");
   }
 
+  /** @param {boolean} open */
+  function setWorkspaceZoomOpen(open) {
+    document.getElementById("workspaceZoomSlider").hidden = !open;
+    document.getElementById("toggleWorkspaceZoom").setAttribute("aria-expanded", String(open));
+  }
+
+  function closeWorkspaceZoom() {
+    workspaceZoomPinned = false;
+    setWorkspaceZoomOpen(false);
+  }
+
+  function stopWorkspaceZoomAnchor() {
+    if (workspaceZoomAnchorFrame !== null) cancelAnimationFrame(workspaceZoomAnchorFrame);
+    workspaceZoomAnchorFrame = null;
+    workspaceZoomAnchor = null;
+  }
+
+  /** @returns {boolean} */
+  function alignWorkspaceZoomAnchor() {
+    if (!workspaceZoomAnchor || !workspaceZoomAnchor.release.isConnected) return false;
+    const content = document.getElementById("content");
+    if (content.hidden) return false;
+    const bounds = workspaceZoomAnchor.release.getBoundingClientRect();
+    content.scrollLeft += bounds.left + workspaceZoomAnchor.fraction * bounds.width - workspaceZoomAnchor.screenX;
+    return true;
+  }
+
+  /** @param {number} timestamp */
+  function maintainWorkspaceZoomAnchor(timestamp) {
+    workspaceZoomAnchorFrame = null;
+    if (!workspaceZoomAnchor || !alignWorkspaceZoomAnchor()) {
+      stopWorkspaceZoomAnchor();
+      return;
+    }
+    if (timestamp - workspaceZoomAnchor.startedAt >= 500) {
+      stopWorkspaceZoomAnchor();
+      app.layout.layout();
+      return;
+    }
+    workspaceZoomAnchorFrame = requestAnimationFrame(maintainWorkspaceZoomAnchor);
+  }
+
+  function startWorkspaceZoomAnchor() {
+    stopWorkspaceZoomAnchor();
+    const content = document.getElementById("content");
+    const contentBounds = content.getBoundingClientRect();
+    const backlog = document.getElementById("backlog");
+    const visibleRight = backlog.hidden ? contentBounds.right : Math.min(contentBounds.right, backlog.getBoundingClientRect().left);
+    const viewportCenter = (contentBounds.left + visibleRight) / 2;
+    const releases = /** @type {HTMLElement[]} */ ([...content.querySelectorAll(":scope > .release")]);
+    // Only card widths change, so a card keeps whatever fraction of itself sits under the viewport
+    // centre. Holding that fraction keeps the exact spot the user is looking at in place; holding a
+    // card centre instead only lands for an exactly centred card and misses every other position by
+    // up to half the width change. The centre falling into a gap clamps onto the nearer card edge,
+    // which holds the whole gap because gaps keep their width.
+    const anchor = releases.reduce((nearest, release) => {
+      const bounds = release.getBoundingClientRect();
+      const held = Math.min(Math.max(viewportCenter, bounds.left), bounds.right);
+      const distance = Math.abs(held - viewportCenter);
+      if (nearest && nearest.distance <= distance) return nearest;
+      return { release, distance, screenX: held, fraction: bounds.width ? (held - bounds.left) / bounds.width : 0 };
+    }, /** @type {{release: HTMLElement, distance: number, screenX: number, fraction: number} | null} */ (null));
+    if (!anchor) return;
+    workspaceZoomAnchor = { release: anchor.release, fraction: anchor.fraction, screenX: anchor.screenX, startedAt: performance.now() };
+    workspaceZoomAnchorFrame = requestAnimationFrame(maintainWorkspaceZoomAnchor);
+  }
+
   /** @param {HTMLElement} selectedTab */
   function selectHelpTab(selectedTab) {
     document.querySelectorAll("#helpPopover [role='tab']").forEach(tab => {
@@ -467,6 +541,7 @@ window.MDManager = window.MDManager || {};
     document.getElementById("showWorkspaceView").setAttribute("aria-pressed", String(!archiveActive));
     document.getElementById("showArchiveView").setAttribute("aria-pressed", String(archiveActive));
     document.getElementById("addFeature").hidden = archiveActive;
+    document.getElementById("workspaceZoom").hidden = archiveActive;
     const backlogButton = document.getElementById("toggleBacklog");
     const metadataButton = document.getElementById("toggleMetadata");
     const statsButton = document.getElementById("toggleStats");
@@ -476,6 +551,7 @@ window.MDManager = window.MDManager || {};
     statsButton.hidden = archiveActive;
     archiveControlsButton.hidden = !archiveActive;
     if (archiveActive) {
+      closeWorkspaceZoom();
       const backlog = document.getElementById("backlog");
       backlog.hidden = true;
       document.body.classList.add("hide-stats");
@@ -777,6 +853,8 @@ window.MDManager = window.MDManager || {};
   /** @param {MDProject} nextProject @param {(action: MDUndoAction, options?: {render?: boolean}) => boolean} onChanged */
   function setProject(nextProject, onChanged) {
     hoveredElement = null;
+    closeWorkspaceZoom();
+    stopWorkspaceZoomAnchor();
     project = nextProject;
     changed = onChanged;
     connectSortable();
@@ -1207,6 +1285,32 @@ window.MDManager = window.MDManager || {};
   });
   document.getElementById("showWorkspaceView").addEventListener("click", () => setView("workspace"));
   document.getElementById("showArchiveView").addEventListener("click", () => setView("archive"));
+  const workspaceZoomButton = document.getElementById("toggleWorkspaceZoom");
+  const featureWidth = /** @type {HTMLInputElement} */ (document.getElementById("featureWidth"));
+  workspaceZoomButton.addEventListener("click", event => {
+    event.stopPropagation();
+    workspaceZoomPinned = !workspaceZoomPinned;
+    setWorkspaceZoomOpen(workspaceZoomPinned);
+    if (workspaceZoomPinned) featureWidth.focus();
+  });
+  featureWidth.addEventListener("input", () => {
+    const width = [380, 460, 540][Number(featureWidth.value)] || 380;
+    if (parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--feature-width")) !== width) startWorkspaceZoomAnchor();
+    app.render.featureWidth(width);
+    app.layout.layout();
+  });
+  featureWidth.addEventListener("change", () => {
+    const width = [380, 460, 540][Number(featureWidth.value)] || 380;
+    featureWidthCommitted?.(width);
+  });
+  document.getElementById("content").addEventListener("transitionend", event => {
+    if (event.propertyName !== "flex-basis" || !eventElement(event).matches("#content > .release")) return;
+    if (workspaceZoomAnchor?.release === event.target) {
+      alignWorkspaceZoomAnchor();
+      stopWorkspaceZoomAnchor();
+    }
+    app.layout.layout();
+  });
   document.addEventListener("keydown", event => {
     const shortcut = (event.ctrlKey || event.metaKey) && !event.altKey;
     const target = eventElement(event);
@@ -1218,6 +1322,7 @@ window.MDManager = window.MDManager || {};
       closeViewMenu();
       closeSaveMenu();
       closeHelp();
+      closeWorkspaceZoom();
     }
     if (shortcut && !event.shiftKey && key === "s") {
       event.preventDefault();
@@ -1315,6 +1420,7 @@ window.MDManager = window.MDManager || {};
     if (!target.closest(".view-menu")) closeViewMenu();
     if (!target.closest(".save-menu")) closeSaveMenu();
     if (!target.closest(".help-menu")) closeHelp();
+    if (!target.closest(".workspace-zoom")) closeWorkspaceZoom();
     if (!target.closest(".release,.card,.task-editor-dialog,.feature-editor-dialog")) {
       hoveredElement = null;
       if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
@@ -1337,6 +1443,8 @@ window.MDManager = window.MDManager || {};
     setOpenFile(callback) { openFile = callback; },
     /** @param {() => Promise<void>} callback */
     setCreateProject(callback) { createProject = callback; },
+    /** @param {(width: number) => void} callback */
+    setFeatureWidthCommitted(callback) { featureWidthCommitted = callback; },
     /** @param {{save: () => Promise<void>, undo: () => void, redo: () => void, reloadExternal: () => Promise<boolean>, overwriteExternal: () => Promise<boolean>}} actions */
     setUndoSystemActions(actions) {
       save = actions.save;

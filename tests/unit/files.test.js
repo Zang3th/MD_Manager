@@ -127,3 +127,18 @@ test("recent entries are sorted, deduplicated, limited, and removable", async ()
   await files.forget(newestId);
   assert.equal(records.has(newestId), false);
 });
+
+test("recent entries persist the last valid feature-card width per file", async () => {
+  const { files, records } = loadFiles();
+  const handle = { name: "Project.md", async isSameEntry(/** @type {{name: string}} */ other) { return other.name === this.name; } };
+
+  const first = await files.remember(handle, "Project", 460);
+  assert.equal(first.featureWidth, 460);
+  const updated = await files.remember(handle, "Project", 540);
+  assert.equal(updated.id, first.id);
+  assert.equal(updated.featureWidth, 540);
+  assert.equal(records.size, 1);
+
+  await files.remember(handle, "Project", 999);
+  assert.equal((await files.recent())[0].featureWidth, 540);
+});

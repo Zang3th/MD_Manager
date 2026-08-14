@@ -1,60 +1,5 @@
 # MD_Manager
 
-## Dateisystem
-
-#Version
-- 0.4.0
-
-#Date
-- 03.08.2026
-
-### Undo-System
-
-- [x] ~Ein richtiges, vollständiges Undo-System integrieren~
-- [x] ~Aktionsbasierte, reversible Domain-Transaktionen~
-- [x] ~Korrektes Verwerfen von Redo-Zweigen~
-- [x] ~Wiederherstellung von Ansichten~
-
-### Externe Dateiänderungen
-
-- [x] ~Detection~
-- [x] ~Reload~
-- [x] ~Overwrite~
-
-### Vorlagen
-
-- [x] ~"Create File"-Button auf der Startseite~
-- [x] ~Lokale Templates für Tasks anbieten~
-
-## Plattformunabhängigkeit
-
-#Version
-- 0.5.0
-
-#Date
-- 03.08.2026
-
-### Vereinheitlichung
-
-- [x] ~Plattformabhängige Stellen rausarbeiten und vereinheitlichen~
-- [x] ~Lokale Monospace-Schrift ergänzen~
-- [x] ~Normalisierung von Controls, Fokus, Selektion und Dialogen~
-- [x] ~Stabilisierung von Scrollbars und Layoutmessungen~
-
-### Tests
-
-- [x] ~Windows-/Linux-/macOS-Testmatrix inklusive Geometrie- und Screenshottests~
-
-### Symbole
-
-- [x] ~Deterministische, rasterbasierte Symbole definieren~
-- [x] ~Symbole lokal ablegen und Optik finalisieren~
-
-### Logo
-
-- [x] ~Neues Logo erstellen~
-- [x] ~Überall einpflegen~
-
 ## Polishing
 
 #Version
@@ -173,17 +118,19 @@
 - [x] ~Linien treffen manchmal nicht zentral den Dot auf der Timeline~
 - [x] ~Linien haben weiterhin unter bestimmten Umständen verschiedene Farben/Dicke~
 - [x] ~Snake-Modus in der Darstellung nach Datum wieder abklemmen (zu buggy)~
+- [ ] Umgang mit extrem großen Zeiträumen finden
 
 ### Zoom
 
 #Info
-Feature-Karten (und alles was daran hängt) können breiter gemacht werden.
+Feature-Karten (und alles was daran/darin hängt) können breiter gemacht werden.
 Stats und Backlog bleiben davon unberührt.
 
-- [ ] Lupensymbol integrieren => aktiviert Slider
-- [ ] Aktuelle Einstellung ist der Default
-- [ ] Zwei Vergrößerungen möglich (fließender Übergang)
-- [ ] Wird sich für die geöffnete Datei als neuer Default gemerkt
+- [x] ~Zoomsymbol mit %-Angabe unten rechts integrieren~
+- [x] ~Bei Click aktiviert dieses einen Slider~
+- [x] ~Aktuelle Einstellung (380) ist der Default~
+- [x] ~Zwei Vergrößerungen möglich (460/540) => fließender Übergang, direktes Rendering~
+- [x] ~Wird sich für die geöffnete Datei persistent als neuer Default gemerkt~
 
 ### Suche
 
@@ -563,3 +510,58 @@ Stats und Backlog bleiben davon unberührt.
 
 - [x] ~Im Edit-Dialog ergänzen~
 - [x] ~Quick-Reference an die neuen Features anpassen~
+
+## Dateisystem
+
+#Version
+- 0.4.0
+
+#Date
+- 03.08.2026
+
+### Undo-System
+
+- [x] ~Ein richtiges, vollständiges Undo-System integrieren~
+- [x] ~Aktionsbasierte, reversible Domain-Transaktionen~
+- [x] ~Korrektes Verwerfen von Redo-Zweigen~
+- [x] ~Wiederherstellung von Ansichten~
+
+### Externe Dateiänderungen
+
+- [x] ~Detection~
+- [x] ~Reload~
+- [x] ~Overwrite~
+
+### Vorlagen
+
+- [x] ~"Create File"-Button auf der Startseite~
+- [x] ~Lokale Templates für Tasks anbieten~
+
+## Plattformunabhängigkeit
+
+#Version
+- 0.5.0
+
+#Date
+- 03.08.2026
+
+### Vereinheitlichung
+
+- [x] ~Plattformabhängige Stellen rausarbeiten und vereinheitlichen~
+- [x] ~Lokale Monospace-Schrift ergänzen~
+- [x] ~Normalisierung von Controls, Fokus, Selektion und Dialogen~
+- [x] ~Stabilisierung von Scrollbars und Layoutmessungen~
+
+### Tests
+
+- [x] ~Windows-/Linux-/macOS-Testmatrix inklusive Geometrie- und Screenshottests~
+
+### Symbole
+
+- [x] ~Deterministische, rasterbasierte Symbole definieren~
+- [x] ~Symbole lokal ablegen und Optik finalisieren~
+
+### Logo
+
+- [x] ~Neues Logo erstellen~
+- [x] ~Überall einpflegen~

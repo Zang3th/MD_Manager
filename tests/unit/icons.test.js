@@ -31,8 +31,8 @@ test("local SVG files exactly match every inline icon symbol", () => {
     return iconNames.get(sourceName) || sourceName;
   }).sort();
 
-  assert.equal(symbols.size, 25);
-  assert.equal(files.length, 25);
+  assert.equal(symbols.size, 26);
+  assert.equal(files.length, 26);
   assert.deepEqual(mappedNames, Array.from(symbols.keys()).sort());
 
   for (const entry of files) {

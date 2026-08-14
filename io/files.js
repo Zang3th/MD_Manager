@@ -2,6 +2,8 @@ window.MDManager = window.MDManager || {};
 
 (function (app) {
   let writeQueue = Promise.resolve();
+  /** @type {Promise<unknown>} */
+  let recentWriteQueue = Promise.resolve();
 
   /** @param {{lastModified?: number, size?: number}} file */
   function fileStamp(file) {
@@ -30,8 +32,8 @@ window.MDManager = window.MDManager || {};
     return /** @type {MDRecentFile[]} */ (entries).sort((left, right) => right.openedAt - left.openedAt).slice(0, 5);
   }
 
-  /** @param {MDFileHandle} handle @param {string} [projectTitle] */
-  async function remember(handle, projectTitle) {
+  /** @param {MDFileHandle} handle @param {string} [projectTitle] @param {number} [featureWidth] @returns {Promise<MDRecentFile>} */
+  async function rememberRecord(handle, projectTitle, featureWidth) {
     const entries = await recent();
     let existing = null;
     for (const entry of entries) {
@@ -40,13 +42,15 @@ window.MDManager = window.MDManager || {};
         break;
       }
     }
-    const record = {
+    const selectedFeatureWidth = [380, 460, 540].includes(featureWidth || 0) ? featureWidth : existing?.featureWidth;
+    const record = /** @type {MDRecentFile} */ ({
       id: existing?.id || `${Date.now()}-${Math.random()}`,
       name: handle.name,
       projectTitle: projectTitle || existing?.projectTitle || "",
       openedAt: Date.now(),
-      handle
-    };
+      handle,
+      ...(selectedFeatureWidth ? { featureWidth: selectedFeatureWidth } : {})
+    });
     const database = await openRecentDatabase();
     await new Promise((resolve, reject) => {
       const transaction = database.transaction("recentFiles", "readwrite");
@@ -59,6 +63,14 @@ window.MDManager = window.MDManager || {};
       transaction.onerror = () => reject(transaction.error);
     });
     database.close();
+    return record;
+  }
+
+  /** @param {MDFileHandle} handle @param {string} [projectTitle] @param {number} [featureWidth] @returns {Promise<MDRecentFile>} */
+  function remember(handle, projectTitle, featureWidth) {
+    const operation = recentWriteQueue.catch(() => {}).then(() => rememberRecord(handle, projectTitle, featureWidth));
+    recentWriteQueue = operation.catch(() => {});
+    return operation;
   }
 
   /** @param {string} id */

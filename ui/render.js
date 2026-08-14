@@ -9,7 +9,24 @@ window.MDManager = window.MDManager || {};
   const unarchiveIcon = '<svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-undo"></use></svg>';
   const dotsIcon = '<svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-dots"></use></svg>';
   const pinIcon = '<svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-pin"></use></svg>';
+  const featureWidths = [380, 460, 540];
   let taskContentCache = new WeakMap();
+
+  /** @param {number} width @returns {number} */
+  function setFeatureWidth(width) {
+    const index = featureWidths.indexOf(width);
+    const selectedIndex = index < 0 ? 0 : index;
+    const selectedWidth = featureWidths[selectedIndex];
+    const percentage = 100 + selectedIndex * 20;
+    const slider = /** @type {HTMLInputElement} */ (document.getElementById("featureWidth"));
+    document.documentElement.style.setProperty("--feature-width", `${selectedWidth}px`);
+    slider.value = String(selectedIndex);
+    slider.style.setProperty("--zoom-progress", `${selectedIndex * 50}%`);
+    slider.setAttribute("aria-valuetext", `${percentage}%, ${selectedWidth} pixels`);
+    document.getElementById("featureZoomValue").textContent = `${percentage}%`;
+    document.getElementById("toggleWorkspaceZoom").setAttribute("aria-label", `Feature card zoom: ${percentage}%`);
+    return selectedWidth;
+  }
 
   /** @param {string} value */
   function escapeHtml(value) {
@@ -357,10 +374,11 @@ window.MDManager = window.MDManager || {};
     return `<div class="stats-header"><span class="stats-title">Statistics</span><button class="stats-close" type="button" aria-label="Close statistics" data-tooltip="Close statistics">${deleteIcon}</button></div><table><thead><tr><th></th><th class="archive-stat" scope="col">Archive</th><th class="done" scope="col">Done</th><th class="active" scope="col">Active</th><th class="open" scope="col">Open</th><th class="backlog-stat" scope="col">Backlog</th></tr></thead><tbody>${row("Features", counts.features)}${row("Tasks", counts.tasks)}${row("Todos", counts.entries)}</tbody></table>`;
   }
 
-  /** @param {MDProject} project @param {MDViewState | undefined} viewState @param {string} fileName */
-  function render(project, viewState, fileName) {
+  /** @param {MDProject} project @param {MDViewState | undefined} viewState @param {string} fileName @param {number} [featureWidth] */
+  function render(project, viewState, fileName, featureWidth = 380) {
     taskContentCache = new WeakMap();
     app.layout.reset();
+    setFeatureWidth(featureWidth);
     document.body.classList.remove("start-view");
     document.getElementById("viewerControls").hidden = false;
     document.getElementById("undoSystemControls").hidden = false;
@@ -398,6 +416,7 @@ window.MDManager = window.MDManager || {};
       </section>`;
     }).join("");
     const archiveActive = viewState?.view === "archive";
+    document.getElementById("workspaceZoom").hidden = archiveActive;
     document.body.classList.toggle("archive-view-active", archiveActive);
     document.getElementById("showWorkspaceView").setAttribute("aria-pressed", String(!archiveActive));
     document.getElementById("showArchiveView").setAttribute("aria-pressed", String(archiveActive));
@@ -483,6 +502,7 @@ window.MDManager = window.MDManager || {};
     document.getElementById("appVersion").hidden = false;
     document.getElementById("appClock").hidden = true;
     document.getElementById("projectStats").hidden = true;
+    document.getElementById("workspaceZoom").hidden = true;
     document.body.classList.remove("archive-view-active");
     document.getElementById("showWorkspaceView").setAttribute("aria-pressed", "true");
     document.getElementById("showArchiveView").setAttribute("aria-pressed", "false");
@@ -515,6 +535,7 @@ window.MDManager = window.MDManager || {};
     archiveTimeline: updateArchiveTimeline,
     start: showStart,
     saveError: showSaveError,
+    featureWidth: setFeatureWidth,
     updateTodo,
     equalizeReleaseHeaders: app.layout.equalizeReleaseHeaders,
     layout: app.layout.layout,

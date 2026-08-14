@@ -124,3 +124,60 @@ test("recent-list loading failures keep the empty state and use an error notific
   await expect(page.locator("#openFile")).toBeDisabled();
   await expect(page.locator("#newProject")).toBeDisabled();
 });
+
+test("feature-card zoom is restored from the matching recent file after reload", async ({ page }) => {
+  await page.addInitScript(() => {
+    const markdown = "# Project\n\n## Feature\n### Task\n- [ ] Todo";
+    const handle = {
+      name: "Project.md",
+      requestPermission: async () => "granted",
+      getFile: async () => ({ text: async () => markdown, lastModified: 1, size: markdown.length }),
+      isSameEntry: async (/** @type {unknown} */ other) => other === handle
+    };
+    let record = { id: "project", name: handle.name, projectTitle: "Project", openedAt: 1, featureWidth: Number(sessionStorage.getItem("featureWidth")) || 540, handle };
+    /** @type {any} */
+    const database = {
+      close() {},
+      transaction() {
+        /** @type {any} */
+        const transaction = {};
+        transaction.objectStore = () => ({
+          getAll() {
+            /** @type {any} */
+            const request = {};
+            queueMicrotask(() => { request.result = [record]; request.onsuccess(); });
+            return request;
+          },
+          put(/** @type {any} */ next) {
+            record = next;
+            sessionStorage.setItem("featureWidth", String(next.featureWidth));
+            queueMicrotask(() => transaction.oncomplete());
+          },
+          delete() {}
+        });
+        return transaction;
+      }
+    };
+    indexedDB.open = /** @type {any} */ (() => {
+      /** @type {any} */
+      const request = { result: database };
+      queueMicrotask(() => request.onsuccess());
+      return request;
+    });
+  });
+
+  await page.goto(appUrl);
+  await page.locator(".recent-file-open").click();
+  await expect(page.locator("#content > .release")).toHaveCSS("width", "540px");
+  await expect(page.locator("#featureZoomValue")).toHaveText("140%");
+  await page.locator("#toggleWorkspaceZoom").click();
+  const slider = page.locator("#featureWidth");
+  await slider.press("ArrowLeft");
+  await expect(page.locator("#content > .release")).toHaveCSS("width", "460px");
+  await expect.poll(() => page.evaluate(() => sessionStorage.getItem("featureWidth"))).toBe("460");
+
+  await page.reload();
+  await page.locator(".recent-file-open").click();
+  await expect(page.locator("#featureZoomValue")).toHaveText("120%");
+  await expect(page.locator("#content > .release")).toHaveCSS("width", "460px");
+});
