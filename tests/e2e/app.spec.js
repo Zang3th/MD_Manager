@@ -608,6 +608,13 @@ test("feature actions use a consistent overflow menu", async ({ page }) => {
   const deleteOption = options.filter({ hasText: "Delete" });
   const regularOption = options.filter({ hasText: "Edit" });
   await regularOption.hover();
+  // The hover colors transition, so the reference has to be read once that transition has settled;
+  // sampling it mid-flight pins an intermediate color the delete option never reaches. The frame
+  // hop lets the hover style apply first, otherwise there is no transition to wait for yet.
+  await regularOption.evaluate(async button => {
+    await new Promise(resolve => requestAnimationFrame(resolve));
+    await Promise.all(button.getAnimations().map(animation => animation.finished));
+  });
   const regularHover = await regularOption.evaluate(button => ({ color: getComputedStyle(button).color, background: getComputedStyle(button).backgroundColor }));
   await deleteOption.hover();
   await expect(deleteOption).toHaveCSS("color", regularHover.color);
@@ -3035,7 +3042,8 @@ test("Workspace zoom changes only feature-card width and stays available across 
     };
   });
   const thumbRadius = 8;
-  expect(stopGeometry.centers).toEqual([thumbRadius, stopGeometry.trackWidth / 2, stopGeometry.trackWidth - thumbRadius]);
+  const stopTargets = [thumbRadius, stopGeometry.trackWidth / 2, stopGeometry.trackWidth - thumbRadius];
+  stopGeometry.centers.forEach((center, index) => expect(center, `stop ${index} sits on its thumb centre`).toBeCloseTo(stopTargets[index], 1));
 
   await anchoredRelease.evaluate(node => {
     const content = document.getElementById("content");
@@ -3098,7 +3106,9 @@ test("Workspace zoom changes only feature-card width and stays available across 
   await expect(releases.first()).toHaveCSS("width", "540px");
   stopColors = await readStopColors();
   expect(stopColors.stops).toEqual([stopColors.reached, stopColors.reached, stopColors.reached]);
-  await expect.poll(() => page.locator("#backlog").evaluate(node => node.getBoundingClientRect().width)).toBe(backlogWidth);
+  // Layout widths are fractional, so the claim is that the backlog did not resize, not that two
+  // floating point measurements match bit for bit.
+  await expect.poll(() => page.locator("#backlog").evaluate(node => node.getBoundingClientRect().width)).toBeCloseTo(backlogWidth, 1);
 
   await page.keyboard.press("a");
   await expect(zoom).toBeHidden();
@@ -3174,9 +3184,11 @@ test("archive date timeline spends its axis on the clusters instead of an extrem
     return {
       lanes: new Set(cards.map(card => card.dataset.lane)).size,
       closest: Math.min(...before.slice(1).map((left, index) => left - before[index])),
+      // Half a pixel of slack: a tick sitting exactly on a break edge belongs to the axis beside it,
+      // and subpixel measurements must not decide that either way.
       ticksInsideBreak: ticks.filter(tick => {
         const bounds = tick.getBoundingClientRect();
-        return bounds.left > breakBounds.left && bounds.right < breakBounds.right;
+        return bounds.left > breakBounds.left + .5 && bounds.right < breakBounds.right - .5;
       }).length
     };
   });
@@ -3207,37 +3219,49 @@ test("archive date labels stack into rows instead of overprinting each other", a
   await settleLayout(page);
 
   const crowdedLabels = await page.locator("#archive .archive-timeline").evaluate(node => {
-    const boxes = /** @type {HTMLElement[]} */ ([...node.querySelectorAll(".archive-date-marker > span")]).map(label => ({
-      text: label.textContent || "",
-      row: Number(/** @type {HTMLElement} */ (label.parentElement).style.getPropertyValue("--marker-row")) || 0,
-      bounds: label.getBoundingClientRect()
-    }));
+    // Half a pixel of slack everywhere: these are subpixel layout measurements, and the claim is
+    // about labels sharing space, not about two floating point numbers matching exactly.
+    const slack = .5;
+    const boxes = /** @type {HTMLElement[]} */ ([...node.querySelectorAll(".archive-date-marker > span")]).map(label => {
+      const marker = /** @type {HTMLElement} */ (label.parentElement);
+      return {
+        text: label.textContent || "",
+        sub: marker.classList.contains("archive-date-marker-sub"),
+        row: Number(marker.style.getPropertyValue("--marker-row")) || 0,
+        bounds: label.getBoundingClientRect()
+      };
+    });
     /** @type {string[]} */
     const overlaps = [];
     for (let first = 0; first < boxes.length; first += 1) {
       for (let second = first + 1; second < boxes.length; second += 1) {
         const one = boxes[first].bounds;
         const other = boxes[second].bounds;
-        if (one.left < other.right && other.left < one.right && one.top < other.bottom && other.top < one.bottom) {
+        if (one.left < other.right - slack && other.left < one.right - slack && one.top < other.bottom - slack && other.top < one.bottom - slack) {
           overlaps.push(`${boxes[first].text} over ${boxes[second].text}`);
         }
       }
     }
+    // A row is only earned by a label that would have collided on the row below it. Reading that
+    // from the rendered boxes keeps the check independent of how wide the font makes a date.
+    const wasted = boxes.filter(label => label.row > 0 && !boxes.some(blocker => blocker.sub === label.sub
+      && blocker.row === label.row - 1
+      && blocker.bounds.right + 12 > label.bounds.left
+      && blocker.bounds.left < label.bounds.right + 12)).map(label => label.text);
     const timeline = node.getBoundingClientRect();
     return {
       count: boxes.length,
       overlaps,
-      escaping: boxes.filter(label => label.bounds.top < timeline.top).map(label => label.text),
-      rows: Object.fromEntries(boxes.map(label => [label.text, label.row]))
+      wasted,
+      escaping: boxes.filter(label => label.bounds.top < timeline.top - slack).map(label => label.text),
+      deepestRow: Math.max(...boxes.map(label => label.row))
     };
   });
   expect(crowdedLabels.count).toBe(14);
   expect(crowdedLabels.overlaps).toEqual([]);
   expect(crowdedLabels.escaping).toEqual([]);
-  // The five June dates are what collide; every earlier date keeps the row it always had.
-  expect(crowdedLabels.rows["23.08.24"]).toBe(0);
-  expect(crowdedLabels.rows["09.12.25"]).toBe(0);
-  expect(Math.max(...Object.values(crowdedLabels.rows))).toBeGreaterThan(0);
+  expect(crowdedLabels.wasted).toEqual([]);
+  expect(crowdedLabels.deepestRow).toBeGreaterThan(0);
 
   // Interior range endpoints label below the axis and have to clear the cards on their own side.
   const periods = ["01.06.26 - 02.06.26", "04.06.26 - 05.06.26", "07.06.26 - 08.06.26", "10.06.26 - 11.06.26"].map(period => `- ${period}`).join("\n");
@@ -3252,28 +3276,30 @@ test("archive date labels stack into rows instead of overprinting each other", a
     return { subs: subs.length, deepestLabel: Math.max(...subs.map(box => box.bottom)), highestCard: Math.min(...cards.map(box => box.top)) };
   });
   expect(below.subs).toBeGreaterThan(1);
-  expect(below.highestCard).toBeGreaterThan(below.deepestLabel);
+  expect(below.highestCard - below.deepestLabel).toBeGreaterThan(.5);
 });
 
 test("the reserved scrollbar gutter is published instead of assumed", async ({ page }) => {
-  await openFixture(page);
+  await openFixture(page, `${fixture}\n\n#Archive\n# Archive\n\n## Shipped\n#Date\n- 15.01.2024\n### Done task\n- [x] ~detail~`);
   const gutter = await page.evaluate(() => {
     const probe = document.createElement("div");
     probe.style.cssText = "position:absolute;top:-9999px;left:-9999px;width:100px;height:100px;overflow-y:auto;scrollbar-gutter:stable;visibility:hidden";
     document.body.appendChild(probe);
     const reserved = probe.offsetWidth - probe.clientWidth;
     probe.remove();
-    const archive = /** @type {HTMLElement} */ (document.getElementById("archive"));
     return {
       reserved,
-      published: getComputedStyle(document.documentElement).getPropertyValue("--scrollbar-size").trim(),
-      sideInset: getComputedStyle(archive).getPropertyValue("--archive-side-inset").trim()
+      published: getComputedStyle(document.documentElement).getPropertyValue("--scrollbar-size").trim()
     };
   });
   // The archive derives its side inset from this value, so an assumed width would move the whole
   // ruler by the difference on any platform whose thin scrollbar is not the assumed size.
   expect(gutter.published).toBe(`${gutter.reserved}px`);
-  expect(gutter.sideInset).toBe(`calc(90px - 1.5rem - ${gutter.reserved}px)`);
+  await page.keyboard.press("a");
+  await expect(page.locator("#archive")).toBeVisible();
+  await settleLayout(page);
+  const rulerInset = await page.locator("#archive .archive-timeline").evaluate(node => parseFloat(getComputedStyle(node).paddingLeft));
+  expect(rulerInset).toBeCloseTo(90 - 24 - gutter.reserved - 1, 1);
 });
 
 test("Archive round-trips preserve open and closed Workspace panels", async ({ page }) => {
