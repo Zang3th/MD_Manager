@@ -1,84 +1,5 @@
 # MD_Manager
 
-## Erstes offizielles Release
-
-#Version
-- 0.1.0
-
-#Date
-- 27.07.2026
-
-### Vereinheitlichtes Layout
-
-- [x] ~Abmessungen von Board-Karten und Seitenleisten vereinheitlichen~
-- [x] ~Abmessungen kompakter Grid-Karten und Seitenleisten vereinheitlichen~
-- [x] ~Typografie, Abstände, Steuerelemente, Dialoge und Scrollbars abstimmen~
-
-## QoL-Verbesserungen
-
-#Version
-- 0.2.0
-
-#Date
-- 28.07.2026 - 29.07.2026
-
-### Formatanpassungen
-
-- [x] ~Fließtext unter Labels parsen können~
-
-### Clock
-
-- [x] ~Clock implementieren~
-- [x] ~Liegt oben in der Mitte~
-
-### Notifications
-
-- [x] ~Notificationsystem bauen (UI ähnlich zu Neovim)~
-- [x] ~Notifications ergänzen~
-- [x] ~Sounds ergänzen~
-
-### Kopieren
-
-- [x] ~Copy/Paste im UI von Features und Tasks~
-- [x] ~Steuerung per Maus (Rechtsklick) und Tastatur (STRG + C/V)~
-- [x] ~Smooth mit UI-Feedback~
-- [x] ~Anzeige von gefülltem Zwischenspeicher~
-- [x] ~Entsprechende Notification~
-
-## Markdown besser editieren
-
-#Version
-- 0.3.0
-
-#Date
-- 30.07.2026
-
-### Markdown-Features
-
-- [x] ~Bold~
-- [x] ~Kursiv~
-- [x] ~Strikethrough~
-- [x] ~URLs~
-- [x] ~Quellcode~
-- [x] ~####~
-- [x] ~Einfach eingerückte Stichpunkte unterstützen~
-
-### Edit-Dialog
-
-- [x] ~Clunkyness verbessern~
-- [x] ~Fokus, Navigation, Tastatursteuerung verbessern~
-- [x] ~Editierfunktion ausbauen und komfortabler machen~
-- [x] ~Tags in den normalen Markdown-Body integrieren~
-
-### Tests
-
-- [x] ~Ausbau von Layout.md mit Pseudodaten und allen unterstützten Features~
-
-### Help
-
-- [x] ~Im Edit-Dialog ergänzen~
-- [x] ~Quick-Reference an die neuen Features anpassen~
-
 ## Dateisystem
 
 #Version
@@ -240,7 +161,7 @@
 
 - [x] ~#Info und #Warn werden im Markdown an die falsche Stelle geschoben~
 - [x] ~Abstände innerhalb von #Tags (oben und unten) sind nicht einheitlich~
-- [ ] Edit-Dialog im Hochkantmodus ist manchmal immer noch buggy
+- [x] ~Edit-Dialog im Hochkantmodus ist manchmal immer noch buggy~
 - [ ] Code-Review + lose Enden aufräumen
 - [ ] Tests streamlinen
 
@@ -251,6 +172,7 @@
 - [x] ~"Super-Dots" abschaffen~
 - [x] ~Linien treffen manchmal nicht zentral den Dot auf der Timeline~
 - [x] ~Linien haben weiterhin unter bestimmten Umständen verschiedene Farben/Dicke~
+- [x] ~Snake-Modus in der Darstellung nach Datum wieder abklemmen (zu buggy)~
 
 ### Zoom
 
@@ -562,3 +484,82 @@ Stats und Backlog bleiben davon unberührt.
 - [x] ~Tastaturkürzel in einer kompakten Hilfeansicht dokumentieren~
 - [x] ~Feature-Tags, Metadaten, Labels und Backlog-Syntax erklären~
 - [x] ~Ignore-Tags für Features und Aufgaben unterstützen~
+
+## Erstes offizielles Release
+
+#Version
+- 0.1.0
+
+#Date
+- 27.07.2026
+
+### Vereinheitlichtes Layout
+
+- [x] ~Abmessungen von Board-Karten und Seitenleisten vereinheitlichen~
+- [x] ~Abmessungen kompakter Grid-Karten und Seitenleisten vereinheitlichen~
+- [x] ~Typografie, Abstände, Steuerelemente, Dialoge und Scrollbars abstimmen~
+
+## QoL-Verbesserungen
+
+#Version
+- 0.2.0
+
+#Date
+- 28.07.2026 - 29.07.2026
+
+### Formatanpassungen
+
+- [x] ~Fließtext unter Labels parsen können~
+
+### Clock
+
+- [x] ~Clock implementieren~
+- [x] ~Liegt oben in der Mitte~
+
+### Notifications
+
+- [x] ~Notificationsystem bauen (UI ähnlich zu Neovim)~
+- [x] ~Notifications ergänzen~
+- [x] ~Sounds ergänzen~
+
+### Kopieren
+
+- [x] ~Copy/Paste im UI von Features und Tasks~
+- [x] ~Steuerung per Maus (Rechtsklick) und Tastatur (STRG + C/V)~
+- [x] ~Smooth mit UI-Feedback~
+- [x] ~Anzeige von gefülltem Zwischenspeicher~
+- [x] ~Entsprechende Notification~
+
+## Markdown besser editieren
+
+#Version
+- 0.3.0
+
+#Date
+- 30.07.2026
+
+### Markdown-Features
+
+- [x] ~Bold~
+- [x] ~Kursiv~
+- [x] ~Strikethrough~
+- [x] ~URLs~
+- [x] ~Quellcode~
+- [x] ~####~
+- [x] ~Einfach eingerückte Stichpunkte unterstützen~
+
+### Edit-Dialog
+
+- [x] ~Clunkyness verbessern~
+- [x] ~Fokus, Navigation, Tastatursteuerung verbessern~
+- [x] ~Editierfunktion ausbauen und komfortabler machen~
+- [x] ~Tags in den normalen Markdown-Body integrieren~
+
+### Tests
+
+- [x] ~Ausbau von Layout.md mit Pseudodaten und allen unterstützten Features~
+
+### Help
+
+- [x] ~Im Edit-Dialog ergänzen~
+- [x] ~Quick-Reference an die neuen Features anpassen~

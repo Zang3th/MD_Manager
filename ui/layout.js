@@ -8,7 +8,9 @@ window.MDManager = window.MDManager || {};
   const archiveLaneGap = 16;
   const archiveAxisGap = 46;
   const archiveRowGap = 34;
-  const archiveMaximumRows = 8;
+  // Upper bound on how far the date ruler may outgrow the room it is shown in. Beyond this the
+  // scale gives way instead, so a sparse span with one dense cluster cannot stretch without end.
+  const archiveMaximumAxisWidths = 8;
   /** @type {Record<string, {pixels: number, span: number}>} */
   const archiveRulerPitch = {
     day: { pixels: 26, span: dayMs },
@@ -156,6 +158,9 @@ window.MDManager = window.MDManager || {};
       if (!archive.hidden) applyArchiveDateLayout(timeline);
       return;
     }
+    // The date ruler carries its own content width. The version grid fills the stage instead, so a
+    // width left behind by a previous date layout has to go before the grid is measured.
+    timeline?.style.removeProperty("width");
     const periods = /** @type {HTMLElement[]} */ ([...archive.querySelectorAll(".archive-period")]);
     if (archive.hidden || !timeline || !periods.length) return;
     const style = getComputedStyle(timeline);
@@ -202,8 +207,9 @@ window.MDManager = window.MDManager || {};
   }
 
   /**
-   * Plans the wrapped date ruler. Rows are equal-duration, contiguous windows of the archived span
-   * that share one pixels-per-millisecond scale, so the ruler stays proportional across rows.
+   * Plans the date ruler. The whole archived span runs along one straight axis at a single
+   * pixels-per-millisecond scale, and a span that needs more room than the view has scrolls
+   * horizontally rather than wrapping.
    * @param {HTMLElement} timeline
    */
   function applyArchiveDateLayout(timeline) {
@@ -226,14 +232,6 @@ window.MDManager = window.MDManager || {};
     const snapUp = value => Math.ceil(value * pixelRatio) / pixelRatio;
     const cardBorder = cards.length ? parseFloat(getComputedStyle(/** @type {HTMLElement} */ (cards[0].firstElementChild)).borderLeftWidth) || 0 : 0;
     const tickWidth = ticks.length ? parseFloat(getComputedStyle(ticks[0]).width) || 0 : 0;
-    // Date labels stand above their own dot, so their footprint is measured relative to the axis the
-    // dot sits on. Only the main labels do, the subordinate ones hang below the axis.
-    const labels = markers.filter(marker => !marker.classList.contains("archive-date-marker-sub")).map(marker => {
-      const label = /** @type {HTMLElement} */ (marker.firstElementChild);
-      const dot = marker.getBoundingClientRect();
-      const bounds = label.getBoundingClientRect();
-      return { time: Number(marker.dataset.time), width: bounds.width, reach: dot.top + dot.height / 2 - bounds.top };
-    });
     // A date sits on the centre of the card border it opens, not on that border's outer edge, so the
     // guide covering the border still drops exactly out of the dot. The timeline padding is one half
     // border short of the axis inset, which keeps the outermost cards inside the padding box.
@@ -241,12 +239,13 @@ window.MDManager = window.MDManager || {};
     const leftInset = (parseFloat(style.paddingLeft) || 0) + guideInset;
     const rightInset = (parseFloat(style.paddingRight) || 0) + guideInset;
     const axisTop = parseFloat(style.paddingTop) || 0;
-    const timelineWidth = timeline.clientWidth;
-    const axisWidth = Math.max(1, timelineWidth - leftInset - rightInset);
+    // The ruler writes its own width onto the timeline, so the room it has to fill is read from the
+    // stage around it. The stage keeps that width whether or not the ruler overflows it.
+    const stageWidth = (/** @type {HTMLElement | null} */ (timeline.parentElement))?.clientWidth || timeline.clientWidth;
+    const viewWidth = Math.max(1, stageWidth - leftInset - rightInset);
     const totalSpan = Math.max(1, toTime - fromTime);
     const cardTimes = cards.map(card => ({ start: Number(card.dataset.start), end: Number(card.dataset.end) }));
-    const longestRange = cardTimes.reduce((longest, times) => Math.max(longest, times.end - times.start), 0);
-    const minimumWidth = snap(Math.min(archiveMinimumCardWidth, axisWidth));
+    const minimumWidth = snap(Math.min(archiveMinimumCardWidth, viewWidth));
 
     // Distinct point dates need a card width plus a lane gap between them, otherwise their columns
     // interleave into one deep pile that no longer says which card belongs to which date. Ranges are
@@ -260,67 +259,55 @@ window.MDManager = window.MDManager || {};
 
     const pitch = archiveRulerPitch[timeline.dataset.scale || "day"] || archiveRulerPitch.day;
     const densityScale = closest ? (minimumWidth + archiveLaneGap) / closest : 0;
-    let scale = Math.max(axisWidth / totalSpan, pitch.pixels / pitch.span, densityScale);
-    scale = Math.min(scale, archiveMaximumRows * axisWidth / totalSpan);
-    if (longestRange > 0) scale = Math.min(scale, axisWidth / longestRange);
-    let rowCount = Math.max(1, Math.min(archiveMaximumRows, Math.ceil(totalSpan * scale / axisWidth - 1e-9)));
-    let rowSpan = totalSpan / rowCount;
+    let scale = Math.max(viewWidth / totalSpan, pitch.pixels / pitch.span, densityScale);
+    scale = Math.min(scale, archiveMaximumAxisWidths * viewWidth / totalSpan);
+    // The axis carries the whole span in one run, so it is as wide as the scale asks for and never
+    // narrower than the view. Everything past the view edge is reached by scrolling.
+    const axisWidth = snap(Math.max(viewWidth, totalSpan * scale));
     /** @param {number} time */
-    const rowOf = time => Math.max(0, Math.min(rowCount - 1, Math.floor((time - fromTime) / rowSpan)));
-    while (rowCount > 1 && cardTimes.some(times => rowOf(times.start) !== rowOf(times.end))) {
-      rowCount -= 1;
-      rowSpan = totalSpan / rowCount;
-    }
-    /** @param {number} time @param {number} row */
-    const xOf = (time, row) => {
-      const offset = Math.max(0, Math.min(1, (time - fromTime - row * rowSpan) / rowSpan));
-      return snap(leftInset + (row % 2 === 0 ? offset : 1 - offset) * axisWidth);
-    };
+    const xOf = time => snap(leftInset + Math.max(0, Math.min(1, (time - fromTime) / totalSpan)) * axisWidth);
 
     const placements = cards.map((card, index) => {
       const { start, end } = cardTimes[index];
-      const row = rowOf(start);
-      const startX = xOf(start, row);
-      const endX = xOf(end, row);
-      return { card, row, startX, endX, span: Math.abs(endX - startX) + cardBorder };
+      const startX = xOf(start);
+      const endX = xOf(end);
+      return { card, startX, endX, span: endX - startX + cardBorder };
     });
 
-    // A date at the closing end of a row has no room left to run along the row, so its card turns
-    // back into the row and meets the next column head on. Both then have to share the gap between
-    // their dates, which is the one case where the card minimum gives way instead of the columns
-    // piling up on top of each other. Half the minimum is the floor; below that piling up reads
-    // better than a sliver of a card.
+    // A date at the closing end of the axis has no room left to run along it, so its card turns back
+    // and meets the previous column head on. Both then have to share the gap between their dates,
+    // which is the one case where the card minimum gives way instead of the columns piling up on top
+    // of each other. Half the minimum is the floor; below that piling up reads better than a sliver
+    // of a card.
+    const closing = leftInset + axisWidth + guideInset;
+    const reach = placements.map(item => Math.min(closing - item.startX, closing - item.endX));
     let cardMinimum = minimumWidth;
-    for (let row = 0; row < rowCount; row += 1) {
-      const closing = row % 2 === 0 ? leftInset + axisWidth + guideInset : leftInset - guideInset;
-      const inward = row % 2 === 0 ? -1 : 1;
-      const rowPlacements = placements.filter(item => item.row === row);
-      const reach = rowPlacements.map(item => Math.min((item.startX - closing) * inward, (item.endX - closing) * inward));
-      if (!rowPlacements.some((item, index) => item.span < minimumWidth && reach[index] < minimumWidth)) continue;
-      const room = rowPlacements.reduce((closest, item, index) => {
+    if (placements.some((item, index) => item.span < minimumWidth && reach[index] < minimumWidth)) {
+      cardMinimum = placements.reduce((closest, item, index) => {
         if (reach[index] < minimumWidth) return closest;
         return Math.min(closest, item.span < minimumWidth ? (reach[index] - archiveLaneGap) / 2 : reach[index] - archiveLaneGap);
-      }, Number.POSITIVE_INFINITY);
-      cardMinimum = Math.min(cardMinimum, room);
+      }, cardMinimum);
     }
     cardMinimum = snap(Math.max(minimumWidth / 2, cardMinimum));
 
-    const geometry = placements.map(({ card, row, startX, endX, span }) => {
+    const geometry = placements.map(({ card, startX, endX, span }) => {
       const width = Math.max(cardMinimum, span);
-      const anchored = row % 2 === 0 ? Math.min(startX, endX) - guideInset : Math.max(startX, endX) + guideInset - width;
-      const left = Math.max(leftInset - guideInset, Math.min(anchored, leftInset + axisWidth + guideInset - width));
-      return { card, row, startX, endX, left, right: left + width, width, lane: 0, top: 0, height: 0 };
+      const left = Math.max(leftInset - guideInset, Math.min(startX - guideInset, closing - width));
+      return { card, startX, endX, left, right: left + width, width, lane: 0, top: 0, height: 0 };
     });
+
+    // Written before the heights are read, so the one measured box that depends on the ruler width,
+    // the unmatched block, is measured against the width it will actually have.
+    timeline.style.width = `${leftInset + axisWidth + rightInset}px`;
 
     for (const item of geometry) {
       item.card.style.left = `${item.left}px`;
       item.card.style.width = `${item.width}px`;
     }
 
-    /** @type {number[][]} */
-    const laneRights = Array.from({ length: rowCount }, () => []);
-    for (const item of [...geometry].sort((left, right) => left.row - right.row || left.left - right.left || left.right - right.right)) {
-      const lanes = laneRights[item.row];
+    /** @type {number[]} */
+    const lanes = [];
+    for (const item of [...geometry].sort((left, right) => left.left - right.left || left.right - right.right)) {
       let lane = lanes.findIndex(edge => edge + archiveLaneGap <= item.left);
       if (lane < 0) lane = lanes.length;
       lanes[lane] = item.right;
@@ -335,54 +322,26 @@ window.MDManager = window.MDManager || {};
 
     geometry.forEach((item, index) => { item.height = cardHeights[index]; });
 
+    // Rounding up keeps a reserved gap a gap instead of shaving half a pixel off it.
+    const axisY = snapUp(axisTop);
     // A card only clears the cards it actually overlaps horizontally, so expanding one stack never
     // reserves space under an unrelated date. Lanes ascend, so every lower lane is already placed.
-    /** @type {{left: number, right: number, reach: number}[][]} */
-    const rowLabels = Array.from({ length: rowCount }, () => []);
-    for (const label of labels) {
-      const row = rowOf(label.time);
-      const x = xOf(label.time, row);
-      rowLabels[row].push({ left: x - label.width / 2, right: x + label.width / 2, reach: label.reach });
-    }
-
-    /** @type {number[]} */
-    const rowAxis = [];
-    /** @type {{left: number, right: number, bottom: number}[]} */
-    let previousRow = [];
-    let cursor = axisTop;
-    for (let row = 0; row < rowCount; row += 1) {
-      // Where the timeline turns back under a filled row, the labels of the new row need room above
-      // the axis. They only need it from the cards standing over them, so a row that turns back into
-      // free space keeps the plain row gap.
-      let clearance = cursor;
-      for (const label of rowLabels[row]) {
-        for (const card of previousRow) {
-          if (card.right <= label.left || card.left >= label.right) continue;
-          clearance = Math.max(clearance, card.bottom + archiveLaneGap + label.reach);
+    const stacked = [...geometry].sort((left, right) => left.lane - right.lane || left.left - right.left);
+    let cursor = axisY + archiveAxisGap;
+    for (const item of stacked) {
+      let top = axisY + archiveAxisGap;
+      for (const placed of stacked) {
+        if (placed.lane >= item.lane) break;
+        if (placed.left < item.right + archiveLaneGap && item.left < placed.right + archiveLaneGap) {
+          top = Math.max(top, placed.top + placed.height + archiveLaneGap);
         }
       }
-      // Rounding up keeps a reserved gap a gap instead of shaving half a pixel off it.
-      const axisY = snapUp(clearance);
-      rowAxis[row] = axisY;
-      const rowItems = geometry.filter(item => item.row === row).sort((left, right) => left.lane - right.lane || left.left - right.left);
-      let bottom = axisY + archiveAxisGap;
-      for (const item of rowItems) {
-        let top = axisY + archiveAxisGap;
-        for (const placed of rowItems) {
-          if (placed.lane >= item.lane) break;
-          if (placed.left < item.right + archiveLaneGap && item.left < placed.right + archiveLaneGap) {
-            top = Math.max(top, placed.top + placed.height + archiveLaneGap);
-          }
-        }
-        item.top = snap(top);
-        bottom = Math.max(bottom, item.top + item.height);
-      }
-      previousRow = rowItems.map(item => ({ left: item.left, right: item.right, bottom: item.top + item.height }));
-      cursor = bottom + archiveRowGap;
+      item.top = snap(top);
+      cursor = Math.max(cursor, item.top + item.height);
     }
+    cursor += archiveRowGap;
 
     geometry.forEach(item => {
-      item.card.dataset.row = String(item.row);
       item.card.dataset.lane = String(item.lane);
       item.card.style.top = `${item.top}px`;
     });
@@ -391,19 +350,17 @@ window.MDManager = window.MDManager || {};
     // A half pixel centre offset would smear every tick across two device pixels, and it would smear
     // each of them by a different amount.
     for (const tick of ticks) {
-      const row = rowOf(Number(tick.dataset.time));
-      tick.style.left = `${snap(xOf(Number(tick.dataset.time), row) - tickWidth / 2)}px`;
-      tick.style.top = `${rowAxis[row]}px`;
+      tick.style.left = `${snap(xOf(Number(tick.dataset.time)) - tickWidth / 2)}px`;
+      tick.style.top = `${axisY}px`;
     }
     for (const marker of markers) {
-      const row = rowOf(Number(marker.dataset.time));
-      marker.style.left = `${xOf(Number(marker.dataset.time), row)}px`;
-      marker.style.top = `${rowAxis[row]}px`;
+      marker.style.left = `${xOf(Number(marker.dataset.time))}px`;
+      marker.style.top = `${axisY}px`;
     }
 
     // Guides that share a column would stack their strokes and read darker than a single one, so only
     // the deepest of each column is drawn. It covers every shorter one exactly.
-    /** @type {Map<string, {guide: SVGPathElement, x: number, row: number, bottom: number}>} */
+    /** @type {Map<string, {guide: SVGPathElement, bottom: number}>} */
     const columns = new Map();
     for (const guide of guides) {
       const item = geometry[Number(guide.dataset.entry)];
@@ -413,34 +370,22 @@ window.MDManager = window.MDManager || {};
       }
       const subordinate = guide.classList.contains("archive-date-guide-sub");
       const anchorX = guide.classList.contains("archive-date-guide-end") ? item.endX
-        : subordinate ? xOf(Number(guide.dataset.time), item.row)
+        : subordinate ? xOf(Number(guide.dataset.time))
           : item.startX;
       const x = snap(Math.min(Math.max(anchorX, item.left + guideInset), item.right - guideInset));
       const bottom = item.top + (subordinate ? 2 : 10);
-      const key = `${subordinate ? "sub" : "main"}:${item.row}:${Math.round(x * pixelRatio)}`;
+      const key = `${subordinate ? "sub" : "main"}:${Math.round(x * pixelRatio)}`;
       const current = columns.get(key);
       if (current && current.bottom >= bottom) {
         guide.removeAttribute("d");
         continue;
       }
       if (current) current.guide.removeAttribute("d");
-      columns.set(key, { guide, x, row: item.row, bottom });
-      guide.setAttribute("d", `M ${x} ${rowAxis[item.row]} L ${x} ${bottom}`);
+      columns.set(key, { guide, bottom });
+      guide.setAttribute("d", `M ${x} ${axisY} L ${x} ${bottom}`);
     }
 
-    let data = "";
-    for (let row = 0; row < rowCount; row += 1) {
-      const forward = row % 2 === 0;
-      const entry = forward ? leftInset : leftInset + axisWidth;
-      const exit = forward ? leftInset + axisWidth : leftInset;
-      if (row === 0) data = `M ${entry} ${rowAxis[row]}`;
-      data += ` L ${exit} ${rowAxis[row]}`;
-      if (row + 1 >= rowCount) continue;
-      const edge = forward ? timelineWidth - archiveTurnInset : archiveTurnInset;
-      const turn = exit + (edge - exit) * archiveTurnHandleScale;
-      data += ` C ${turn} ${rowAxis[row]}, ${turn} ${rowAxis[row + 1]}, ${exit} ${rowAxis[row + 1]}`;
-    }
-    axis.setAttribute("d", data);
+    axis.setAttribute("d", `M ${leftInset} ${axisY} L ${leftInset + axisWidth} ${axisY}`);
 
     if (unmatched) unmatched.style.top = `${snapUp(cursor)}px`;
     const height = Math.max(cursor + (unmatched ? unmatchedHeight + 28 : 0), axisTop + 120);

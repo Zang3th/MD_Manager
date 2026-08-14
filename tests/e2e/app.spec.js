@@ -1259,6 +1259,92 @@ test("portrait task editor keeps the textarea and highlight wrapping widths alig
   expect(widths[0]).toBe(widths[1]);
 });
 
+test("portrait editors keep highlighted inline code aligned with the plain textarea text", async ({ page }) => {
+  const sample = "- [ ] Lokal im Entity zwischenspeichern bis `Freigeben` und `Abschliessen` gedrueckt wird\n- [ ] Danach `resolveTarget()` sowie `validate()` und `commit()` in dieser Reihenfolge pruefen\n- [ ] Zum Schluss `flush()` aufrufen damit der `cache` sauber geleert wird und nichts bleibt";
+  await page.setViewportSize({ width: 1080, height: 1920 });
+  await openFixture(page);
+  await page.evaluate(async () => { await document.fonts.ready; });
+
+  /** @param {string} stackSelector @param {string} value */
+  const drift = (stackSelector, value) => page.evaluate(([selector, text]) => {
+    const stack = /** @type {HTMLElement} */ (document.querySelector(selector));
+    const textarea = /** @type {HTMLTextAreaElement} */ (stack.querySelector("textarea"));
+    const highlight = /** @type {HTMLElement} */ (stack.querySelector(".markdown-highlight"));
+    textarea.value = text;
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+
+    // Reference layer: the same text without highlight spans, in an identically styled box.
+    const plain = document.createElement("pre");
+    plain.className = highlight.className;
+    plain.style.visibility = "hidden";
+    plain.textContent = text;
+    stack.appendChild(plain);
+
+    /** @param {HTMLElement} root */
+    const positions = root => {
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      const origin = root.getBoundingClientRect();
+      const range = document.createRange();
+      /** @type {{x: number, y: number}[]} */
+      const list = [];
+      let offset = 0;
+      let node;
+      while ((node = walker.nextNode())) {
+        const characters = node.nodeValue || "";
+        for (let index = 0; index < characters.length; index += 1) {
+          range.setStart(node, index);
+          range.setEnd(node, index + 1);
+          const rect = range.getBoundingClientRect();
+          list[offset + index] = { x: rect.left - origin.left, y: rect.top - origin.top };
+        }
+        offset += characters.length;
+      }
+      return list;
+    };
+
+    const highlighted = positions(highlight);
+    const reference = positions(plain);
+    let maxX = 0;
+    let maxY = 0;
+    for (let index = 0; index < reference.length; index += 1) {
+      const expected = reference[index];
+      const actual = highlighted[index];
+      if (!expected || !actual) continue;
+      maxX = Math.max(maxX, Math.abs(expected.x - actual.x));
+      maxY = Math.max(maxY, Math.abs(expected.y - actual.y));
+    }
+    const result = {
+      textMatches: highlight.textContent === text,
+      maxX,
+      maxY,
+      sameHeight: textarea.scrollHeight === highlight.scrollHeight
+    };
+    plain.remove();
+    return result;
+  }, /** @type {[string, string]} */ ([stackSelector, value]));
+
+  const task = page.locator(".card").first();
+  await task.locator(".card-header").hover();
+  await task.locator('[data-edit="task"]').click();
+  await expect(page.locator("#taskEditor")).toBeVisible();
+  const taskDrift = await drift("#taskEditor .markdown-editor-stack", sample);
+  expect(taskDrift.textMatches).toBe(true);
+  expect(taskDrift.sameHeight).toBe(true);
+  expect(taskDrift.maxX).toBeLessThan(0.5);
+  expect(taskDrift.maxY).toBeLessThan(0.5);
+  await page.locator("#closeTaskEditor").click();
+
+  const feature = page.locator(".release").first();
+  await openFeatureActions(feature);
+  await feature.locator('[data-edit="feature"]').click();
+  await expect(page.locator("#featureEditor")).toBeVisible();
+  const featureDrift = await drift("#featureEditor .markdown-editor-stack", sample);
+  expect(featureDrift.textMatches).toBe(true);
+  expect(featureDrift.sameHeight).toBe(true);
+  expect(featureDrift.maxX).toBeLessThan(0.5);
+  expect(featureDrift.maxY).toBeLessThan(0.5);
+});
+
 test("task and feature editors share the requested responsive width", async ({ page }) => {
   await openFixture(page);
 
@@ -2370,9 +2456,9 @@ function measureVersionConnectors(archive) {
   });
 }
 
-test("Archive date labels keep clear of the cards a timeline turn puts above them", async ({ page }) => {
+test("Archive date labels stand clear above the single date axis", async ({ page }) => {
   const archive = await openConnectorArchive(page);
-  await expect.poll(() => archive.locator(".archive-date-timeline").evaluate(node => new Set([...node.querySelectorAll(".archive-date-card")].map(card => /** @type {HTMLElement} */ (card).dataset.row)).size)).toBeGreaterThan(1);
+  await expect.poll(() => archive.locator(".archive-date-axis-line").evaluate(node => node.getAttribute("d") || "")).not.toBe("");
   const clearance = await archive.locator(".archive-date-timeline").evaluate(node => {
     const cards = [...node.querySelectorAll(".archive-date-card")].map(card => card.getBoundingClientRect());
     const labels = [...node.querySelectorAll(".archive-date-marker:not(.archive-date-marker-sub) > span")].map(label => label.getBoundingClientRect());
@@ -2381,17 +2467,25 @@ test("Archive date labels keep clear of the cards a timeline turn puts above the
     for (const label of labels) {
       for (const card of cards) {
         if (card.right <= label.left || card.left >= label.right) continue;
-        if (card.bottom <= label.top) closest = Math.min(closest, label.top - card.bottom);
-        else if (card.top < label.bottom) collisions += 1;
+        if (label.bottom <= card.top) closest = Math.min(closest, card.top - label.bottom);
+        else collisions += 1;
       }
     }
-    return { closest, collisions, labels: labels.length };
+    return {
+      closest,
+      collisions,
+      labels: labels.length,
+      axis: node.querySelector(".archive-date-axis-line").getAttribute("d") || "",
+      markerTops: new Set([...node.querySelectorAll(".archive-date-marker")].map(marker => /** @type {HTMLElement} */ (marker).style.top)).size
+    };
   });
   expect(clearance.labels).toBeGreaterThan(2);
   expect(clearance.collisions).toBe(0);
-  // The fixture wraps, so at least one label stands under a card and has to keep the shared gap.
+  // One straight run, so every date sits on the same axis and no card can ever stand over a label.
+  expect(clearance.axis).toMatch(/^M [\d.]+ [\d.]+ L [\d.]+ [\d.]+$/);
+  expect(clearance.markerTops).toBe(1);
   expect(Number.isFinite(clearance.closest)).toBe(true);
-  expect(clearance.closest).toBeGreaterThanOrEqual(16);
+  expect(clearance.closest).toBeGreaterThan(0);
 });
 
 test("Archive version connectors are two pixels wide, on the card border and on one pixel grid", async ({ page }) => {
@@ -2426,38 +2520,36 @@ test("Archive keeps a closing date column beside its neighbour instead of below 
     const cards = [...node.querySelectorAll(".archive-date-card")].map(element => {
       const card = /** @type {HTMLElement} */ (element);
       return {
-        row: Number(card.dataset.row),
         lane: Number(card.dataset.lane),
         left: parseFloat(card.style.left),
         width: parseFloat(card.style.width),
         top: parseFloat(card.style.top)
       };
     });
-    const columns = [...new Set(cards.map(card => `${card.row}:${Math.round(card.left)}`))];
+    const columns = [...new Set(cards.map(card => Math.round(card.left)))];
     const heads = cards.filter(card => card.lane === 0);
     const clearance = heads.flatMap(card => heads
-      .filter(other => other.row === card.row && other.left > card.left)
+      .filter(other => other.left > card.left)
       .map(other => other.left - (card.left + card.width)));
     return {
-      rows: new Set(cards.map(card => card.row)).size,
       columns: columns.length,
       heads: heads.length,
-      headTops: new Set(heads.map(card => `${card.row}:${Math.round(card.top)}`)).size,
+      headTops: new Set(heads.map(card => Math.round(card.top))).size,
       clearance: Math.min(...clearance),
       width: [...new Set(cards.map(card => Math.round(card.width)))]
     };
   });
 
   // Every date column has to start at the axis, so no column may be pushed below another one.
-  expect(layout.rows).toBeGreaterThan(1);
   expect(layout.heads).toBe(layout.columns);
-  expect(layout.headTops).toBe(layout.rows);
+  expect(layout.headTops).toBe(1);
   expect(layout.clearance).toBeGreaterThanOrEqual(16);
   // Sharing the gap costs width, but never more than half of the configured card minimum.
   expect(layout.width).toHaveLength(1);
   expect(layout.width[0]).toBeGreaterThanOrEqual(110);
   expect(layout.width[0]).toBeLessThan(220);
-  expect(await archive.locator(":scope > .archive-content").evaluate(node => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
+  // The five dense dates need more room than this narrow view has, so the ruler scrolls.
+  expect(await archive.locator(":scope > .archive-content").evaluate(node => node.scrollWidth > node.clientWidth + 1)).toBe(true);
 });
 
 test("Archive expands a shared date without disturbing other dates or shifting horizontally", async ({ page }) => {
@@ -2516,7 +2608,6 @@ test("Archive separates dense neighbouring dates instead of stacking them into o
     const card = /** @type {HTMLElement} */ (node);
     return {
       title: card.querySelector(".archive-feature-title").getAttribute("data-full-title") || "",
-      row: card.dataset.row,
       lane: Number(card.dataset.lane),
       left: Math.round(parseFloat(card.style.left))
     };
@@ -2528,34 +2619,42 @@ test("Archive separates dense neighbouring dates instead of stacking them into o
 
   expect(new Set(first.map(card => card.left)).size).toBe(1);
   expect(new Set(second.map(card => card.left)).size).toBe(1);
-  expect(first[0].row).toBe(second[0].row);
   expect(second[0].left - first[0].left).toBeGreaterThanOrEqual(236);
   expect(Math.max(...first.map(card => card.lane))).toBe(4);
   expect(Math.max(...second.map(card => card.lane))).toBe(4);
-  expect(await archive.locator(":scope > .archive-content").evaluate(node => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
+  // The dense cluster needs more room than the view has, so the ruler scrolls instead of wrapping.
+  expect(await archive.locator(":scope > .archive-content").evaluate(node => node.scrollWidth > node.clientWidth + 1)).toBe(true);
 });
 
-test("Archive wraps a long date timeline into a snake without horizontal scrolling", async ({ page }) => {
+test("Archive runs a long date timeline along one straight axis and scrolls it horizontally", async ({ page }) => {
   const features = Array.from({ length: 12 }, (_, index) => `## Release ${index + 1}\n#Date\n- 01.01.${20 + index}\n### Task\n- [x] ~done~`).join("\n\n");
   await page.setViewportSize({ width: 1440, height: 600 });
   await openFixture(page, `# Long Archive\n\n#Archive\n# Releases\n\n${features}`);
   await toggleArchiveFromView(page);
   const archive = page.locator("#archive");
   const content = archive.locator(":scope > .archive-content");
+  const timeline = archive.locator(".archive-date-timeline");
+  await expect.poll(() => archive.locator(".archive-date-axis-line").evaluate(node => node.getAttribute("d") || "")).not.toBe("");
 
-  const plan = await archive.locator(".archive-date-timeline").evaluate(node => {
+  const plan = () => timeline.evaluate(node => {
     const style = getComputedStyle(node);
-    const data = node.querySelector(".archive-date-axis-line").getAttribute("d") || "";
+    // A date sits on the centre of the card border it opens, so the axis ends half a border inside
+    // the padding box, exactly as the layout places it.
+    const guideInset = parseFloat(getComputedStyle(node.querySelector(".archive-date-card .archive-feature")).borderLeftWidth) / 2;
     return {
-      leftInset: parseFloat(style.paddingLeft),
-      rightInset: parseFloat(style.paddingRight),
+      leftInset: parseFloat(style.paddingLeft) + guideInset,
+      rightInset: parseFloat(style.paddingRight) + guideInset,
+      paddingLeft: parseFloat(style.paddingLeft),
+      paddingRight: parseFloat(style.paddingRight),
       width: node.clientWidth,
-      data,
+      stageWidth: /** @type {HTMLElement} */ (node.parentElement).clientWidth,
+      data: node.querySelector(".archive-date-axis-line").getAttribute("d") || "",
+      axisTops: new Set([...node.querySelectorAll(".archive-date-marker,.archive-date-tick")].map(item => /** @type {HTMLElement} */ (item).style.top)).size,
       cards: [...node.querySelectorAll(".archive-date-card")].map(element => {
         const card = /** @type {HTMLElement} */ (element);
         return {
-          row: Number(card.dataset.row),
           time: Number(card.dataset.start),
+          top: parseFloat(card.style.top),
           left: parseFloat(card.style.left),
           right: parseFloat(card.style.left) + parseFloat(card.style.width)
         };
@@ -2563,38 +2662,58 @@ test("Archive wraps a long date timeline into a snake without horizontal scrolli
     };
   });
 
-  const segments = plan.data.match(/[MLC][^MLC]*/g) || [];
+  const wide = await plan();
+  // One move and one straight line: no turn is left in the date axis.
+  const segments = wide.data.match(/[MLC][^MLC]*/g) || [];
+  expect(segments.map(segment => segment[0]).join("")).toBe("ML");
   const numbers = (/** @type {string} */ segment) => (segment.match(/-?\d+(?:\.\d+)?/g) || []).map(Number);
-  expect(segments.map(segment => segment[0]).join("")).toMatch(/^ML(CL)+$/);
-  const straights = segments.filter(segment => segment[0] === "L").map(numbers);
-  const turns = segments.filter(segment => segment[0] === "C").map(numbers);
-  expect(turns.length).toBeGreaterThanOrEqual(1);
-  turns.forEach((turn, index) => {
-    const [controlAX, controlAY, controlBX, controlBY, returnX, nextRowY] = turn;
-    const [exitX, rowY] = straights[index];
-    const outward = index % 2 === 0;
-    expect(controlAY).toBeCloseTo(rowY, 5);
-    expect(controlBY).toBeCloseTo(nextRowY, 5);
-    expect(nextRowY).toBeCloseTo(straights[index + 1][1], 5);
-    expect(controlAX).toBeCloseTo(controlBX, 5);
-    expect(returnX).toBeCloseTo(exitX, 5);
-    expect(nextRowY).toBeGreaterThan(rowY);
-    expect(outward ? controlAX > exitX : controlAX < exitX).toBe(true);
-    expect(Math.abs(controlAX - exitX) * .75 / (outward ? plan.width - 8 - exitX : exitX - 8)).toBeCloseTo(.5, 2);
-  });
+  const [startX, startY] = numbers(segments[0] || "");
+  const [endX, endY] = numbers(segments[1] || "");
+  expect(startY).toBe(endY);
+  expect(startX).toBeCloseTo(wide.leftInset, 5);
+  expect(endX).toBeCloseTo(wide.width - wide.rightInset, 5);
+  expect(wide.axisTops).toBe(1);
 
-  expect([...new Set(plan.cards.map(card => card.row))].length).toBeGreaterThan(1);
-  expect(plan.cards.every(card => card.left >= plan.leftInset - .5 && card.right <= plan.width - plan.rightInset + .5)).toBe(true);
-  const secondRow = plan.cards.filter(card => card.row === 1).sort((left, right) => left.time - right.time);
-  expect(secondRow.length).toBeGreaterThan(1);
-  expect(secondRow.every((card, index) => index === 0 || card.left < secondRow[index - 1].left)).toBe(true);
-  const firstRow = plan.cards.filter(card => card.row === 0).sort((left, right) => left.time - right.time);
-  expect(firstRow.every((card, index) => index === 0 || card.left > firstRow[index - 1].left)).toBe(true);
-  expect(await content.evaluate(node => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
+  // Every card keeps one ascending run along that axis, inside the timeline's own padding box.
+  expect(new Set(wide.cards.map(card => card.top)).size).toBe(1);
+  expect(wide.cards.every(card => card.left >= wide.paddingLeft - .5 && card.right <= wide.width - wide.paddingRight + .5)).toBe(true);
+  const ordered = [...wide.cards].sort((left, right) => left.time - right.time);
+  expect(ordered.every((card, index) => index === 0 || card.left > ordered[index - 1].left)).toBe(true);
 
+  // The span needs more room than the view has, so the archive scrolls instead of wrapping.
+  expect(wide.width).toBeGreaterThan(wide.stageWidth);
+  expect(await content.evaluate(node => node.scrollWidth > node.clientWidth + 1)).toBe(true);
+  expect(await content.evaluate(node => getComputedStyle(node).overflowX)).toBe("auto");
+
+  // A narrower view scrolls further without changing the ruler the dates are placed on.
   await page.setViewportSize({ width: 760, height: 600 });
-  await expect.poll(() => archive.locator(".archive-date-timeline").evaluate(node => new Set([...node.querySelectorAll(".archive-date-card")].map(card => /** @type {HTMLElement} */ (card).dataset.row)).size)).toBeGreaterThan(2);
+  await expect.poll(() => timeline.evaluate(node => /** @type {HTMLElement} */ (node.parentElement).clientWidth)).toBeLessThan(wide.stageWidth);
+  const narrow = await plan();
+  expect(narrow.data).toBe(wide.data);
+  expect(narrow.cards.map(card => card.left)).toEqual(wide.cards.map(card => card.left));
+  expect(await content.evaluate(node => node.scrollWidth > node.clientWidth + 1)).toBe(true);
+});
+
+test("Archive releases the date ruler width when the order switches to version", async ({ page }) => {
+  const features = Array.from({ length: 12 }, (_, index) => `## Release ${index + 1}\n#Version\n- ${index + 1}.0.0\n#Date\n- 01.01.${20 + index}\n### Task\n- [x] ~done~`).join("\n\n");
+  await page.setViewportSize({ width: 1440, height: 600 });
+  await openFixture(page, `# Both Orders\n\n#Archive\n# Releases\n\n${features}`);
+  await toggleArchiveFromView(page);
+  const archive = page.locator("#archive");
+  const content = archive.locator(":scope > .archive-content");
+  const timeline = page.locator("#archive .archive-timeline");
+  await expect.poll(() => archive.locator(".archive-date-axis-line").evaluate(node => node.getAttribute("d") || "")).not.toBe("");
+  expect(await content.evaluate(node => node.scrollWidth > node.clientWidth + 1)).toBe(true);
+
+  await archive.locator('[data-archive-order="version"]').click();
+  await expect(archive.locator(".archive-period")).toHaveCount(12);
+  await expect.poll(() => timeline.evaluate(node => node.style.width)).toBe("");
+  expect(await timeline.evaluate(node => node.clientWidth <= /** @type {HTMLElement} */ (node.parentElement).clientWidth)).toBe(true);
   expect(await content.evaluate(node => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
+
+  await archive.locator('[data-archive-order="date"]').click();
+  await expect.poll(() => archive.locator(".archive-date-axis-line").evaluate(node => node.getAttribute("d") || "")).not.toBe("");
+  expect(await content.evaluate(node => node.scrollWidth > node.clientWidth + 1)).toBe(true);
 });
 
 test("an empty Archive uses the centered shared empty-state message", async ({ page }) => {
