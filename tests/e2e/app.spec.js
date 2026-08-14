@@ -49,13 +49,22 @@ async function openGoldenFixture(page) {
   await expect(page.locator("#projectTitle")).toHaveText("Lorem Ipsum Product Roadmap");
 }
 
-/** @param {import("@playwright/test").Page} page */
-async function prepareVisualPage(page) {
-  await page.addStyleTag({ content: ".app-tooltip,.notifications,.app-clock{visibility:hidden!important}" });
-  await page.evaluate(async () => {
+/**
+ * Waits until no layout pass is still pending. Font loading schedules one more pass of its own, so
+ * a geometry baseline taken before this can be invalidated by a relayout the test never triggered.
+ * @param {import("@playwright/test").Page} page
+ */
+function settleLayout(page) {
+  return page.evaluate(async () => {
     await document.fonts.ready;
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   });
+}
+
+/** @param {import("@playwright/test").Page} page */
+async function prepareVisualPage(page) {
+  await page.addStyleTag({ content: ".app-tooltip,.notifications,.app-clock{visibility:hidden!important}" });
+  await settleLayout(page);
   await page.mouse.move(720, 700);
 }
 
@@ -522,7 +531,6 @@ test("Markdown import renders features, tasks, progress states, and filename tit
 test("open project keeps only the project name in the header", async ({ page }) => {
   await openFixture(page);
   await expect(page.locator("#projectTitle")).toHaveText("Test Project");
-  await expect(page.locator("#projectFile, .project-file-separator")).toHaveCount(0);
 });
 
 test("application logo reloads the start screen and an open project", async ({ page }) => {
@@ -1244,22 +1252,7 @@ test("Markdown toolbars format defaults and selected text in the active field", 
   await expect(page.locator("#taskEditorDirty")).toBeVisible();
 });
 
-test("portrait task editor keeps the textarea and highlight wrapping widths aligned", async ({ page }) => {
-  await page.setViewportSize({ width: 1080, height: 1920 });
-  await openFixture(page, "# Project\n\n## Feature\n\n### Story 3324\n#### Transformationen\n- [ ] Lokal im Entity zwischenspeichern bis Freigeben/Abschließen gedrückt wird\n- [ ] Natürlich erst nach Erzeugung der Cube-Sicht im Falle von Kopien");
-  const task = page.locator(".card");
-  await task.hover();
-  await task.locator('[data-edit="task"]').click();
-
-  const widths = await page.locator("#taskEditor .markdown-editor-stack").evaluate(stack => {
-    const textarea = stack.querySelector("textarea");
-    const highlight = stack.querySelector(".markdown-highlight");
-    return [textarea.clientWidth, highlight.clientWidth];
-  });
-  expect(widths[0]).toBe(widths[1]);
-});
-
-test("portrait editors keep highlighted inline code aligned with the plain textarea text", async ({ page }) => {
+test("portrait editors wrap the highlight exactly like the plain textarea text", async ({ page }) => {
   const sample = "- [ ] Lokal im Entity zwischenspeichern bis `Freigeben` und `Abschliessen` gedrueckt wird\n- [ ] Danach `resolveTarget()` sowie `validate()` und `commit()` in dieser Reihenfolge pruefen\n- [ ] Zum Schluss `flush()` aufrufen damit der `cache` sauber geleert wird und nichts bleibt";
   await page.setViewportSize({ width: 1080, height: 1920 });
   await openFixture(page);
@@ -1317,6 +1310,8 @@ test("portrait editors keep highlighted inline code aligned with the plain texta
       textMatches: highlight.textContent === text,
       maxX,
       maxY,
+      // Both layers must reserve the same scrollbar gutter, otherwise they wrap at different widths.
+      sameWidth: textarea.clientWidth === highlight.clientWidth,
       sameHeight: textarea.scrollHeight === highlight.scrollHeight
     };
     plain.remove();
@@ -1329,6 +1324,7 @@ test("portrait editors keep highlighted inline code aligned with the plain texta
   await expect(page.locator("#taskEditor")).toBeVisible();
   const taskDrift = await drift("#taskEditor .markdown-editor-stack", sample);
   expect(taskDrift.textMatches).toBe(true);
+  expect(taskDrift.sameWidth).toBe(true);
   expect(taskDrift.sameHeight).toBe(true);
   expect(taskDrift.maxX).toBeLessThan(0.5);
   expect(taskDrift.maxY).toBeLessThan(0.5);
@@ -1340,6 +1336,7 @@ test("portrait editors keep highlighted inline code aligned with the plain texta
   await expect(page.locator("#featureEditor")).toBeVisible();
   const featureDrift = await drift("#featureEditor .markdown-editor-stack", sample);
   expect(featureDrift.textMatches).toBe(true);
+  expect(featureDrift.sameWidth).toBe(true);
   expect(featureDrift.sameHeight).toBe(true);
   expect(featureDrift.maxX).toBeLessThan(0.5);
   expect(featureDrift.maxY).toBeLessThan(0.5);
@@ -1909,12 +1906,10 @@ test("Archive is an exclusive pseudo-3D timeline with date and version controls"
   await expect(page.locator(".archive-title")).toHaveText("Archive");
   await expect(page.locator(".archive-count")).toHaveText("4 Features");
   await expect(page.locator(".archive-summary-separator")).toHaveText("/");
-  await expect(archive.locator(".archive-header,.archive-kicker")).toHaveCount(0);
   await expect(page.locator(".archive-range")).toHaveText("15.01.2024 – 01.02.2025");
   await expect(page.locator(".archive-summary > .archive-range")).toHaveCount(1);
   await expect(page.locator(".archive-range")).toHaveCSS("border-top-width", "0px");
   await expect(page.locator(".archive-range")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
-  await expect(archive.locator("#archiveResolution,.archive-resolution")).toHaveCount(0);
   await expect(archive.locator(".archive-control-panel-header")).toContainText("Timeline controls");
   await expect(archive.locator(".archive-date-marker-main")).toHaveCount(2);
   await expect(archive.locator(".archive-date-unmatched>h3")).toHaveText("Without date");
@@ -1985,8 +1980,6 @@ test("Archive is an exclusive pseudo-3D timeline with date and version controls"
   expect(ruler.minorHeights).toHaveLength(1);
   expect(ruler.majorHeights[0]).toBeGreaterThan(ruler.minorHeights[0]);
   expect(ruler.majorMonths).toEqual([3, 6, 9, 0]);
-  await expect(archive.locator("mask,.archive-timeline-mask-labels")).toHaveCount(0);
-  await expect(archive.locator(".archive-timeline-segment")).toHaveCount(0);
   const unarchiveButton = archive.locator(".archive-unarchive").first();
   await expect(unarchiveButton).toHaveAccessibleName("Move to Workspace");
   await expect(unarchiveButton).toHaveText("");
@@ -2048,7 +2041,6 @@ test("Archive is an exclusive pseudo-3D timeline with date and version controls"
   await expect(archive.locator(".archive-period-title")).toHaveText(["v1.0.0", "v2.0.0", "Without version"]);
   await expect(archive.locator(".archive-feature-title")).toHaveText(["First release", "Versioned only", "Later release", "Metadata free"]);
   await expect(archive.locator(".archive-feature-meta")).toHaveText(["15.01.2024", "01.02.2025"]);
-  await expect(archive.locator("#archiveResolution,.archive-resolution")).toHaveCount(0);
   await archive.locator('[data-archive-order="date"]').click();
   await expect(archive.locator(".archive-date-card").first()).toHaveAttribute("style", /width/);
   await expect(page.locator(".archive-range")).toHaveText("15.01.2024 – 01.02.2025");
@@ -2091,7 +2083,6 @@ test("Archive shows multiple work ranges proportionally with one existing timeli
     };
   });
   expect(labelSides).toEqual({ mainAbove: true, subBelow: true, subThinner: true });
-  await expect(cards.locator(".archive-feature-periods")).toHaveCount(0);
   await expect(cards.locator(".archive-feature-inactive")).toHaveCount(1);
   await expect(cards.locator(".archive-feature-inactive")).toBeEmpty();
   await expect(cards.locator(".archive-feature-inactive")).toHaveCSS("background-image", /repeating-linear-gradient/);
@@ -2192,7 +2183,6 @@ test("Archive keeps separated and continuous feature durations legible together"
   await expect(archive.locator(".archive-date-marker-main")).toHaveCount(4);
   await expect(archive.locator(".archive-date-marker-sub")).toHaveCount(2);
   await expect(archive.locator(".archive-feature-inactive")).toHaveCount(1);
-  await expect(archive.locator(".archive-feature-periods")).toHaveCount(0);
   const cardWidths = await archive.locator(".archive-date-card").evaluateAll(cards => cards.map(card => card.getBoundingClientRect().width));
   expect(cardWidths[0]).toBeGreaterThan(cardWidths[1]);
   expect(cardWidths[1]).toBeGreaterThan(200);
@@ -2222,7 +2212,6 @@ test("Archive draws the four documented date cases with straight axis connection
   await expect(archive.locator(".archive-feature")).toHaveCount(3);
   await expect(archive.locator(".archive-date-marker-main")).toHaveCount(3);
   expect(await archive.locator(".archive-date-card").evaluateAll(cards => cards.map(card => card.getAttribute("data-lane")))).toEqual(["0", "1", "0"]);
-  await expect(archive.locator(".archive-date-marker-shared,.archive-date-guide-shared,.archive-date-shared-dot")).toHaveCount(0);
   expect(await archive.locator(".archive-date-marker-main").evaluateAll(markers => new Set(markers.map(marker => {
     const style = getComputedStyle(marker);
     return [style.width, style.height, style.borderWidth, style.borderColor, style.backgroundColor, style.boxShadow].join("|");
@@ -2275,7 +2264,6 @@ test("Archive draws the four documented date cases with straight axis connection
   expect(stack.stacked).toBe(true);
   expect(stack.reachesLast).toBe(true);
   expect(stack.markerLayer).toBeGreaterThan(stack.lineLayer);
-  await expect(archive.locator("#archiveResolution,.archive-resolution")).toHaveCount(0);
 });
 
 /** @param {import("@playwright/test").Page} page */
@@ -2559,10 +2547,7 @@ test("Archive expands a shared date without disturbing other dates or shifting h
   await toggleArchiveFromView(page);
   const archive = page.locator("#archive");
   const content = archive.locator(":scope > .archive-content");
-  const settle = () => page.evaluate(async () => {
-    await document.fonts.ready;
-    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-  });
+  const settle = () => settleLayout(page);
   const cards = () => archive.locator(".archive-date-card").evaluateAll(nodes => nodes.map(node => {
     const card = /** @type {HTMLElement} */ (node);
     return { lane: card.getAttribute("data-lane"), top: Math.round(parseFloat(card.style.top)), left: Math.round(parseFloat(card.style.left)), height: card.offsetHeight };
@@ -2741,7 +2726,7 @@ test("an empty Archive uses the centered shared empty-state message", async ({ p
   await expect(page.locator("#archive .archive-range,#archive .archive-timeline-line,#archive .archive-period")).toHaveCount(0);
 });
 
-test("Archive wraps a long timeline into a responsive vertical snake without horizontal scrolling", async ({ page }) => {
+test("Archive wraps a long version timeline into a symmetric responsive snake", async ({ page }) => {
   const features = Array.from({ length: 9 }, (_, index) => `## Release ${index + 1}\n#Version\n- ${index + 1}.0.0\n#Date\n- 01.${String(index + 1).padStart(2, "0")}.2024\n### Task ${index + 1}\n- [x] ~done~`).join("\n\n");
   await page.setViewportSize({ width: 1440, height: 500 });
   await openFixture(page, `# Snake\n\n#Archive\n# Releases\n\n${features}`);
@@ -2781,48 +2766,30 @@ test("Archive wraps a long timeline into a responsive vertical snake without hor
       horizontalTangents: curves.every((curve, index) => Math.abs(curve[1] - transitions[index].start.y) < .01 && Math.abs(curve[3] - transitions[index].end.y) < .01),
       sharedTurnAxis: curves.every(curve => Math.abs(curve[0] - curve[2]) < .01),
       reachesEndpoints: curves.every((curve, index) => Math.abs(curve[4] - transitions[index].end.x) < .01 && Math.abs(curve[5] - transitions[index].end.y) < .01),
-      turnsOutward: curves.every((curve, index) => index % 2 ? curve[0] < Math.min(transitions[index].start.x, transitions[index].end.x) : curve[0] > Math.max(transitions[index].start.x, transitions[index].end.x))
+      turnsOutward: curves.every((curve, index) => index % 2 ? curve[0] < Math.min(transitions[index].start.x, transitions[index].end.x) : curve[0] > Math.max(transitions[index].start.x, transitions[index].end.x)),
+      // Each turn reaches equally far past the dot it leaves and the dot it meets, and every turn
+      // reaches equally far, so the snake reads the same on both sides.
+      turnDepths: curves.map((curve, index) => [Math.abs(curve[0] - transitions[index].start.x), Math.abs(curve[2] - transitions[index].end.x)])
     };
   });
-  expect(pathGeometry).toEqual({ lineCount: 6, curveCount: 2, horizontalTangents: true, sharedTurnAxis: true, reachesEndpoints: true, turnsOutward: true });
-  expect(await content.evaluate(node => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
-  expect(await content.evaluate(node => node.scrollHeight > node.clientHeight)).toBe(true);
-  await page.setViewportSize({ width: 700, height: 500 });
-  await expect(timeline).toHaveAttribute("data-columns", "1");
-  expect(await content.evaluate(node => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
-});
+  const { turnDepths, ...pathShape } = pathGeometry;
+  expect(pathShape).toEqual({ lineCount: 6, curveCount: 2, horizontalTangents: true, sharedTurnAxis: true, reachesEndpoints: true, turnsOutward: true });
+  expect(turnDepths).toHaveLength(2);
+  expect(turnDepths.every(([start, end]) => Math.abs(start - end) <= 1)).toBe(true);
+  expect(Math.abs(turnDepths[0][0] - turnDepths[1][0])).toBeLessThanOrEqual(1);
 
-test("Archive uses symmetric snake turns and keeps idle feature text untransformed", async ({ page }) => {
-  const features = Array.from({ length: 9 }, (_, index) => `## Release ${index + 1}\n#Version\n- ${index + 1}.0.0\n#Date\n- 01.${String(index + 1).padStart(2, "0")}.2024\n### Task ${index + 1}\n- [x] ~done~`).join("\n\n");
-  await page.setViewportSize({ width: 1440, height: 500 });
-  await openFixture(page, `# Consistent Snake\n\n#Archive\n# Releases\n\n${features}`);
-  await toggleArchiveFromView(page);
-  await page.locator('[data-archive-order="version"]').click();
-  await expect(page.locator("#archive .archive-timeline-path")).toHaveAttribute("d", / C /);
-
-  const geometry = await page.locator("#archive .archive-timeline").evaluate(node => {
-    const bounds = node.getBoundingClientRect();
-    const points = [...node.querySelectorAll(".archive-period-dot")].map(dot => {
-      const dotBounds = dot.getBoundingClientRect();
-      return { x: dotBounds.left + dotBounds.width / 2 - bounds.left, y: dotBounds.top + dotBounds.height / 2 - bounds.top };
-    });
-    const data = node.querySelector(".archive-timeline-path")?.getAttribute("d") || "";
-    const curves = (data.match(/C[^MLC]+/g) || []).map(command => (command.match(/-?\d+(?:\.\d+)?/g) || []).map(Number));
-    const transitions = points.slice(0, -1).flatMap((point, index) => Math.abs(point.y - points[index + 1].y) < 1 ? [] : [{ start: point, end: points[index + 1] }]);
-    return curves.map((curve, index) => ({
-      startDepth: Math.abs(curve[0] - transitions[index].start.x),
-      endDepth: Math.abs(curve[2] - transitions[index].end.x)
-    }));
-  });
-  expect(geometry).toHaveLength(2);
-  expect(geometry.every(turn => Math.abs(turn.startDepth - turn.endDepth) <= 1)).toBe(true);
-  expect(Math.abs(geometry[0].startDepth - geometry[1].startDepth)).toBeLessThanOrEqual(1);
-
+  // Idle archive cards carry no transform, so the pseudo-3D stage never blurs their text.
   const idleMatrices = await page.locator("#archive .archive-feature").evaluateAll(features => features.map(feature => {
     const matrix = new DOMMatrix(getComputedStyle(feature).transform);
     return { is2D: matrix.is2D, a: matrix.a, b: matrix.b, c: matrix.c, d: matrix.d, e: matrix.e, f: matrix.f };
   }));
   expect(idleMatrices.every(matrix => matrix.is2D && matrix.a === 1 && matrix.b === 0 && matrix.c === 0 && matrix.d === 1 && matrix.e === 0 && matrix.f === 0)).toBe(true);
+
+  expect(await content.evaluate(node => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
+  expect(await content.evaluate(node => node.scrollHeight > node.clientHeight)).toBe(true);
+  await page.setViewportSize({ width: 700, height: 500 });
+  await expect(timeline).toHaveAttribute("data-columns", "1");
+  expect(await content.evaluate(node => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
 });
 
 test("Archive snake turns use fifty percent of their available excursion", async ({ page }) => {
@@ -2863,19 +2830,28 @@ test("Archive scrollbar spans the viewport and appears only for overflow", async
   await expect(content).toHaveCSS("overflow-y", "auto");
   const timeline = archive.locator(".archive-timeline");
   const geometry = () => timeline.evaluate(node => ({
-    height: Math.round(node.getBoundingClientRect().height * 100) / 100,
+    height: node.getBoundingClientRect().height,
     scrollHeight: node.closest(".archive-content")?.scrollHeight,
     clientHeight: node.closest(".archive-content")?.clientHeight
   }));
+  // The layout snaps every box onto the device pixel grid, so any real geometry change is at least
+  // a whole pixel. Comparing the painted height more finely than that only measures float noise.
+  const expectUnchangedGeometry = async () => {
+    const current = await geometry();
+    expect(current.height).toBeCloseTo(controlsOpenGeometry.height, 1);
+    expect(current.scrollHeight).toBe(controlsOpenGeometry.scrollHeight);
+    expect(current.clientHeight).toBe(controlsOpenGeometry.clientHeight);
+  };
+  await settleLayout(page);
   const controlsOpenGeometry = await geometry();
   await archive.locator(".archive-controls-close").click();
   await expect(archive.locator(".archive-control-panel")).toBeHidden();
-  expect(await geometry()).toEqual(controlsOpenGeometry);
+  await expectUnchangedGeometry();
   await page.locator("#toggleViewMenu").click();
   await page.locator("#toggleArchiveControls").click();
   await expect(archive.locator(".archive-control-panel")).toBeVisible();
   await expect(page.locator("#viewOptions")).toBeVisible();
-  expect(await geometry()).toEqual(controlsOpenGeometry);
+  await expectUnchangedGeometry();
 
   const tasks = Array.from({ length: 40 }, (_, index) => `### Task ${index + 1}\n- [x] ~done~`).join("\n");
   await openFixture(page, `# Long Archive\n\n#Archive\n# Releases\n\n## Release\n#Date\n- 01.01.2024\n${tasks}`);

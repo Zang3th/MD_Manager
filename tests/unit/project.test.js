@@ -30,10 +30,10 @@ test("pinning is unique, reversible, and not retained by feature copies", () => 
   assert.equal(domain.setFeaturePinned(value, 2, true), false);
 });
 
-test("features are added before the backlog and tasks at the end of their feature", () => {
+test("inserting past the end clamps features before the backlog and tasks to the end of their feature", () => {
   const value = project();
-  domain.addFeature(value, { title: "C", headerLines: [], version: "", dates: [], notes: [], tasks: [], isBacklog: false });
-  domain.addTask(value, 0, { title: "A2", lines: ["- [ ] added"] });
+  domain.insertFeature(value, 99, { title: "C", headerLines: [], version: "", dates: [], notes: [], tasks: [], isBacklog: false });
+  domain.insertTask(value, 0, 99, { title: "A2", lines: ["- [ ] added"] });
   assert.deepEqual(value.features.map(feature => feature.title), ["A", "B", "C", "Backlog"]);
   assert.deepEqual(value.features[0].tasks.map((/** @type {any} */ task) => task.title), ["A1", "A2"]);
 });

@@ -25,5 +25,5 @@ window.MDManager = window.MDManager || {};
   button.addEventListener("click", next);
   apply();
 
-  app.theme = { themes, next };
+  app.theme = { next };
 })(window.MDManager);

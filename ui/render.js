@@ -516,7 +516,6 @@ window.MDManager = window.MDManager || {};
     start: showStart,
     saveError: showSaveError,
     updateTodo,
-    escapeHtml,
     equalizeReleaseHeaders: app.layout.equalizeReleaseHeaders,
     layout: app.layout.layout,
     fitTitles: app.layout.fitTitles,

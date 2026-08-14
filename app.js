@@ -5,7 +5,7 @@ window.MDManager = window.MDManager || {};
   const requiredComponents = /** @type {Array<[string, () => boolean]>} */ ([
     ...(app.interactions ? [[app.interactions.sortableSource, () => app.interactions.sortableReady === true]] : []),
     ["domain/project.js", () => Boolean(app.domain)],
-    ["domain/history.js", () => Boolean(app.undoSystem && app.history)],
+    ["domain/history.js", () => Boolean(app.undoSystem)],
     ["domain/status.js", () => Boolean(app.status)],
     ["io/markdown.js", () => Boolean(app.markdown)],
     ["io/templates.js", () => Boolean(app.templates)],
@@ -180,7 +180,6 @@ window.MDManager = window.MDManager || {};
       diskStamp = inspected.markdown === markdown ? inspected.stamp : "";
     } else diskStamp = "";
     externalChange = null;
-    app.undoSystem.markSaved(undoSystem);
     savedMarkdown = markdown;
     updateUndoSystemControls();
     app.notifications.show("info", "File saved", [{ value: fileHandle.name }, " saved."]);
@@ -217,7 +216,6 @@ window.MDManager = window.MDManager || {};
       if (diskStamp && stamp !== "0:0" && stamp === diskStamp && now - lastExternalContentCheck < 30000) return;
       const inspected = await app.files.inspect(fileHandle);
       lastExternalContentCheck = now;
-      lastExternalCheckError = "";
       if (inspected.markdown === diskMarkdown) {
         diskStamp = inspected.stamp;
         if (externalChange) {

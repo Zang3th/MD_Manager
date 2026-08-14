@@ -162,8 +162,8 @@
 - [x] ~#Info und #Warn werden im Markdown an die falsche Stelle geschoben~
 - [x] ~Abstände innerhalb von #Tags (oben und unten) sind nicht einheitlich~
 - [x] ~Edit-Dialog im Hochkantmodus ist manchmal immer noch buggy~
-- [ ] Code-Review + lose Enden aufräumen
-- [ ] Tests streamlinen
+- [x] ~Code-Review + lose Enden aufräumen~
+- [x] ~Tests streamlinen~
 
 #### Archiv
 - [x] ~Zeiträume müssen im Archiv-Zeitstrahl auch dargestellt werden können~

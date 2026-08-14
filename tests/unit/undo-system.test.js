@@ -4,23 +4,24 @@ const load = require("./load-classic");
 
 const { undoSystem } = load("domain/history.js");
 
-test("undo system executes named reversible actions and tracks the saved revision", () => {
+test("undo system executes named reversible actions and replays them in both directions", () => {
   const state = undoSystem.create();
   let value = "a";
   undoSystem.execute(state, { label: "Value changed", redo: () => { value = "b"; }, undo: () => { value = "a"; } });
 
   assert.equal(value, "b");
   assert.equal(undoSystem.undoLabel(state), "Value changed");
-  assert.equal(undoSystem.isDirty(state), true);
-  undoSystem.markSaved(state);
-  assert.equal(undoSystem.isDirty(state), false);
+  assert.equal(undoSystem.canUndo(state), true);
+  assert.equal(undoSystem.canRedo(state), false);
 
   assert.equal(undoSystem.undo(state).label, "Value changed");
   assert.equal(value, "a");
-  assert.equal(undoSystem.isDirty(state), true);
+  assert.equal(undoSystem.redoLabel(state), "Value changed");
   assert.equal(undoSystem.redo(state).label, "Value changed");
   assert.equal(value, "b");
-  assert.equal(undoSystem.isDirty(state), false);
+  assert.equal(undoSystem.undo(state).label, "Value changed");
+  assert.equal(undoSystem.undo(state), null);
+  assert.equal(value, "a");
 });
 
 test("undo system ignores no-ops and discards redo only after a real branch", () => {

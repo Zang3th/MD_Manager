@@ -73,8 +73,8 @@ type MDUndoAction = {
   beforeViewState?: MDViewState;
   afterViewState?: MDViewState;
 };
-type MDUndoEntry = MDUndoAction & { size: number; beforeRevision: number; afterRevision: number };
-type MDUndoSystem = { entries: MDUndoEntry[]; index: number; revision: number; savedRevision: number; nextRevision: number; totalSize: number };
+type MDUndoEntry = MDUndoAction & { size: number };
+type MDUndoSystem = { entries: MDUndoEntry[]; index: number; totalSize: number };
 type MDUndoResult = { label: string; viewState?: MDViewState };
 type MDFileHandle = {
   name: string;

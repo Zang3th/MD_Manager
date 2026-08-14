@@ -148,7 +148,7 @@ function checkArchitecture(root) {
   }
 
   checkPatterns("ui/render.js", "ARCH-RENDER-001", [
-    [/\bapp\.(?:domain|files|history|notifications|sounds|editor)\b/, "render.js may render derived state but must not perform business, persistence, notification, sound, or editor operations"],
+    [/\bapp\.(?:domain|files|undoSystem|notifications|sounds|editor)\b/, "render.js may render derived state but must not perform business, persistence, undo, notification, sound, or editor operations"],
     [/\baddEventListener\s*\(|\bSortable(?:JS)?\b/, "render.js must not own interactions or SortableJS callbacks"]
   ]);
 

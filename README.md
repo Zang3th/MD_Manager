@@ -120,7 +120,7 @@ npm ci
 npm run verify
 ```
 
-The verification pipeline runs strict TypeScript checking for JavaScript with JSDoc, ESLint with zero warnings, architecture-boundary checks, unit tests, and Playwright tests in Chromium.
+The verification pipeline runs strict TypeScript checking for JavaScript with JSDoc, ESLint with zero warnings, the harness doctor, architecture-boundary checks, unit tests, and Playwright tests in Chromium.
 
 CI executes the complete pipeline on Windows, Linux, and macOS.
 

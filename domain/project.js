@@ -311,16 +311,6 @@ window.MDManager = window.MDManager || {};
   app.domain = {
     featureComplete,
     canArchiveFeature,
-    /** @param {MDProject} project @param {MDFeature} feature */
-    addFeature(project, feature) {
-      project.features.splice(featureBoundary(project), 0, feature);
-      return true;
-    },
-    /** @param {MDProject} project @param {number} featureIndex @param {MDTask} task */
-    addTask(project, featureIndex, task) {
-      project.features[featureIndex].tasks.push(task);
-      return true;
-    },
     copyTask,
     /** @param {MDFeature} feature @returns {MDFeature} */
     copyFeature(feature) {

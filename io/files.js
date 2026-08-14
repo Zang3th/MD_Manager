@@ -3,6 +3,11 @@ window.MDManager = window.MDManager || {};
 (function (app) {
   let writeQueue = Promise.resolve();
 
+  /** @param {{lastModified?: number, size?: number}} file */
+  function fileStamp(file) {
+    return `${file.lastModified || 0}:${file.size || 0}`;
+  }
+
   /** @returns {Promise<IDBDatabase>} */
   function openRecentDatabase() {
     return new Promise((resolve, reject) => {
@@ -72,19 +77,19 @@ window.MDManager = window.MDManager || {};
   async function read(handle) {
     if (await handle.requestPermission({ mode: "readwrite" }) !== "granted") return null;
     const file = await handle.getFile();
-    return { handle, markdown: await file.text(), stamp: `${file.lastModified || 0}:${file.size || 0}` };
+    return { handle, markdown: await file.text(), stamp: fileStamp(file) };
   }
 
   /** @param {MDFileHandle} handle @returns {Promise<{markdown: string, stamp: string}>} */
   async function inspect(handle) {
     const file = await handle.getFile();
-    return { markdown: await file.text(), stamp: `${file.lastModified || 0}:${file.size || 0}` };
+    return { markdown: await file.text(), stamp: fileStamp(file) };
   }
 
   /** @param {MDFileHandle} handle @returns {Promise<string>} */
   async function stat(handle) {
     const file = await handle.getFile();
-    return `${file.lastModified || 0}:${file.size || 0}`;
+    return fileStamp(file);
   }
 
   async function open() {
@@ -105,7 +110,7 @@ window.MDManager = window.MDManager || {};
     const markdown = "# New Project\n";
     await save(handle, markdown);
     const file = await handle.getFile();
-    return { handle, markdown, stamp: `${file.lastModified || 0}:${file.size || 0}` };
+    return { handle, markdown, stamp: fileStamp(file) };
   }
 
   /** @param {MDFileHandle | null} handle @param {string} markdown */
