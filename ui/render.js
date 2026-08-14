@@ -22,6 +22,7 @@ window.MDManager = window.MDManager || {};
     document.documentElement.style.setProperty("--feature-width", `${selectedWidth}px`);
     slider.value = String(selectedIndex);
     slider.style.setProperty("--zoom-progress", `${selectedIndex * 50}%`);
+    document.querySelectorAll(".workspace-zoom-stops > span").forEach((stop, stopIndex) => stop.classList.toggle("is-reached", stopIndex <= selectedIndex));
     slider.setAttribute("aria-valuetext", `${percentage}%, ${selectedWidth} pixels`);
     document.getElementById("featureZoomValue").textContent = `${percentage}%`;
     document.getElementById("toggleWorkspaceZoom").setAttribute("aria-label", `Feature card zoom: ${percentage}%`);
@@ -260,6 +261,7 @@ window.MDManager = window.MDManager || {};
       return `<span class="archive-date-marker archive-date-marker-${markerLevels.get(date.time) || "sub"}${endpoint ? " archive-date-marker-endpoint" : ""}" data-time="${date.time}"><span>${escapeHtml(date.value)}</span></span>`;
     }).join("");
     const ticks = (timeline.ticks || []).map(tick => `<span class="archive-date-tick archive-date-tick-${tick.level}" data-time="${tick.time}"></span>`).join("");
+    const breaks = (timeline.gaps || []).map(gap => `<span class="archive-date-break" data-from="${gap.from}" data-to="${gap.to}"><span class="archive-date-break-mark"></span><span class="archive-date-break-label">${escapeHtml(gap.label)}</span></span>`).join("");
     /** @type {string[]} */
     const guides = [];
     const cards = entries.map((entry, index) => {
@@ -279,6 +281,7 @@ window.MDManager = window.MDManager || {};
     }).join("");
     return `<svg class="archive-date-lines" aria-hidden="true" focusable="false"><path class="archive-date-axis-line"></path>${guides.join("")}</svg>
       <div class="archive-date-ticks" aria-hidden="true">${ticks}</div>
+      <div class="archive-date-breaks" aria-hidden="true">${breaks}</div>
       <div class="archive-date-markers" aria-hidden="true">${markers}</div>
       <div class="archive-date-cards">${cards}</div>${unmatched}`;
   }

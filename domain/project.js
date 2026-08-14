@@ -205,17 +205,60 @@ window.MDManager = window.MDManager || {};
     return times;
   }
 
-  /** @param {MDArchiveScale} scale @param {number} first @param {number} last @returns {MDArchiveTick[]} */
-  function archiveTicks(scale, first, last) {
+  // An idle stretch counts as compressible once it dwarfs the idle stretches this archive produces
+  // anyway. The reference is the lower median of all candidates, so it survives one extreme outlier,
+  // and it reads the dates alone: a stretch can never collapse or reappear because the window
+  // changed size. Uniformly spaced archives keep every stretch, because there the spacing carries
+  // the meaning and the density scale already sizes them.
+  const archiveGapFactor = 6;
+
+  /** @param {number} duration */
+  function archiveGapLabel(duration) {
+    const days = Math.round(duration / dayMs);
+    if (days >= 400) {
+      const years = Math.round(days / 365.25);
+      return `${years} year${years === 1 ? "" : "s"}`;
+    }
+    if (days >= 45) {
+      const months = Math.round(days / 30.4375);
+      return `${months} month${months === 1 ? "" : "s"}`;
+    }
+    return `${days} day${days === 1 ? "" : "s"}`;
+  }
+
+  /** @param {MDArchiveTimelineEntry[]} entries @returns {MDArchiveTimelineGap[]} */
+  function archiveGaps(entries) {
+    /** @type {{from: number, to: number}[]} */
+    const candidates = [];
+    let covered = Number.NEGATIVE_INFINITY;
+    for (const entry of entries) {
+      const start = /** @type {MDArchiveDate} */ (entry.date).time;
+      const end = (entry.endDate || /** @type {MDArchiveDate} */ (entry.date)).time;
+      if (covered > Number.NEGATIVE_INFINITY && start > covered) candidates.push({ from: covered, to: start });
+      covered = Math.max(covered, end);
+    }
+    // Two stretches do not say what this archive's typical stretch is — whichever is shorter would
+    // define the reference and make the other one look extreme. Three is the smallest count where a
+    // median sits between two others.
+    if (candidates.length < 3) return [];
+    const durations = candidates.map(gap => gap.to - gap.from).sort((left, right) => left - right);
+    const median = durations[Math.floor((durations.length - 1) / 2)];
+    return candidates.filter(gap => gap.to - gap.from > archiveGapFactor * median).map(gap => ({ ...gap, label: archiveGapLabel(gap.to - gap.from) }));
+  }
+
+  /** @param {MDArchiveScale} scale @param {number} first @param {number} last @param {MDArchiveTimelineGap[]} gaps @returns {MDArchiveTick[]} */
+  function archiveTicks(scale, first, last, gaps) {
     if (!(last > first)) return [];
     const units = archiveTickUnits[scale];
-    const majorTimes = archiveUnitBoundaries(units.major, first, last);
+    /** @param {number} time */
+    const skipped = time => gaps.some(gap => time > gap.from && time < gap.to);
+    const majorTimes = archiveUnitBoundaries(units.major, first, last).filter(time => !skipped(time));
     const majors = new Set(majorTimes);
     /** @type {MDArchiveTick[]} */
     const ticks = majorTimes.map(time => ({ time, level: /** @type {MDArchiveTickLevel} */ ("major") }));
     if (ticks.length <= maxArchiveTicks) {
       for (const time of archiveUnitBoundaries(units.minor, first, last)) {
-        if (!majors.has(time)) ticks.push({ time, level: "minor" });
+        if (!majors.has(time) && !skipped(time)) ticks.push({ time, level: "minor" });
       }
     }
     ticks.sort((left, right) => left.time - right.time);
@@ -281,7 +324,7 @@ window.MDManager = window.MDManager || {};
     }
     rangeDates.sort((left, right) => left.time - right.time);
     entries.sort((left, right) => /** @type {NonNullable<typeof left.date>} */ (left.date).time - /** @type {NonNullable<typeof right.date>} */ (right.date).time);
-    if (!rangeDates.length) return { order, scale: "day", from: "", to: "", entries, markers: [], ticks: [], groups: [], unmatched };
+    if (!rangeDates.length) return { order, scale: "day", from: "", to: "", entries, markers: [], ticks: [], gaps: [], groups: [], unmatched };
     const first = /** @type {NonNullable<ReturnType<typeof parsedArchiveDate>>} */ (rangeDates[0]);
     const last = /** @type {NonNullable<ReturnType<typeof parsedArchiveDate>>} */ (rangeDates[rangeDates.length - 1]);
     const span = Math.round((last.time - first.time) / dayMs);
@@ -298,7 +341,8 @@ window.MDManager = window.MDManager || {};
       groups.get(value.key)?.entries.push(entry);
     }
     const markerDates = [...new Map(rangeDates.map(date => [date.time, date])).values()];
-    return { order, scale, from: first.value, to: last.value, fromTime: first.time, toTime: last.time, entries, markers: markerDates, ticks: archiveTicks(scale, first.time, last.time), groups: [...groups.values()], unmatched };
+    const gaps = archiveGaps(entries);
+    return { order, scale, from: first.value, to: last.value, fromTime: first.time, toTime: last.time, entries, markers: markerDates, ticks: archiveTicks(scale, first.time, last.time, gaps), gaps, groups: [...groups.values()], unmatched };
   }
 
   /** @param {MDProject} project */

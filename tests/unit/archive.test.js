@@ -55,6 +55,55 @@ test("archive timeline derives calendar-aligned ruler ticks from its automatic s
   assert.ok(yearlyTicks.filter(tick => tick.level === "minor").every(tick => new Date(tick.time).getUTCMonth() % 3 === 0));
 });
 
+test("archive timeline compresses only idle stretches that dwarf the archive's own idle spacing", () => {
+  const clustered = archive.timeline([
+    feature("A", "2016-03-01"), feature("B", "2016-03-02"), feature("C", "2016-03-03"),
+    feature("D", "2026-03-01"), feature("E", "2026-03-02")
+  ]);
+  assert.deepEqual(Array.from(clustered.gaps, (/** @type {any} */ gap) => [gap.from, gap.to, gap.label]), [
+    [Date.UTC(2016, 2, 3), Date.UTC(2026, 2, 1), "10 years"]
+  ]);
+
+  // Evenly spaced archives carry their meaning in that spacing, so every stretch survives.
+  const even = archive.timeline([feature("A", "2020-01-01"), feature("B", "2022-01-01"), feature("C", "2024-01-01"), feature("D", "2026-01-01")]);
+  assert.deepEqual(Array.from(even.gaps), []);
+
+  // Too few stretches to tell a typical one from an extreme one, and continuous coverage produces
+  // no candidate at all.
+  assert.deepEqual(Array.from(archive.timeline([feature("A", "2016-01-01"), feature("B", "2026-01-01")]).gaps), []);
+  assert.deepEqual(Array.from(archive.timeline([feature("A", "2026-01-01"), feature("B", "2026-01-02"), feature("C", "2036-01-01")]).gaps), []);
+  assert.deepEqual(Array.from(archive.timeline([feature("A", "2026-01-01", "2026-02-01"), feature("B", "2026-01-15", "2026-03-01")]).gaps), []);
+});
+
+test("an idle stretch is compressed one step past the factor above the median stretch", () => {
+  const atFactor = archive.timeline([feature("A", "2026-01-01"), feature("B", "2026-01-02"), feature("C", "2026-01-03"), feature("D", "2026-01-09")]);
+  assert.deepEqual(Array.from(atFactor.gaps), []);
+
+  const pastFactor = archive.timeline([feature("A", "2026-01-01"), feature("B", "2026-01-02"), feature("C", "2026-01-03"), feature("D", "2026-01-10")]);
+  assert.deepEqual(Array.from(pastFactor.gaps, (/** @type {any} */ gap) => gap.label), ["7 days"]);
+
+  const months = archive.timeline([feature("A", "2026-01-01"), feature("B", "2026-01-02"), feature("C", "2026-01-03"), feature("D", "2026-04-03")]);
+  assert.deepEqual(Array.from(months.gaps, (/** @type {any} */ gap) => gap.label), ["3 months"]);
+});
+
+test("an idle stretch inside one feature's own periods stays proportional", () => {
+  const slow = { title: "Slow", version: "", dates: [{ from: "2016-01-01", to: "2016-02-01" }, { from: "2026-01-01", to: "2026-02-01" }], tasks: [] };
+  const timeline = archive.timeline([slow, feature("Other", "2026-03-01"), feature("More", "2026-03-02"), feature("Last", "2026-03-03")]);
+  // The ten years the slow feature spans itself never become a candidate, so the only compressed
+  // stretch is the one after it.
+  assert.deepEqual(Array.from(timeline.gaps, (/** @type {any} */ gap) => gap.label), ["28 days"]);
+});
+
+test("ruler ticks are withheld inside a compressed stretch", () => {
+  const timeline = archive.timeline([
+    feature("A", "2015-12-28"), feature("B", "2016-01-05"),
+    feature("C", "2025-12-28"), feature("D", "2026-01-05")
+  ]);
+  assert.equal(timeline.scale, "year");
+  assert.deepEqual(Array.from(timeline.gaps, (/** @type {any} */ gap) => gap.label), ["10 years"]);
+  assert.deepEqual(Array.from(timeline.ticks, (/** @type {any} */ tick) => new Date(tick.time).toISOString().slice(0, 10)), ["2016-01-01", "2026-01-01"]);
+});
+
 test("archive timeline aggregates and sorts two-digit European date ranges into one feature entry", () => {
   const ranged = {
     title: "Repeated work",

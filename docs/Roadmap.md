@@ -118,7 +118,7 @@
 - [x] ~Linien treffen manchmal nicht zentral den Dot auf der Timeline~
 - [x] ~Linien haben weiterhin unter bestimmten Umständen verschiedene Farben/Dicke~
 - [x] ~Snake-Modus in der Darstellung nach Datum wieder abklemmen (zu buggy)~
-- [ ] Umgang mit extrem großen Zeiträumen finden
+- [x] ~Umgang mit extrem großen Zeiträumen finden~
 
 ### Zoom
 

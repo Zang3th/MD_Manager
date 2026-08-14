@@ -6,6 +6,13 @@ window.MDManager = window.MDManager || {};
   const archiveTurnHandleScale = 2 / 3;
   const archiveMinimumCardWidth = 220;
   const archiveLaneGap = 16;
+  // Width every compressed stretch gets, whatever it skipped. Fixed in pixels so the axis never
+  // rescales a break, and wide enough to carry its duration label.
+  const archiveGapWidth = 120;
+  // Vertical step styles.css lifts each further date-label row by, and the clearance two labels keep
+  // before they count as sharing a row.
+  const archiveLabelStep = 18;
+  const archiveLabelGap = 10;
   const archiveAxisGap = 46;
   const archiveRowGap = 34;
   // Upper bound on how far the date ruler may outgrow the room it is shown in. Beyond this the
@@ -223,6 +230,7 @@ window.MDManager = window.MDManager || {};
     const cards = /** @type {HTMLElement[]} */ ([...timeline.querySelectorAll(".archive-date-card")]);
     const ticks = /** @type {HTMLElement[]} */ ([...timeline.querySelectorAll(".archive-date-tick")]);
     const markers = /** @type {HTMLElement[]} */ ([...timeline.querySelectorAll(".archive-date-marker")]);
+    const breaks = /** @type {HTMLElement[]} */ ([...timeline.querySelectorAll(".archive-date-break")]);
     const guides = /** @type {SVGPathElement[]} */ ([...lines.querySelectorAll(".archive-date-guide")]);
     const unmatched = /** @type {HTMLElement | null} */ (timeline.querySelector(".archive-date-unmatched"));
     const pixelRatio = window.devicePixelRatio || 1;
@@ -257,15 +265,49 @@ window.MDManager = window.MDManager || {};
       if (distance > 0 && (closest === 0 || distance < closest)) closest = distance;
     }
 
+    // A compressed stretch spends a fixed budget instead of its duration, so the scale below is
+    // pixels per millisecond of active time and the whole axis budget reaches the work rather than
+    // the void between it. Everything else keeps measuring in that one scale.
+    const skipped = breaks.map(node => ({ node, from: Number(node.dataset.from), to: Number(node.dataset.to) }))
+      .filter(gap => Number.isFinite(gap.from) && Number.isFinite(gap.to) && gap.to > gap.from)
+      .sort((left, right) => left.from - right.from);
+    const gapPixels = skipped.length * archiveGapWidth;
+    const activeSpan = Math.max(1, totalSpan - skipped.reduce((sum, gap) => sum + (gap.to - gap.from), 0));
+    const activeWidth = Math.max(1, viewWidth - gapPixels);
+
     const pitch = archiveRulerPitch[timeline.dataset.scale || "day"] || archiveRulerPitch.day;
     const densityScale = closest ? (minimumWidth + archiveLaneGap) / closest : 0;
-    let scale = Math.max(viewWidth / totalSpan, pitch.pixels / pitch.span, densityScale);
-    scale = Math.min(scale, archiveMaximumAxisWidths * viewWidth / totalSpan);
+    let scale = Math.max(activeWidth / activeSpan, pitch.pixels / pitch.span, densityScale);
+    scale = Math.min(scale, archiveMaximumAxisWidths * activeWidth / activeSpan);
     // The axis carries the whole span in one run, so it is as wide as the scale asks for and never
     // narrower than the view. Everything past the view edge is reached by scrolling.
-    const axisWidth = snap(Math.max(viewWidth, totalSpan * scale));
+    const axisWidth = snap(Math.max(viewWidth, activeSpan * scale + gapPixels));
+
+    // Active runs and compressed stretches alternate along the axis, each starting where the one
+    // before it ended. Without a compressed stretch this is the single run the ruler always was.
+    /** @type {{from: number, to: number, x: number, rate: number}[]} */
+    const segments = [];
+    let axisCursor = leftInset;
+    let segmentStart = fromTime;
+    for (const gap of skipped) {
+      segments.push({ from: segmentStart, to: gap.from, x: axisCursor, rate: scale });
+      axisCursor += (gap.from - segmentStart) * scale;
+      segments.push({ from: gap.from, to: gap.to, x: axisCursor, rate: archiveGapWidth / (gap.to - gap.from) });
+      axisCursor += archiveGapWidth;
+      segmentStart = gap.to;
+    }
+    segments.push({ from: segmentStart, to: toTime, x: axisCursor, rate: scale });
+
     /** @param {number} time */
-    const xOf = time => snap(leftInset + Math.max(0, Math.min(1, (time - fromTime) / totalSpan)) * axisWidth);
+    const xOf = time => {
+      const clamped = Math.max(fromTime, Math.min(toTime, time));
+      let segment = segments[0];
+      for (const candidate of segments) {
+        if (candidate.from > clamped) break;
+        segment = candidate;
+      }
+      return snap(segment.x + (clamped - segment.from) * segment.rate);
+    };
 
     const placements = cards.map((card, index) => {
       const { start, end } = cardTimes[index];
@@ -317,19 +359,60 @@ window.MDManager = window.MDManager || {};
     // Rounded heights would let a reserved gap drift by the rounding, so the exact box is measured.
     const cardHeights = geometry.map(item => item.card.getBoundingClientRect().height);
     const unmatchedHeight = unmatched ? unmatched.offsetHeight : 0;
+    // A label never wraps and is taken out of flow, so its box and its offset from its own dot are
+    // the same wherever that dot lands, which makes both readable before the axis is placed.
+    const markerBoxes = markers.map(marker => marker.getBoundingClientRect());
+    const labelBoxes = markers.map(marker => /** @type {HTMLElement} */ (marker.firstElementChild).getBoundingClientRect());
     // Card widths are set above, so the shared title fitter has to run here rather than in runLayout.
     fitTitles(/** @type {HTMLElement[]} */ ([...timeline.querySelectorAll(".archive-feature-title")]));
 
     geometry.forEach((item, index) => { item.height = cardHeights[index]; });
 
+    // In date order the axis is the only place a date is written, so a crowded run lifts its labels
+    // into rows instead of dropping any of them. Each side of the axis is packed on its own, left to
+    // right into the first row the label clears, which keeps the common case on the row it always
+    // used and spends a row only where the dates actually collide.
+    const labelled = markers.map((marker, index) => {
+      const sub = marker.classList.contains("archive-date-marker-sub");
+      const centre = markerBoxes[index].top + markerBoxes[index].height / 2;
+      // Any row a previous pass already applied is taken back out, so a relayout measures the same
+      // reach as a first render instead of compounding its own offset.
+      const applied = (Number(marker.style.getPropertyValue("--marker-row")) || 0) * archiveLabelStep;
+      return {
+        marker,
+        sub,
+        width: labelBoxes[index].width,
+        reach: (sub ? labelBoxes[index].bottom - centre : centre - labelBoxes[index].top) - applied,
+        x: xOf(Number(marker.dataset.time))
+      };
+    });
+    /** @param {typeof labelled} tier */
+    const assignLabelRows = tier => {
+      /** @type {number[]} */
+      const rowEnds = [];
+      let reserved = 0;
+      for (const item of tier) {
+        const left = item.x - item.width / 2;
+        let row = rowEnds.findIndex(end => left >= end);
+        if (row < 0) row = rowEnds.length;
+        rowEnds[row] = left + item.width + archiveLabelGap;
+        item.marker.style.setProperty("--marker-row", String(row));
+        reserved = Math.max(reserved, row * archiveLabelStep + item.reach);
+      }
+      return reserved;
+    };
+    const labelsAbove = assignLabelRows(labelled.filter(item => !item.sub));
+    const labelsBelow = assignLabelRows(labelled.filter(item => item.sub));
+
     // Rounding up keeps a reserved gap a gap instead of shaving half a pixel off it.
-    const axisY = snapUp(axisTop);
+    const axisY = snapUp(Math.max(axisTop, labelsAbove));
+    const axisGap = Math.max(archiveAxisGap, labelsBelow + archiveLaneGap);
     // A card only clears the cards it actually overlaps horizontally, so expanding one stack never
     // reserves space under an unrelated date. Lanes ascend, so every lower lane is already placed.
     const stacked = [...geometry].sort((left, right) => left.lane - right.lane || left.left - right.left);
-    let cursor = axisY + archiveAxisGap;
+    let cursor = axisY + axisGap;
     for (const item of stacked) {
-      let top = axisY + archiveAxisGap;
+      let top = axisY + axisGap;
       for (const placed of stacked) {
         if (placed.lane >= item.lane) break;
         if (placed.left < item.right + archiveLaneGap && item.left < placed.right + archiveLaneGap) {
@@ -356,6 +439,12 @@ window.MDManager = window.MDManager || {};
     for (const marker of markers) {
       marker.style.left = `${xOf(Number(marker.dataset.time))}px`;
       marker.style.top = `${axisY}px`;
+    }
+    for (const gap of skipped) {
+      const left = xOf(gap.from);
+      gap.node.style.left = `${left}px`;
+      gap.node.style.width = `${xOf(gap.to) - left}px`;
+      gap.node.style.top = `${axisY}px`;
     }
 
     // Guides that share a column would stack their strokes and read darker than a single one, so only
@@ -385,10 +474,14 @@ window.MDManager = window.MDManager || {};
       guide.setAttribute("d", `M ${x} ${axisY} L ${x} ${bottom}`);
     }
 
-    axis.setAttribute("d", `M ${leftInset} ${axisY} L ${leftInset + axisWidth} ${axisY}`);
+    // The axis stops at every compressed stretch and picks up again behind it, so the ruler never
+    // draws a solid run over time it did not spend.
+    let axisPath = `M ${leftInset} ${axisY}`;
+    for (const gap of skipped) axisPath += ` L ${xOf(gap.from)} ${axisY} M ${xOf(gap.to)} ${axisY}`;
+    axis.setAttribute("d", `${axisPath} L ${leftInset + axisWidth} ${axisY}`);
 
     if (unmatched) unmatched.style.top = `${snapUp(cursor)}px`;
-    const height = Math.max(cursor + (unmatched ? unmatchedHeight + 28 : 0), axisTop + 120);
+    const height = Math.max(cursor + (unmatched ? unmatchedHeight + 28 : 0), axisY + 120);
     timeline.style.minHeight = `${height}px`;
     lines.style.height = `${height}px`;
   }

@@ -3002,6 +3002,23 @@ test("Workspace zoom changes only feature-card width and stays available across 
   await expect(sliderPanel).toHaveCSS("border-top-width", "0px");
   await expect(sliderPanel.locator(".workspace-zoom-stops > span")).toHaveCount(3);
   await expect(sliderPanel.locator(".workspace-zoom-stops")).toBeVisible();
+  const readStopColors = () => sliderPanel.locator(".workspace-zoom-stops > span").evaluateAll(stops => {
+    const probe = document.createElement("span");
+    document.body.append(probe);
+    const resolveColor = (/** @type {string} */ variable) => {
+      probe.style.backgroundColor = `var(${variable})`;
+      return getComputedStyle(probe).backgroundColor;
+    };
+    const colors = {
+      stops: stops.map(stop => getComputedStyle(stop).backgroundColor),
+      reached: resolveColor("--link"),
+      remaining: resolveColor("--border")
+    };
+    probe.remove();
+    return colors;
+  });
+  let stopColors = await readStopColors();
+  expect(stopColors.stops).toEqual([stopColors.reached, stopColors.remaining, stopColors.remaining]);
 
   // The thumb centre rests half a thumb width in from each track edge, so the stop marking a step
   // has to sit there too. Laying the stops out by their own edges would offset the outer two by
@@ -3057,6 +3074,8 @@ test("Workspace zoom changes only feature-card width and stays available across 
   await expect(page.locator("#featureZoomValue")).toHaveText("120%");
   await expect(slider).toHaveAttribute("aria-valuetext", "120%, 460 pixels");
   await expect(releases.first()).toHaveCSS("width", "460px");
+  stopColors = await readStopColors();
+  expect(stopColors.stops).toEqual([stopColors.reached, stopColors.reached, stopColors.remaining]);
   await expect.poll(() => anchoredRelease.evaluate((node, expectedCenter) => {
     const bounds = node.getBoundingClientRect();
     return Math.abs(bounds.left + bounds.width / 2 - expectedCenter);
@@ -3077,6 +3096,8 @@ test("Workspace zoom changes only feature-card width and stays available across 
   });
   await expect(page.locator("#featureZoomValue")).toHaveText("140%");
   await expect(releases.first()).toHaveCSS("width", "540px");
+  stopColors = await readStopColors();
+  expect(stopColors.stops).toEqual([stopColors.reached, stopColors.reached, stopColors.reached]);
   await expect.poll(() => page.locator("#backlog").evaluate(node => node.getBoundingClientRect().width)).toBe(backlogWidth);
 
   await page.keyboard.press("a");
@@ -3128,6 +3149,110 @@ test("Workspace zoom holds the spot under the viewport centre from any scroll po
     }, offset);
     expect(displacement, `offset ${offset} keeps the centred spot in place`).toBeLessThanOrEqual(1);
   }
+});
+
+test("archive date timeline spends its axis on the clusters instead of an extreme idle stretch", async ({ page }) => {
+  const cluster = (/** @type {number} */ year) => Array.from({ length: 4 }, (_, index) => `## Feature ${year}-${index}\n#Date\n- ${year}-03-0${index + 1}\n### Task\n- [x] ~done~`).join("\n\n");
+  await openFixture(page, `# Test Project\n\n## Live\n### Task\n- [ ] open\n\n#Archive\n# Archive\n\n${cluster(2016)}\n\n${cluster(2026)}`);
+  await page.keyboard.press("a");
+  await expect(page.locator("#archive")).toBeVisible();
+  await settleLayout(page);
+
+  const breaks = page.locator("#archive .archive-date-break");
+  await expect(breaks).toHaveCount(1);
+  await expect(breaks.locator(".archive-date-break-label")).toHaveText("10 years");
+  expect(await breaks.evaluate(node => Math.round(node.getBoundingClientRect().width))).toBe(120);
+  // Two subpaths means the axis stops at the break and picks up again behind it.
+  expect(await page.locator("#archive .archive-date-axis-line").evaluate(node => (node.getAttribute("d")?.match(/M /g) || []).length)).toBe(2);
+
+  const geometry = await page.locator("#archive .archive-timeline").evaluate(node => {
+    const cards = /** @type {HTMLElement[]} */ ([...node.querySelectorAll(".archive-date-card")]);
+    const breakLeft = /** @type {HTMLElement} */ (node.querySelector(".archive-date-break")).getBoundingClientRect().left;
+    const before = cards.map(card => card.getBoundingClientRect().left).filter(left => left < breakLeft).sort((left, right) => left - right);
+    const ticks = /** @type {HTMLElement[]} */ ([...node.querySelectorAll(".archive-date-tick")]);
+    const breakBounds = /** @type {HTMLElement} */ (node.querySelector(".archive-date-break")).getBoundingClientRect();
+    return {
+      lanes: new Set(cards.map(card => card.dataset.lane)).size,
+      closest: Math.min(...before.slice(1).map((left, index) => left - before[index])),
+      ticksInsideBreak: ticks.filter(tick => {
+        const bounds = tick.getBoundingClientRect();
+        return bounds.left > breakBounds.left && bounds.right < breakBounds.right;
+      }).length
+    };
+  });
+  // Without compression the whole span is spent on the void: the clusters collapse onto each other
+  // and pile into far more lanes than the two a single break can force.
+  expect(geometry.closest).toBeGreaterThanOrEqual(220);
+  expect(geometry.lanes).toBeLessThanOrEqual(2);
+  expect(geometry.ticksInsideBreak).toBe(0);
+
+  const spread = Array.from({ length: 6 }, (_, index) => `## Spread ${index}\n#Date\n- 2026-0${index + 1}-15\n### Task\n- [x] ~done~`).join("\n\n");
+  await openFixture(page, `# Test Project\n\n## Live\n### Task\n- [ ] open\n\n#Archive\n# Archive\n\n${spread}`);
+  await page.keyboard.press("a");
+  await expect(page.locator("#archive")).toBeVisible();
+  await settleLayout(page);
+  await expect(page.locator("#archive .archive-date-break")).toHaveCount(0);
+  expect(await page.locator("#archive .archive-date-axis-line").evaluate(node => (node.getAttribute("d")?.match(/M /g) || []).length)).toBe(1);
+});
+
+test("archive date labels stack into rows instead of overprinting each other", async ({ page }) => {
+  const crowded = ["## Learn Vulkan basics\n#Version\n- 0.0.0\n#Date\n- 23.08.24 - 29.08.24\n- 25.09.24 - 15.11.24",
+    "## Refactoring der Basics\n#Version\n- 0.0.1\n#Date\n- 23.04.25 - 19.05.25",
+    "## Windows\n#Version\n- 0.1.0\n#Date\n- 09.12.25 - 06.01.26\n- 21.05.26 - 05.06.26",
+    "## ImGui\n#Version\n- 0.2.0\n#Date\n- 08.06.26 - 13.06.26",
+    "## Descriptor Sets\n#Version\n- 0.2.1\n#Date\n- 15.06.26 - 25.06.26"].map(feature => `${feature}\n### Task\n- [x] ~done~`).join("\n\n");
+  await openFixture(page, `# Vulkan\n\n## Live\n### Task\n- [ ] open\n\n#Archive\n# Archive\n\n${crowded}`);
+  await page.keyboard.press("a");
+  await expect(page.locator("#archive")).toBeVisible();
+  await settleLayout(page);
+
+  const crowdedLabels = await page.locator("#archive .archive-timeline").evaluate(node => {
+    const boxes = /** @type {HTMLElement[]} */ ([...node.querySelectorAll(".archive-date-marker > span")]).map(label => ({
+      text: label.textContent || "",
+      row: Number(/** @type {HTMLElement} */ (label.parentElement).style.getPropertyValue("--marker-row")) || 0,
+      bounds: label.getBoundingClientRect()
+    }));
+    /** @type {string[]} */
+    const overlaps = [];
+    for (let first = 0; first < boxes.length; first += 1) {
+      for (let second = first + 1; second < boxes.length; second += 1) {
+        const one = boxes[first].bounds;
+        const other = boxes[second].bounds;
+        if (one.left < other.right && other.left < one.right && one.top < other.bottom && other.top < one.bottom) {
+          overlaps.push(`${boxes[first].text} over ${boxes[second].text}`);
+        }
+      }
+    }
+    const timeline = node.getBoundingClientRect();
+    return {
+      count: boxes.length,
+      overlaps,
+      escaping: boxes.filter(label => label.bounds.top < timeline.top).map(label => label.text),
+      rows: Object.fromEntries(boxes.map(label => [label.text, label.row]))
+    };
+  });
+  expect(crowdedLabels.count).toBe(14);
+  expect(crowdedLabels.overlaps).toEqual([]);
+  expect(crowdedLabels.escaping).toEqual([]);
+  // The five June dates are what collide; every earlier date keeps the row it always had.
+  expect(crowdedLabels.rows["23.08.24"]).toBe(0);
+  expect(crowdedLabels.rows["09.12.25"]).toBe(0);
+  expect(Math.max(...Object.values(crowdedLabels.rows))).toBeGreaterThan(0);
+
+  // Interior range endpoints label below the axis and have to clear the cards on their own side.
+  const periods = ["01.06.26 - 02.06.26", "04.06.26 - 05.06.26", "07.06.26 - 08.06.26", "10.06.26 - 11.06.26"].map(period => `- ${period}`).join("\n");
+  await openFixture(page, `# Below\n\n## Live\n### Task\n- [ ] open\n\n#Archive\n# Archive\n\n## Bursts\n#Date\n${periods}\n### Task\n- [x] ~done~\n\n## Later\n#Date\n- 20.06.26\n### Task\n- [x] ~done~`);
+  await page.keyboard.press("a");
+  await expect(page.locator("#archive")).toBeVisible();
+  await settleLayout(page);
+
+  const below = await page.locator("#archive .archive-timeline").evaluate(node => {
+    const subs = /** @type {HTMLElement[]} */ ([...node.querySelectorAll(".archive-date-marker-sub > span")]).map(label => label.getBoundingClientRect());
+    const cards = /** @type {HTMLElement[]} */ ([...node.querySelectorAll(".archive-date-card")]).map(card => card.getBoundingClientRect());
+    return { subs: subs.length, deepestLabel: Math.max(...subs.map(box => box.bottom)), highestCard: Math.min(...cards.map(box => box.top)) };
+  });
+  expect(below.subs).toBeGreaterThan(1);
+  expect(below.highestCard).toBeGreaterThan(below.deepestLabel);
 });
 
 test("Archive round-trips preserve open and closed Workspace panels", async ({ page }) => {

@@ -64,7 +64,8 @@ type MDArchiveTick = { time: number; level: MDArchiveTickLevel };
 type MDArchiveTimelineRange = { from: MDArchiveDate; to?: MDArchiveDate; label: string };
 type MDArchiveTimelineEntry = { feature: MDFeature; label: string; date?: MDArchiveDate; endDate?: MDArchiveDate; rangeLabel?: string; ranges?: MDArchiveTimelineRange[]; rangeCount?: number };
 type MDArchiveTimelineGroup = { key: string; label: string; entries: MDArchiveTimelineEntry[] };
-type MDArchiveTimeline = { order: MDArchiveOrder; scale: MDArchiveScale; from: string; to: string; fromTime?: number; toTime?: number; entries?: MDArchiveTimelineEntry[]; markers?: MDArchiveDate[]; ticks?: MDArchiveTick[]; groups: MDArchiveTimelineGroup[]; unmatched: MDFeature[] };
+type MDArchiveTimelineGap = { from: number; to: number; label: string };
+type MDArchiveTimeline = { order: MDArchiveOrder; scale: MDArchiveScale; from: string; to: string; fromTime?: number; toTime?: number; entries?: MDArchiveTimelineEntry[]; markers?: MDArchiveDate[]; ticks?: MDArchiveTick[]; gaps?: MDArchiveTimelineGap[]; groups: MDArchiveTimelineGroup[]; unmatched: MDFeature[] };
 type MDUndoAction = {
   label: string;
   undo(): void;
