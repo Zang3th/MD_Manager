@@ -31,6 +31,26 @@ window.MDManager = window.MDManager || {};
    * @param {number} value @param {number} ratio
    */
   const snapToDevicePixel = (value, ratio) => Math.round(value * ratio) / ratio;
+  /** @type {{size: number, ratio: number} | null} */
+  let scrollbarMetric = null;
+  /**
+   * Publishes the width the browser actually reserves for a stable scrollbar gutter. `scrollbar-width`
+   * decides that, not the `::-webkit-scrollbar` box, and its `thin` keyword resolves per platform, so
+   * every inset derived from the gutter has to read the real number instead of assuming one. The probe
+   * reserves the gutter the same way the panes that matter do, because a plain scrolling box does not
+   * reserve the same width. Measured once per device pixel ratio, since browser zoom is what changes it.
+   */
+  function applyScrollbarSize() {
+    const ratio = window.devicePixelRatio || 1;
+    if (scrollbarMetric && scrollbarMetric.ratio === ratio) return;
+    const probe = document.createElement("div");
+    probe.style.cssText = "position:absolute;top:-9999px;left:-9999px;width:100px;height:100px;overflow-y:auto;scrollbar-gutter:stable;visibility:hidden";
+    document.body.appendChild(probe);
+    const size = probe.offsetWidth - probe.clientWidth;
+    probe.remove();
+    scrollbarMetric = { size, ratio };
+    document.documentElement.style.setProperty("--scrollbar-size", `${size}px`);
+  }
   const titleFitCache = new Map();
   const textWidthCache = new Map();
   const titleStyleCache = new Map();
@@ -518,6 +538,7 @@ window.MDManager = window.MDManager || {};
 
   function runLayout() {
     layoutFrame = 0;
+    applyScrollbarSize();
     const needs = layoutNeeds;
     layoutNeeds = { titles: false, headers: false, scrollbars: false, backlog: false, archive: false, archivePath: false };
     let backlogLeft = null;

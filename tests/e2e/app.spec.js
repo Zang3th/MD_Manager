@@ -3255,6 +3255,27 @@ test("archive date labels stack into rows instead of overprinting each other", a
   expect(below.highestCard).toBeGreaterThan(below.deepestLabel);
 });
 
+test("the reserved scrollbar gutter is published instead of assumed", async ({ page }) => {
+  await openFixture(page);
+  const gutter = await page.evaluate(() => {
+    const probe = document.createElement("div");
+    probe.style.cssText = "position:absolute;top:-9999px;left:-9999px;width:100px;height:100px;overflow-y:auto;scrollbar-gutter:stable;visibility:hidden";
+    document.body.appendChild(probe);
+    const reserved = probe.offsetWidth - probe.clientWidth;
+    probe.remove();
+    const archive = /** @type {HTMLElement} */ (document.getElementById("archive"));
+    return {
+      reserved,
+      published: getComputedStyle(document.documentElement).getPropertyValue("--scrollbar-size").trim(),
+      sideInset: getComputedStyle(archive).getPropertyValue("--archive-side-inset").trim()
+    };
+  });
+  // The archive derives its side inset from this value, so an assumed width would move the whole
+  // ruler by the difference on any platform whose thin scrollbar is not the assumed size.
+  expect(gutter.published).toBe(`${gutter.reserved}px`);
+  expect(gutter.sideInset).toBe(`calc(90px - 1.5rem - ${gutter.reserved}px)`);
+});
+
 test("Archive round-trips preserve open and closed Workspace panels", async ({ page }) => {
   await openFixture(page);
   const backlog = page.locator("#backlog");
