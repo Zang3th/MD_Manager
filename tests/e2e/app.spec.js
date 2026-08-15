@@ -158,7 +158,7 @@ async function expectSvgInkCentered(button, svg) {
 test("start screen exposes the application identity and open action", async ({ page }) => {
   await page.goto(appUrl);
   await expect(page).toHaveTitle("MD_Manager");
-  await expect(page.locator("#appVersion")).toHaveText("v0.7.1");
+  await expect(page.locator("#appVersion")).toHaveText("v0.8.0");
   await expect(page.locator("#appVersion")).toHaveCSS("font-family", '"JetBrains Mono", monospace');
   expect(await page.locator("#appVersion").evaluate(element => getComputedStyle(element, "::before").content)).toBe("none");
   const versionClockStyles = await page.locator("#appVersion, #appClock").evaluateAll(elements => elements.map(element => {
@@ -190,7 +190,7 @@ test("start screen exposes the application identity and open action", async ({ p
   await expect(createFile).toHaveCSS("box-shadow", restingActionShadow);
   await expect(page.locator(".header").getByRole("button", { name: /Open/ })).toHaveCount(0);
   await expect(page.locator("#watermark")).toBeVisible();
-  await expect(page.locator("#watermark")).toContainText("MD_Manager v0.7.1");
+  await expect(page.locator("#watermark")).toContainText("MD_Manager v0.8.0");
   const help = page.getByRole("button", { name: "Help", exact: true });
   const sound = page.locator("#toggleSounds");
   const theme = page.locator("#toggleTheme");
