@@ -1,30 +1,5 @@
 # MD_Manager
 
-## Polishing
-
-#Version
-- 0.6.0
-
-#Date
-- 04.08.2026 - 07.08.2026
-
-### UI
-
-- [x] ~Headerbar anpassen~
-- [x] ~Controls überall anpassen~
-- [x] ~Größe von Sidebar und Stats~
-- [x] ~Startseite anpassen~
-
-### Interaktion
-
-- [x] ~Klick auf Logo returned zur Startseite~
-
-### Github
-
-- [x] ~Ordentliche README im Stil der anderen Projekte erstellen~
-- [x] ~Repository pflegen~
-- [x] ~Release + Deployment neuer Versionen automatisieren~
-
 ## Pinning und Archivierung
 
 #Version
@@ -106,7 +81,6 @@
 
 - [x] ~#Info und #Warn werden im Markdown an die falsche Stelle geschoben~
 - [x] ~Abstände innerhalb von #Tags (oben und unten) sind nicht einheitlich~
-- [x] ~Edit-Dialog im Hochkantmodus ist manchmal immer noch buggy~
 - [x] ~Code-Review + lose Enden aufräumen~
 - [x] ~Tests streamlinen~
 
@@ -119,6 +93,7 @@
 - [x] ~Linien haben weiterhin unter bestimmten Umständen verschiedene Farben/Dicke~
 - [x] ~Snake-Modus in der Darstellung nach Datum wieder abklemmen (zu buggy)~
 - [x] ~Umgang mit extrem großen Zeiträumen finden~
+- [ ] Zeitraum springt manchmal unnötig in die nächste Zeile
 
 ### Zoom
 
@@ -134,8 +109,8 @@ Stats und Backlog bleiben davon unberührt.
 
 ### Suche
 
-- [ ] Fuzzy-Finding mit Echtzeitfilter
-- [ ] Enter führt zu Navigation zur richtigen Stelle
+- [x] ~Fuzzy-Finding mit Echtzeitfilter~
+- [x] ~Enter führt zu Navigation zur richtigen Stelle~
 
 ## Markdown-Erweiterungen
 
@@ -144,6 +119,10 @@ Stats und Backlog bleiben davon unberührt.
 
 #Date
 - TBD
+
+### Bugs und Verbesserungen
+
+- [ ] Edit-Dialog im Hochkantmodus ist manchmal immer noch buggy
 
 ### Markdown-Features
 
@@ -565,3 +544,28 @@ Stats und Backlog bleiben davon unberührt.
 
 - [x] ~Neues Logo erstellen~
 - [x] ~Überall einpflegen~
+
+## Polishing
+
+#Version
+- 0.6.0
+
+#Date
+- 04.08.2026 - 07.08.2026
+
+### UI
+
+- [x] ~Headerbar anpassen~
+- [x] ~Controls überall anpassen~
+- [x] ~Größe von Sidebar und Stats~
+- [x] ~Startseite anpassen~
+
+### Interaktion
+
+- [x] ~Klick auf Logo returned zur Startseite~
+
+### Github
+
+- [x] ~Ordentliche README im Stil der anderen Projekte erstellen~
+- [x] ~Repository pflegen~
+- [x] ~Release + Deployment neuer Versionen automatisieren~

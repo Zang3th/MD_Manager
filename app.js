@@ -7,6 +7,7 @@ window.MDManager = window.MDManager || {};
     ["domain/project.js", () => Boolean(app.domain)],
     ["domain/history.js", () => Boolean(app.undoSystem)],
     ["domain/status.js", () => Boolean(app.status)],
+    ["domain/search.js", () => Boolean(app.search)],
     ["io/markdown.js", () => Boolean(app.markdown)],
     ["io/templates.js", () => Boolean(app.templates)],
     ["io/files.js", () => Boolean(app.files)],
@@ -17,7 +18,8 @@ window.MDManager = window.MDManager || {};
     ["ui/editor.js", () => Boolean(app.editor)],
     ["ui/notifications.js", () => Boolean(app.notifications)],
     ["ui/sounds.js", () => Boolean(app.sounds)],
-    ["ui/interactions.js", () => Boolean(app.interactions)]
+    ["ui/interactions.js", () => Boolean(app.interactions)],
+    ["ui/search.js", () => Boolean(app.searchPalette)]
   ]);
 
   /** @param {HTMLImageElement} image */
@@ -114,6 +116,7 @@ window.MDManager = window.MDManager || {};
     if (!project || !fileHandle) return;
     app.render.project(project, viewState, fileHandle.name, featureWidth);
     app.interactions.setProject(project, executeAction);
+    app.searchPalette.setProject(project);
     app.interactions.restoreViewState(viewState);
     updateUndoSystemControls();
   }

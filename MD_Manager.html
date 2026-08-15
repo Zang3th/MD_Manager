@@ -12,6 +12,7 @@
   <script defer src="domain/project.js"></script>
   <script defer src="domain/history.js"></script>
   <script defer src="domain/status.js"></script>
+  <script defer src="domain/search.js"></script>
   <script defer src="io/markdown.js"></script>
   <script defer src="io/templates.js"></script>
   <script defer src="io/files.js"></script>
@@ -23,6 +24,7 @@
   <script defer src="ui/notifications.js"></script>
   <script defer src="ui/sounds.js"></script>
   <script defer src="ui/interactions.js"></script>
+  <script defer src="ui/search.js"></script>
   <script defer src="app.js"></script>
 </head>
 <body class="show-metadata">
@@ -366,6 +368,7 @@
                     <div><dt>Toggle backlog</dt><dd><kbd>B</kbd></dd></div>
                     <div><dt>Jump to pinned feature</dt><dd><kbd>P</kbd></dd></div>
                     <div><dt>Toggle statistics</dt><dd><kbd>S</kbd></dd></div>
+                    <div><dt>Search project</dt><dd><kbd>F</kbd></dd></div>
                     <div><dt>Close or cancel</dt><dd><kbd>Esc</kbd></dd></div>
                   </dl>
                 </section>
@@ -591,6 +594,19 @@
         </div>
       </footer>
     </form>
+  </dialog>
+  <dialog class="search-dialog" id="searchPalette" aria-label="Search project" tabindex="-1">
+    <div class="search-panel">
+      <div class="search-field">
+        <span class="search-prompt" aria-hidden="true">&gt;</span>
+        <input id="searchInput" name="search" type="text" role="combobox" autocomplete="off" spellcheck="false" placeholder="Suche ..." aria-label="Search project" aria-expanded="false" aria-controls="searchResults" aria-autocomplete="list">
+        <span class="search-count" id="searchSummary" role="status"></span>
+      </div>
+      <div class="search-results" id="searchResults" role="listbox" aria-label="Search results"></div>
+      <div class="search-footer">
+        <span class="search-legend" aria-hidden="true"><kbd>Enter</kbd><span>Go to</span><kbd>Esc</kbd><span>Close</span></span>
+      </div>
+    </div>
   </dialog>
   <div class="watermark" id="watermark">© 2026 MD_Manager v0.7.1 · Tim Krüger (Zang3th) · <a href="https://github.com/Zang3th" target="_blank" rel="noopener noreferrer">GitHub</a></div>
 </body>

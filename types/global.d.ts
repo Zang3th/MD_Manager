@@ -75,6 +75,28 @@ type MDUndoAction = {
   afterViewState?: MDViewState;
 };
 type MDUndoEntry = MDUndoAction & { size: number };
+type MDSearchKind = "feature" | "task" | "group" | "todo" | "note" | "text";
+type MDSearchBadge = "feature" | "task" | "group" | "todo" | "info" | "warn" | "text";
+type MDSearchNoteType = "info" | "warn";
+type MDSearchLocation = "workspace" | "backlog" | "archive";
+type MDSearchState = "done" | "active" | "open" | "";
+type MDSearchItem = {
+  kind: MDSearchKind;
+  badge: MDSearchBadge;
+  text: string;
+  lower: string;
+  featureIndex: number;
+  taskIndex: number;
+  taskPosition: number;
+  noteType: MDSearchNoteType | "";
+  itemIndex: number;
+  lineIndex: number;
+  location: MDSearchLocation;
+  state: MDSearchState;
+  breadcrumb: string[];
+};
+type MDSearchResult = { item: MDSearchItem; score: number; positions: number[] };
+type MDSearchIndex = { items: MDSearchItem[]; narrow: { query: string; items: MDSearchItem[] } | null };
 type MDUndoSystem = { entries: MDUndoEntry[]; index: number; totalSize: number };
 type MDUndoResult = { label: string; viewState?: MDViewState };
 type MDFileHandle = {

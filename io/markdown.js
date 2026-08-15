@@ -61,6 +61,23 @@ window.MDManager = window.MDManager || {};
     if (!projectHeading) formatError("File has no project title. Level-one Markdown heading required.");
   }
 
+  // A blank line alone no longer closes an #Info or #Warn block. Prose after the gap
+  // still belongs to the marker above it; only a new list, a group heading, another
+  // marker, or the end of the task closes the block. Every consumer of the block extent
+  // must ask this one function, or the card, the editor fields, and the serialized file
+  // would disagree about which lines belong to the tag.
+  /** @param {string[]} lines @param {number} index @returns {boolean} */
+  function noteContinuesAfterBlank(lines, index) {
+    for (let next = index + 1; next < lines.length; next++) {
+      const line = lines[next];
+      if (!line.trim()) continue;
+      if (/^####\s+.+?\s*#*\s*$/.test(line)) return false;
+      if (/^\s*#(?:Info|Warn)\s*$/i.test(line)) return false;
+      return !/^\s*[-*+]\s+/.test(line);
+    }
+    return false;
+  }
+
   /** @param {MDTask} task @returns {MDTaskContent} */
   function taskContent(task) {
     /** @type {MDGroupSection} */
@@ -97,6 +114,7 @@ window.MDManager = window.MDManager || {};
         return;
       }
       if (!line.trim() && note) {
+        if (noteContinuesAfterBlank(task.lines, lineIndex)) return;
         note = null;
         group = initialGroup;
         section = initialSection;
@@ -136,13 +154,17 @@ window.MDManager = window.MDManager || {};
     const sections = { markdown: [], info: [], warn: [] };
     /** @type {"markdown" | "info" | "warn"} */
     let section = "markdown";
-    for (const line of lines) {
-      if (/^\s*#Info\s*$/i.test(line)) { section = "info"; continue; }
-      if (/^\s*#Warn\s*$/i.test(line)) { section = "warn"; continue; }
+    lines.forEach((line, index) => {
+      if (/^\s*#Info\s*$/i.test(line)) { section = "info"; return; }
+      if (/^\s*#Warn\s*$/i.test(line)) { section = "warn"; return; }
       if (/^####\s+.+?\s*#*\s*$/.test(line)) section = "markdown";
-      if (!line.trim() && section !== "markdown") { section = "markdown"; continue; }
+      if (!line.trim() && section !== "markdown") {
+        // Keep the gap inside the field so a block holding a list and a later
+        // paragraph survives a save unchanged instead of being compacted.
+        if (!noteContinuesAfterBlank(lines, index)) { section = "markdown"; return; }
+      }
       sections[section].push(line);
-    }
+    });
     const clean = (/** @type {string[]} */ values) => values.join("\n").replace(/^(?:[ \t]*\n)+|(?:\n[ \t]*)+$/g, "");
     return { markdown: clean(sections.markdown), info: clean(sections.info), warn: clean(sections.warn) };
   }
@@ -359,7 +381,7 @@ window.MDManager = window.MDManager || {};
   /** @param {MDTask} task @param {string[]} [lines] @returns {string[]} */
   function serializeTaskLines(task, lines = task.lines) {
     let note = false;
-    return lines.map(line => {
+    return lines.map((line, index) => {
       if (/^\s*#(?:Info|Warn)\s*$/i.test(line)) {
         note = true;
         return line;
@@ -369,7 +391,7 @@ window.MDManager = window.MDManager || {};
         return line;
       }
       if (!line.trim() && note) {
-        note = false;
+        if (!noteContinuesAfterBlank(lines, index)) note = false;
         return line;
       }
       if (note) return line;

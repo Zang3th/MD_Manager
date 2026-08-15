@@ -652,6 +652,20 @@ window.MDManager = window.MDManager || {};
     document.getElementById("toggleStats").setAttribute("aria-pressed", String(active));
   }
 
+  /** @param {Element} release */
+  function centerFeature(release) {
+    const behavior = reducedMotion.matches ? "auto" : "smooth";
+    const content = document.getElementById("content");
+    const clock = document.getElementById("appClock");
+    const bounds = release.getBoundingClientRect();
+    const clockBounds = clock.getBoundingClientRect();
+    const center = bounds.left + bounds.width / 2;
+    const clockCenter = clock.hidden ? window.innerWidth / 2 : clockBounds.left + clockBounds.width / 2;
+    const maximum = Math.max(0, content.scrollWidth - content.offsetWidth);
+    const target = Math.max(0, Math.min(maximum, content.scrollLeft + center - clockCenter));
+    content.scrollTo({ left: target, behavior });
+  }
+
   function jumpToPinnedFeature() {
     const pinned = document.querySelector("#content > .release.pinned");
     if (!pinned) return;
@@ -664,16 +678,7 @@ window.MDManager = window.MDManager || {};
       note.setAttribute("aria-expanded", "true");
     });
     app.layout.contentOverflowChanged();
-    const behavior = reducedMotion.matches ? "auto" : "smooth";
-    const content = document.getElementById("content");
-    const clock = document.getElementById("appClock");
-    const pinnedBounds = pinned.getBoundingClientRect();
-    const clockBounds = clock.getBoundingClientRect();
-    const pinnedCenter = pinnedBounds.left + pinnedBounds.width / 2;
-    const clockCenter = clock.hidden ? window.innerWidth / 2 : clockBounds.left + clockBounds.width / 2;
-    const maximum = Math.max(0, content.scrollWidth - content.offsetWidth);
-    const target = Math.max(0, Math.min(maximum, content.scrollLeft + pinnedCenter - clockCenter));
-    content.scrollTo({ left: target, behavior });
+    centerFeature(pinned);
   }
 
   function resetSortables() {
@@ -1076,6 +1081,7 @@ window.MDManager = window.MDManager || {};
       const didChange = perform(completingTodo ? "Todo completed" : "Todo reopened", () => app.domain.setTodo(task, lineIndex, completingTodo), () => { task.lines[lineIndex] = beforeLine; }, viewState, viewState, { render: false }, beforeLine.length);
       if (!didChange) return;
       app.render.updateTodo(project, featureIndex, taskIndex, lineIndex);
+      app.searchPalette.invalidate();
       animateTodoToggle(featureIndex, taskIndex, lineIndex);
       const taskFinished = !wasTaskComplete && taskComplete(task);
       if (taskFinished) {
@@ -1314,7 +1320,10 @@ window.MDManager = window.MDManager || {};
   document.addEventListener("keydown", event => {
     const shortcut = (event.ctrlKey || event.metaKey) && !event.altKey;
     const target = eventElement(event);
-    const editsText = target.matches("input,textarea,[contenteditable='true']");
+    // Focus can linger on a control inside a dialog that has already closed. Such a
+    // control is not an active text field, and treating it as one would swallow every
+    // letter shortcut afterwards.
+    const editsText = target.matches("input,textarea,[contenteditable='true']") && !target.closest("dialog:not([open])");
     const key = event.key.toLowerCase();
     const letterShortcut = !event.ctrlKey && !event.metaKey && !event.altKey && !editsText && !document.querySelector("dialog[open]");
     if (event.key === "Escape") {
@@ -1365,6 +1374,10 @@ window.MDManager = window.MDManager || {};
     if (letterShortcut && key === "s" && !document.body.classList.contains("archive-view-active")) {
       event.preventDefault();
       toggleStats();
+    }
+    if (letterShortcut && key === "f") {
+      event.preventDefault();
+      app.searchPalette?.open();
     }
   });
 
@@ -1430,6 +1443,17 @@ window.MDManager = window.MDManager || {};
   app.interactions = {
     sortableSource: "vendor/Sortable.min.js",
     sortableReady: typeof Sortable === "function",
+    // Reveal helpers the search palette drives. They stay here because this module owns
+    // view state, the backlog, and the horizontal scroll arithmetic already.
+    navigation: {
+      setView,
+      centerFeature,
+      openBacklog() {
+        const backlog = document.getElementById("backlog");
+        if (backlog.hidden) toggleBacklog();
+      },
+      reducedMotion: () => reducedMotion.matches
+    },
     setProject,
     clearClipboard() { setClipboard([]); },
     startClock,

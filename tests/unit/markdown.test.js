@@ -48,6 +48,88 @@ test("taskContent separates groups, notes, paragraphs, indentation, and todo syn
   assert.equal(content.todos[0].checked, true);
 });
 
+test("a blank line ends an info or warn block only when a list follows it", () => {
+  const continued = markdown.taskContent({ lines: ["#Warn", "- careful", "", "still the warning"] });
+  const continuedWarn = continued.blocks.find((/** @type {any} */ block) => block.type === "note");
+  assert.deepEqual(Array.from(continuedWarn.items, (/** @type {any} */ item) => item.text), ["careful", "still the warning"]);
+  assert.equal(continued.blocks.filter((/** @type {any} */ block) => block.type === "paragraph").length, 0);
+
+  const ended = markdown.taskContent({ lines: ["#Warn", "- careful", "", "- [ ] real todo"] });
+  const endedWarn = ended.blocks.find((/** @type {any} */ block) => block.type === "note");
+  assert.deepEqual(Array.from(endedWarn.items, (/** @type {any} */ item) => item.text), ["careful"]);
+  assert.deepEqual(Array.from(ended.todos, (/** @type {any} */ todo) => todo.text), ["real todo"]);
+});
+
+test("prose does not reattach to a block that a todo list already closed", () => {
+  const content = markdown.taskContent({ lines: ["#Warn", "- careful", "", "- [ ] todo", "", "trailing prose"] });
+  const warn = content.blocks.find((/** @type {any} */ block) => block.type === "note");
+  assert.deepEqual(Array.from(warn.items, (/** @type {any} */ item) => item.text), ["careful"]);
+  assert.deepEqual(Array.from(content.blocks.filter((/** @type {any} */ block) => block.type === "paragraph"), (/** @type {any} */ block) => block.text), ["trailing prose"]);
+});
+
+test("a group heading ends an info or warn block whatever follows it", () => {
+  const content = markdown.taskContent({ lines: ["#Info", "note prose", "", "#### Phase", "description"] });
+  const info = content.blocks.find((/** @type {any} */ block) => block.type === "note");
+  assert.deepEqual(Array.from(info.items, (/** @type {any} */ item) => item.text), ["note prose"]);
+  const group = content.blocks.find((/** @type {any} */ block) => block.type === "group" && block.title === "Phase");
+  assert.equal(group.descriptions[0].text, "description");
+});
+
+test("a bullet after continued block prose stays block content instead of becoming a todo", () => {
+  const lines = ["#Warn", "- careful", "", "still the warning", "- another warning bullet"];
+  const content = markdown.taskContent({ lines });
+  const warn = content.blocks.find((/** @type {any} */ block) => block.type === "note");
+  assert.deepEqual(Array.from(warn.items, (/** @type {any} */ item) => item.text), ["careful", "still the warning", "another warning bullet"]);
+  assert.equal(content.todos.length, 0);
+  const serialized = markdown.serialize(markdown.parse(["# P", "## F", "### T", ...lines].join("\n")));
+  assert.match(serialized, /^- another warning bullet$/m);
+  assert.doesNotMatch(serialized, /\[ \] another warning bullet/);
+});
+
+test("block extent agrees across task content, editor fields, and serialization", () => {
+  const lines = ["#Warn", "- careful", "", "still the warning", "", "- [ ] real todo"];
+  const content = markdown.taskContent({ lines });
+  const warn = content.blocks.find((/** @type {any} */ block) => block.type === "note");
+  assert.deepEqual(Array.from(warn.items, (/** @type {any} */ item) => item.text), ["careful", "still the warning"]);
+  assert.deepEqual(Array.from(content.todos, (/** @type {any} */ todo) => todo.text), ["real todo"]);
+
+  const fields = markdown.taskEditorFields(lines);
+  assert.equal(fields.warn, "- careful\n\nstill the warning");
+  assert.equal(fields.markdown, "- [ ] real todo");
+
+  const serialized = markdown.serialize(markdown.parse(["# P", "## F", "### T", ...lines].join("\n")));
+  assert.match(serialized, /#Warn\n- careful\n\nstill the warning\n\n- \[ \] real todo/);
+});
+
+test("a block holding a list, a gap, and a paragraph survives repeated serialization", () => {
+  const source = ["# P", "", "## F", "", "### T", "", "#Warn", "- careful", "", "still the warning", "", "#### Work", "- [ ] todo"].join("\n");
+  const once = markdown.serialize(markdown.parse(source));
+  const twice = markdown.serialize(markdown.parse(once));
+  assert.equal(twice, once);
+  assert.match(once, /- careful\n\nstill the warning/);
+});
+
+test("golden file task paragraphs attach to the warn block above them", () => {
+  const project = markdown.parse(fs.readFileSync(path.join(__dirname, "../../data/parsing/Layout.md"), "utf8"));
+  /** @param {string} featureTitle @param {string} taskTitle */
+  const taskOf = (featureTitle, taskTitle) => markdown.taskContent(
+    project.features.find((/** @type {any} */ feature) => feature.title === featureTitle)
+      .tasks.find((/** @type {any} */ task) => task.title === taskTitle));
+
+  const bootstrap = taskOf("Foundation Complete", "Bootstrap workspace");
+  assert.match(bootstrap.blocks.find((/** @type {any} */ block) => block.type === "note" && block.noteType === "warn").items.at(-1).text, /^Lorem ipsum dolor sit amet/);
+  assert.equal(bootstrap.blocks.filter((/** @type {any} */ block) => block.type === "paragraph").length, 0);
+
+  const editing = taskOf("Editor Experience", "Markdown editing");
+  assert.deepEqual(
+    Array.from(editing.blocks.find((/** @type {any} */ block) => block.type === "note" && block.noteType === "warn").items, (/** @type {any} */ item) => item.text.slice(0, 24)),
+    ["Unsaved lorem ipsum cont", "This active task mixes c", "It also renders ~obsolet"]);
+  assert.equal(editing.blocks.filter((/** @type {any} */ block) => block.type === "paragraph").length, 0);
+
+  const untagged = taskOf("Release Validation", "Cross-platform checks");
+  assert.deepEqual(Array.from(untagged.blocks.filter((/** @type {any} */ block) => block.type === "paragraph"), (/** @type {any} */ block) => block.text.slice(0, 20)), ["At vero eos et accus"]);
+});
+
 test("taskContent preserves repeated descriptions and todo lists within a label", () => {
   const content = markdown.taskContent({ lines: ["#### AA", "Geometry.", "- [ ] segments", "Shader AA.", "- [ ] smoothstep", "- [ ] distance", "MSAA.", "- [ ] samples"] });
   const group = content.blocks[1];

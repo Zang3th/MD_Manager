@@ -457,6 +457,15 @@ test("Golden File Help dialog matches platform visual baselines", async ({ page 
   await captureVisualThemePair(page, "help-dialog");
 });
 
+test("Golden File Search palette matches platform visual baselines", async ({ page }) => {
+  await openGoldenFixture(page);
+  await page.keyboard.press("f");
+  await expect(page.locator("#searchPalette")).toBeVisible();
+  await page.locator("#searchInput").fill("arch");
+  await expect(page.locator("#searchResults .search-result").first()).toBeVisible();
+  await captureVisualThemePair(page, "search-palette");
+});
+
 test("Golden File Task Edit dialog matches platform visual baselines", async ({ page }) => {
   await openGoldenFixture(page);
   await page.keyboard.press("p");
@@ -943,6 +952,30 @@ test("tag content renders nested lists, code, and URLs while task todos stay fla
   await expect(card.locator(".todo-item")).toHaveCount(3);
   const todoOffsets = await card.locator(".todo-item").evaluateAll(items => items.map(item => item.getBoundingClientRect().left));
   expect(new Set(todoOffsets.map(offset => Math.round(offset))).size).toBe(1);
+});
+
+test("a task paragraph after a blank line renders inside the tag above it and survives an editor round trip", async ({ page }) => {
+  const source = "# Project\n\n## Feature\n\n### Task\n\n#Warn\n- Careful with this\n\nStill part of the warning.\n\n- [ ] A real todo\n\nPlain task text.";
+  await openFixture(page, source);
+
+  const card = page.locator(".card");
+  await card.locator(".card-header").click();
+  await expect(card.locator(".task-warn p")).toHaveText("Still part of the warning.");
+  await expect(card.locator(".task-blocks > p")).toHaveText("Plain task text.");
+  await expect(card.locator(".todo-item")).toHaveCount(1);
+  await expect(card.locator(".todo-text")).toHaveText("A real todo");
+
+  await card.locator(".card-header").hover();
+  await card.locator('[data-edit="task"]').click();
+  const editor = page.locator("#taskEditor");
+  await expect(editor).toBeVisible();
+  const before = await page.locator("#taskEditorMarkdown").inputValue();
+  expect(before).toContain("- Careful with this\n\nStill part of the warning.");
+  await page.locator("#taskEditorMarkdown").fill(before);
+  await page.locator("#saveTaskEditor").click();
+  await expect(editor).toBeHidden();
+  await expect(card.locator(".task-warn p")).toHaveText("Still part of the warning.");
+  await expect(card.locator(".task-blocks > p")).toHaveText("Plain task text.");
 });
 
 test("feature Info and Warn use the card vertical spacing rhythm", async ({ page }) => {

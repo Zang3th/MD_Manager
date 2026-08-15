@@ -540,6 +540,11 @@ window.MDManager = window.MDManager || {};
     saveError: showSaveError,
     featureWidth: setFeatureWidth,
     updateTodo,
+    // Rendering and the statistics panel already parse every non-ignored task, so this
+    // memoised accessor lets the search index reuse that work instead of parsing the
+    // whole project a second time. Its cache is reset with every render and dropped per
+    // task in `updateTodo`, so callers always see current content.
+    taskContent,
     equalizeReleaseHeaders: app.layout.equalizeReleaseHeaders,
     layout: app.layout.layout,
     fitTitles: app.layout.fitTitles,
