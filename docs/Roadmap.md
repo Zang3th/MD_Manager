@@ -60,13 +60,21 @@
 - [x] ~Breite des Backlogs anpassen~
 - [x] ~Tabs im Help-Menü~
 - [x] ~Screenshots automatisieren~
-- [x] ~Release fertig machen~
 
 ### Archiv
 
 - [x] ~Prototypischen Zeitstrahl zu einer vollwertigen Seite umbauen~
 - [x] ~"Pseudo"-3D + visuell ansprechend~
 - [x] ~README updaten~
+
+### Release
+
+- [x] ~u.U. Docs umspeichern~
+- [x] ~Version-Bump + Snapshots aktualisieren~
+- [x] ~Screenshots aktualisieren (via Skill)~
+- [x] ~README.md anpassen (Änderungen + Stats)~
+- [x] ~Release-Notes schreiben~
+- [x] ~Release fertig machen (via Actions)~
 
 #Pin
 ## Zoom und Suche
@@ -112,6 +120,15 @@ Stats und Backlog bleiben davon unberührt.
 
 - [x] ~Fuzzy-Finding mit Echtzeitfilter~
 - [x] ~Enter führt zu Navigation zur richtigen Stelle~
+
+### Release
+
+- [x] ~u.U. Docs umspeichern~
+- [x] ~Version-Bump + Snapshots aktualisieren~
+- [x] ~Screenshots aktualisieren (via Skill)~
+- [x] ~README.md anpassen (Änderungen + Stats)~
+- [ ] Release-Notes schreiben
+- [ ] Release fertig machen (via Actions)
 
 ## Markdown-Erweiterungen
 
