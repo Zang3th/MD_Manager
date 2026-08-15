@@ -128,8 +128,15 @@ window.MDManager = window.MDManager || {};
     return lines.join("\n").replace(/^(?:[ \t]*\n)+|(?:\n[ \t]*)+$/g, "");
   }
 
-  /** @param {string} line */
-  function highlightInline(line) {
+  // Each token recurses into its own content, so a long run of markers such as `****...`
+  // nests once per pair. Past this depth the remainder is escaped as plain text: real
+  // Markdown never nests inline formatting anywhere near this far, while an unbounded
+  // walk exhausted the call stack and left the visible layer frozen on the previous text.
+  const maxInlineDepth = 8;
+
+  /** @param {string} line @param {number} [depth] */
+  function highlightInline(line, depth = 0) {
+    if (depth >= maxInlineDepth) return escapeHtml(line);
     const tokens = /(?<!\\)(`[^`\n]+`|\[[^\]\n]+\]\([^)\n]+\)|\*\*(?=\S)[^\n]*?\S\*\*(?!\*)|__(?=\S)[^\n]*?\S__(?!_)|~~(?=\S)[^~\n]*?\S~~|~(?=\S)[^~\n]*?\S~|(?<!\*)\*(?!\*)(?=\S)[^\n]*?\S\*(?!\*)|(?<![\w_])_(?!_)(?=\S)[^_\n]*?\S_(?![\w_]))/g;
     let result = "";
     let offset = 0;
@@ -138,7 +145,7 @@ window.MDManager = window.MDManager || {};
       const token = match[0];
       const className = token.startsWith("`") ? "markdown-syntax-code" : token.startsWith("[") ? "markdown-syntax-link" : token.startsWith("**") || token.startsWith("__") ? "markdown-syntax-bold" : token.startsWith("~") ? "markdown-syntax-strike" : "markdown-syntax-italic";
       const markerLength = token.startsWith("**") || token.startsWith("__") || token.startsWith("~~") ? 2 : /^[~*_]/.test(token) ? 1 : 0;
-      const content = markerLength ? `${escapeHtml(token.slice(0, markerLength))}${highlightInline(token.slice(markerLength, -markerLength))}${escapeHtml(token.slice(-markerLength))}` : escapeHtml(token);
+      const content = markerLength ? `${escapeHtml(token.slice(0, markerLength))}${highlightInline(token.slice(markerLength, -markerLength), depth + 1)}${escapeHtml(token.slice(-markerLength))}` : escapeHtml(token);
       result += `<span class="${className}">${content}</span>`;
       offset = (match.index || 0) + token.length;
     }
@@ -278,9 +285,47 @@ window.MDManager = window.MDManager || {};
     let formattedStart = -1;
     let formattedEnd = -1;
 
+    let highlightFrame = 0;
+    /** @type {string | null} */
+    let highlightedValue = null;
+
     function renderHighlight() {
-      highlight.innerHTML = highlightMarkdown(markdownTextarea.value);
+      const value = markdownTextarea.value;
+      let markup;
+      try {
+        markup = highlightMarkdown(value);
+      } catch {
+        // The layer must never keep showing text the user has already replaced, so a
+        // tokenizer failure degrades to plain escaped content instead of leaving the
+        // previous markup in place.
+        markup = escapeHtml(value);
+      }
+      // A textarea renders a final empty line for a trailing newline and a <pre> does not,
+      // which made this layer one line shorter and clamped its scrollTop. The trailing
+      // break restores that line box and contributes nothing to textContent.
+      highlight.innerHTML = `${markup}<br>`;
+      highlightedValue = value;
       syncHighlightScroll();
+    }
+
+    // Throttled to at most one render per frame, rendering on the leading edge so a single
+    // keystroke still updates the layer synchronously and anything reading it right after an
+    // input sees the current text. Only input arriving faster than the display is collapsed,
+    // which is where the whole-document re-tokenisation used to pile up once per character.
+    function scheduleHighlight() {
+      if (markdownTextarea.value === highlightedValue) return;
+      if (highlightFrame) return;
+      renderHighlight();
+      highlightFrame = requestAnimationFrame(() => {
+        highlightFrame = 0;
+        if (markdownTextarea.value !== highlightedValue) renderHighlight();
+      });
+    }
+
+    function cancelHighlight() {
+      if (!highlightFrame) return;
+      cancelAnimationFrame(highlightFrame);
+      highlightFrame = 0;
     }
 
     function syncHighlightScroll() {
@@ -416,6 +461,8 @@ window.MDManager = window.MDManager || {};
       lastInputField = -1;
       updateUndoSystemButtons();
       updateFormatButtons();
+      // A frame left pending by the previous session would render this one's content late.
+      cancelHighlight();
       renderHighlight();
       closeHelp();
     }
@@ -476,7 +523,7 @@ window.MDManager = window.MDManager || {};
     });
     editorForm.addEventListener("input", record);
     editorForm.addEventListener("input", () => {
-      renderHighlight();
+      scheduleHighlight();
       updateFormatButtons();
     });
     markdownTextarea.addEventListener("scroll", syncHighlightScroll);

@@ -1382,6 +1382,89 @@ test("portrait editors wrap the highlight exactly like the plain textarea text",
   expect(featureDrift.maxY).toBeLessThan(0.5);
 });
 
+test("portrait editor highlight keeps textarea height and scroll with a trailing newline", async ({ page }) => {
+  await page.setViewportSize({ width: 1080, height: 1920 });
+  await openFixture(page);
+  await page.evaluate(async () => { await document.fonts.ready; });
+  await page.locator(".card").first().locator(".card-header").hover();
+  await page.locator(".card").first().locator('[data-edit="task"]').click();
+  await expect(page.locator("#taskEditor")).toBeVisible();
+
+  const newline = String.fromCharCode(10);
+  const body = Array.from({ length: 60 }, (_, index) => `- [ ] line ${index} padding words here`).join(newline);
+  // A textarea renders a final empty line for a trailing newline; a pre does not. Without the
+  // sentinel the layer is one line shorter, its scrollTop clamps, and the visible text drifts.
+  for (const tail of ["", newline, newline + newline]) {
+    const state = await page.evaluate(async value => {
+      const highlight = /** @type {HTMLElement} */ (document.getElementById("taskMarkdownHighlight"));
+      const textarea = /** @type {HTMLTextAreaElement} */ (document.getElementById("taskEditorMarkdown"));
+      textarea.value = value;
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      textarea.scrollTop = textarea.scrollHeight;
+      highlight.scrollTop = textarea.scrollTop;
+      return {
+        height: highlight.scrollHeight - textarea.scrollHeight,
+        scroll: highlight.scrollTop - textarea.scrollTop,
+        sameText: highlight.textContent === textarea.value,
+        overflowing: textarea.scrollHeight > textarea.clientHeight
+      };
+    }, body + tail);
+    expect(state.overflowing).toBe(true);
+    expect(state.height).toBe(0);
+    expect(state.scroll).toBe(0);
+    expect(state.sameText).toBe(true);
+  }
+});
+
+test("editor highlight coalesces a burst of input into one render", async ({ page }) => {
+  await openFixture(page);
+  await page.locator(".card").first().locator(".card-header").hover();
+  await page.locator(".card").first().locator('[data-edit="task"]').click();
+  await expect(page.locator("#taskEditor")).toBeVisible();
+
+  const renders = await page.evaluate(async () => {
+    const highlight = /** @type {HTMLElement} */ (document.getElementById("taskMarkdownHighlight"));
+    const textarea = /** @type {HTMLTextAreaElement} */ (document.getElementById("taskEditorMarkdown"));
+    let count = 0;
+    const observer = new MutationObserver(records => { count += records.length; });
+    observer.observe(highlight, { childList: true });
+    for (let index = 0; index < 10; index++) {
+      textarea.value = `- [ ] burst ${"x".repeat(index + 1)}`;
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    observer.disconnect();
+    return { count, sameText: highlight.textContent === textarea.value };
+  });
+  expect(renders.count).toBeLessThanOrEqual(2);
+  expect(renders.sameText).toBe(true);
+});
+
+test("editor highlight survives a pathological inline run without going stale", async ({ page }) => {
+  await openFixture(page);
+  await page.locator(".card").first().locator(".card-header").hover();
+  await page.locator(".card").first().locator('[data-edit="task"]').click();
+  await expect(page.locator("#taskEditor")).toBeVisible();
+
+  // Unbounded recursion over a long marker run exhausted the call stack and froze the layer
+  // on the previous text, which is the only state where the visible content is truly wrong.
+  const state = await page.evaluate(async () => {
+    const highlight = /** @type {HTMLElement} */ (document.getElementById("taskMarkdownHighlight"));
+    const textarea = /** @type {HTMLTextAreaElement} */ (document.getElementById("taskEditorMarkdown"));
+    textarea.value = "seed";
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const value = "*".repeat(30000);
+    textarea.value = value;
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    return { sameText: highlight.textContent === value, length: (highlight.textContent || "").length };
+  });
+  expect(state.sameText).toBe(true);
+  expect(state.length).toBe(30000);
+});
+
 test("task and feature editors share the requested responsive width", async ({ page }) => {
   await openFixture(page);
 

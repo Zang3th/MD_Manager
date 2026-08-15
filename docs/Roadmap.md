@@ -75,7 +75,7 @@
 - 0.8.0
 
 #Date
-- 12.08.2026 - TBD
+- 12.08.2026 - 14.08.2026
 
 ### Bugs und Verbesserungen
 
@@ -83,7 +83,7 @@
 - [x] ~Abstände innerhalb von #Tags (oben und unten) sind nicht einheitlich~
 - [x] ~Code-Review + lose Enden aufräumen~
 - [x] ~Tests streamlinen~
-- [ ] Edit-Dialog im Hochkantmodus ist manchmal immer noch buggy
+- [x] ~Edit-Dialog im Hochkantmodus ist manchmal immer noch buggy~
 
 #### Archiv
 - [x] ~Zeiträume müssen im Archiv-Zeitstrahl auch dargestellt werden können~
