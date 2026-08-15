@@ -435,7 +435,10 @@ window.MDManager = window.MDManager || {};
       let top = axisY + axisGap;
       for (const placed of stacked) {
         if (placed.lane >= item.lane) break;
-        if (placed.left < item.right + archiveLaneGap && item.left < placed.right + archiveLaneGap) {
+        // Actual overlap, without the lane gap padded onto both sides. The gap is what lanes are
+        // packed with; demanding it here as well spends a whole row on two cards that already sit
+        // clear of each other, which is exactly what the density scale works to avoid.
+        if (placed.left < item.right && item.left < placed.right) {
           top = Math.max(top, placed.top + placed.height + archiveLaneGap);
         }
       }

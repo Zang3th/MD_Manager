@@ -3240,6 +3240,40 @@ test("archive date timeline spends its axis on the clusters instead of an extrem
   expect(await page.locator("#archive .archive-date-axis-line").evaluate(node => (node.getAttribute("d")?.match(/M /g) || []).length)).toBe(1);
 });
 
+test("an archive date card keeps its row beside a neighbour it does not overlap", async ({ page }) => {
+  await page.setViewportSize({ width: 1102, height: 900 });
+  await openFixture(page, ["# Archive rows", "", "#Archive", "# Archive", "",
+    "## Alpha", "", "#Version", "- 0.4.0", "", "#Date", "- 03.08.2026", "", "### T", "", "#### G", "- [x] ~a~", "",
+    "## Beta", "", "#Version", "- 0.5.0", "", "#Date", "- 03.08.2026", "", "### T", "", "#### G", "- [x] ~b~", "",
+    "## Gamma", "", "#Version", "- 0.6.0", "", "#Date", "- 04.08.2026 - 07.08.2026", "", "### T", "", "#### G", "- [x] ~c~"].join("\n"));
+  await page.keyboard.press("a");
+  await expect(page.locator("#archive")).toBeVisible();
+
+  const geometry = await page.locator(".archive-date-card").evaluateAll(cards => cards.map(card => ({
+    title: (card.querySelector(".archive-feature-title")?.textContent || "").trim(),
+    left: parseFloat(card.style.left),
+    width: parseFloat(card.style.width),
+    top: parseFloat(card.style.top)
+  })));
+  /** @param {string} name */
+  const cardNamed = name => {
+    const found = geometry.find(card => card.title.startsWith(name));
+    if (!found) throw new Error(`${name} card is missing from the date timeline`);
+    return found;
+  };
+  const first = cardNamed("Alpha");
+  const stacked = cardNamed("Beta");
+  const range = cardNamed("Gamma");
+
+  // Two point cards on the same date do share a column and must stack.
+  expect(stacked.top).toBeGreaterThan(first.top);
+  // The range starts a day later and clears both, so it belongs on the first row even though the
+  // gap it leaves is narrower than the lane gap the columns are packed with.
+  expect(range.left).toBeGreaterThan(first.left + first.width);
+  expect(range.left - (first.left + first.width)).toBeLessThan(16);
+  expect(range.top).toBe(first.top);
+});
+
 test("archive date labels stack into rows instead of overprinting each other", async ({ page }) => {
   const crowded = ["## Learn Vulkan basics\n#Version\n- 0.0.0\n#Date\n- 23.08.24 - 29.08.24\n- 25.09.24 - 15.11.24",
     "## Refactoring der Basics\n#Version\n- 0.0.1\n#Date\n- 23.04.25 - 19.05.25",

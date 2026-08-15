@@ -83,6 +83,7 @@
 - [x] ~Abstände innerhalb von #Tags (oben und unten) sind nicht einheitlich~
 - [x] ~Code-Review + lose Enden aufräumen~
 - [x] ~Tests streamlinen~
+- [ ] Edit-Dialog im Hochkantmodus ist manchmal immer noch buggy
 
 #### Archiv
 - [x] ~Zeiträume müssen im Archiv-Zeitstrahl auch dargestellt werden können~
@@ -93,7 +94,7 @@
 - [x] ~Linien haben weiterhin unter bestimmten Umständen verschiedene Farben/Dicke~
 - [x] ~Snake-Modus in der Darstellung nach Datum wieder abklemmen (zu buggy)~
 - [x] ~Umgang mit extrem großen Zeiträumen finden~
-- [ ] Zeitraum springt manchmal unnötig in die nächste Zeile
+- [x] ~Zeitraum springt manchmal unnötig in die nächste Zeile~
 
 ### Zoom
 
@@ -121,8 +122,6 @@ Stats und Backlog bleiben davon unberührt.
 - TBD
 
 ### Bugs und Verbesserungen
-
-- [ ] Edit-Dialog im Hochkantmodus ist manchmal immer noch buggy
 
 ### Markdown-Features
 
