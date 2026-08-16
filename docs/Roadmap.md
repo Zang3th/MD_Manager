@@ -76,7 +76,6 @@
 - [x] ~Release-Notes schreiben~
 - [x] ~Release fertig machen (via Actions)~
 
-#Pin
 ## Zoom und Suche
 
 #Version
@@ -127,9 +126,10 @@ Stats und Backlog bleiben davon unberührt.
 - [x] ~Version-Bump + Snapshots aktualisieren~
 - [x] ~Screenshots aktualisieren (via Skill)~
 - [x] ~README.md anpassen (Änderungen + Stats)~
-- [ ] Release-Notes schreiben
-- [ ] Release fertig machen (via Actions)
+- [x] ~Release-Notes schreiben~
+- [x] ~Release fertig machen (via Actions)~
 
+#Pin
 ## Markdown-Erweiterungen
 
 #Version
@@ -142,17 +142,25 @@ Stats und Backlog bleiben davon unberührt.
 
 ### Markdown-Features
 
-- [ ] Referenzen herstellen + hervorheben können
-- [ ] Bilder unterstützen können
-- [ ] Auch einen Umgang mit anderen Markdown-Features + Inline-HTML finden
-- [ ] Live-Parsing mit Fehlermeldungen
+- [ ] Referenzen herstellen + hervorheben
+- [ ] Bilder unterstützen
+- [ ] Umgang mit anderen Markdown-Features + Inline-HTML finden
 
 ### Markdown-Linting
 
 - [ ] Nach Linting-Regeln importieren/exportieren
-- [ ] Schalter im UI (Default = False)
+- [ ] Live-Parsing mit Fehlermeldungen
 
-## QoL-Verbesserungen für v1.0
+### Release
+
+- [ ] u.U. Docs umspeichern
+- [ ] Version-Bump + Snapshots aktualisieren
+- [ ] Screenshots aktualisieren (via Skill)
+- [ ] README.md anpassen (Änderungen + Stats)
+- [ ] Release-Notes schreiben
+- [ ] Release fertig machen (via Actions)
+
+## Reports
 
 #Version
 - 1.0.0
@@ -160,14 +168,50 @@ Stats und Backlog bleiben davon unberührt.
 #Date
 - TBD
 
-### Import/Export
+### Bugs und Verbesserungen
+
+### Export
 
 - [ ] PDF-Report
-- [ ] json
+
+### Kennzahlen
+
+- [ ] Cycle-Time, Burnup/down, ...
+- [ ] Dafür das Stats-Fenster erweitern
+- [ ] Separater Button öffnet Fullscreen-Anzeige
+
+### Release
+
+- [ ] u.U. Docs umspeichern
+- [ ] Version-Bump + Snapshots aktualisieren
+- [ ] Screenshots aktualisieren (via Skill)
+- [ ] README.md anpassen (Änderungen + Stats)
+- [ ] Release-Notes schreiben
+- [ ] Release fertig machen (via Actions)
+
+## Keyboard-Controls
+
+#Version
+- 1.1.0
+
+#Date
+- TBD
+
+### Bugs und Verbesserungen
 
 ### Keyboard-Controls
 
 - [ ] Ausbauen und vervollständigen
+- [ ] Separater Vim-Mode
+
+### Release
+
+- [ ] u.U. Docs umspeichern
+- [ ] Version-Bump + Snapshots aktualisieren
+- [ ] Screenshots aktualisieren (via Skill)
+- [ ] README.md anpassen (Änderungen + Stats)
+- [ ] Release-Notes schreiben
+- [ ] Release fertig machen (via Actions)
 
 #Backlog
 ## Backlog
@@ -184,6 +228,13 @@ Stats und Backlog bleiben davon unberührt.
 ### Mobile
 
 - [ ] Mobilunterstützung ausarbeiten
+
+### Filtern
+
+### Git-Integration
+
+- [ ] Status
+- [ ] Side-by-Side Diff
 
 #Archive
 # Archive
