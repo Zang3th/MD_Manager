@@ -954,6 +954,23 @@ test("tag content renders nested lists, code, and URLs while task todos stay fla
   expect(new Set(todoOffsets.map(offset => Math.round(offset))).size).toBe(1);
 });
 
+test("rendered emphasis stays slanted everywhere inline Markdown appears", async ({ page }) => {
+  await openFixture(page, "# Project\n\n## Feature\n\n#Info\n- Feature note *italic*\n\n### Task\n\n#Warn\n- Task note *italic*\n\nTask paragraph *italic*\n\n#### Group *italic*\nDescription *italic*\n- [ ] Todo **bold** *italic* ~struck~");
+
+  await page.locator(".feature-note .note-toggle").click();
+  const card = page.locator(".card");
+  await card.locator(".card-header").click();
+  const emphasis = page.locator(".feature-note em,.card-body em");
+  await expect(emphasis).toHaveText(["italic", "italic", "italic", "italic", "italic", "italic"]);
+  // Inter and JetBrains Mono ship no italic face, so the body-wide font-synthesis:none would leave em upright.
+  for (const style of await emphasis.evaluateAll(items => items.map(item => getComputedStyle(item).fontStyle))) expect(style).toBe("italic");
+  for (const synthesis of await emphasis.evaluateAll(items => items.map(item => getComputedStyle(item).fontSynthesis))) expect(synthesis).not.toBe("none");
+  await expect(card.locator(".todo-text strong")).toHaveText("bold");
+  await expect(card.locator(".todo-text strong")).toHaveCSS("font-weight", "700");
+  await expect(card.locator(".todo-text s")).toHaveText("struck");
+  await expect(card.locator(".todo-text s")).toHaveCSS("text-decoration-line", "line-through");
+});
+
 test("a task paragraph after a blank line renders inside the tag above it and survives an editor round trip", async ({ page }) => {
   const source = "# Project\n\n## Feature\n\n### Task\n\n#Warn\n- Careful with this\n\nStill part of the warning.\n\n- [ ] A real todo\n\nPlain task text.";
   await openFixture(page, source);
@@ -1626,7 +1643,9 @@ test("merged feature Markdown highlights syntax and inserts tags", async ({ page
   await expect(highlight.locator(".markdown-syntax-tag").first()).toHaveCSS("color", "rgb(211, 134, 155)");
   await metadata.fill("#Info\n**bold** *italic* ~done~ `code` [link](https://example.com)\n#### Label");
   await expect(highlight.locator(".markdown-syntax-bold")).toHaveCSS("font-weight", "800");
-  await expect(highlight.locator(".markdown-syntax-italic")).toHaveCSS("font-style", "oblique 12deg");
+  await expect(highlight.locator(".markdown-syntax-italic")).toHaveCSS("font-style", "italic");
+  // JetBrains Mono ships no italic face, so an unsynthesised slant would leave the highlight upright.
+  await expect(highlight.locator(".markdown-syntax-italic")).not.toHaveCSS("font-synthesis", "none");
   await expect(highlight.locator(".markdown-syntax-strike")).toHaveCSS("text-decoration-line", "line-through");
   await expect(highlight.locator(".markdown-syntax-code")).toHaveCSS("font-family", '"JetBrains Mono", monospace');
   await expect(highlight.locator(".markdown-syntax-code")).toHaveCSS("color", "rgb(184, 187, 38)");
@@ -1637,7 +1656,7 @@ test("merged feature Markdown highlights syntax and inserts tags", async ({ page
   const combinedStrike = highlight.locator(".markdown-syntax-strike").first();
   await expect(combinedStrike.locator(".markdown-syntax-bold")).toHaveText("**bold**");
   await expect(combinedStrike.locator(".markdown-syntax-italic")).toHaveText("*italic*");
-  await expect(combinedStrike.locator(".markdown-syntax-italic")).toHaveCSS("font-style", "oblique 12deg");
+  await expect(combinedStrike.locator(".markdown-syntax-italic")).toHaveCSS("font-style", "italic");
   await expect(combinedStrike.locator(".markdown-syntax-code")).toHaveText("`code`");
   await expect(combinedStrike.locator(".markdown-syntax-code")).toHaveCSS("color", "rgb(184, 187, 38)");
   await expect(combinedStrike.locator(".markdown-syntax-link")).toHaveText("[link](https://example.com)");
@@ -3843,7 +3862,7 @@ test("help popover documents shortcuts and Markdown and closes predictably", asy
   const formatting = markdownPanel.locator(".help-formatting");
   await expect(formatting.locator(".markdown-syntax-bold")).toHaveText("**Bold**");
   await expect(formatting.locator(".markdown-syntax-bold")).toHaveCSS("font-weight", "800");
-  await expect(formatting.locator(".markdown-syntax-italic")).toHaveCSS("font-style", "oblique 12deg");
+  await expect(formatting.locator(".markdown-syntax-italic")).toHaveCSS("font-style", "italic");
   await expect(formatting.locator(".markdown-syntax-strike")).toHaveCSS("text-decoration-line", "line-through");
   await expect(formatting.locator(".markdown-syntax-code")).toHaveText("`Code`");
   await expect(formatting.locator(".markdown-syntax-link")).toHaveText("[URL](url)");

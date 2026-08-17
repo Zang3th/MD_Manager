@@ -140,7 +140,7 @@ Stats und Backlog bleiben davon unberührt.
 
 ### Bugs und Verbesserungen
 
-- [ ] Kursivschrift unter #Tags funktioniert nicht mehr
+- [x] ~Kursivschrift unter #Tags funktioniert nicht mehr~
 
 ### Markdown-Erweiterungen
 
