@@ -130,26 +130,34 @@ Stats und Backlog bleiben davon unberührt.
 - [x] ~Release fertig machen (via Actions)~
 
 #Pin
-## Markdown-Erweiterungen
+## Markdown-Standard
 
 #Version
-- 0.9.0
+- 0.8.1
 
 #Date
 - TBD
 
 ### Bugs und Verbesserungen
 
-### Markdown-Features
+- [ ] Kursivschrift unter #Tags funktioniert nicht mehr
 
-- [ ] Referenzen herstellen + hervorheben
-- [ ] Bilder unterstützen
-- [ ] Umgang mit anderen Markdown-Features + Inline-HTML finden
+### Markdown-Erweiterungen
 
-### Markdown-Linting
+#Info
+Markdown-Standard: Gängig, aber weiterhin funktional in unserem *Spirit* und gut lesbar/editierbar im Editor.
 
+#Warn
+Kompatibilität mit anderen Tools? Enforcement bei uns?
+
+#### Linting
 - [ ] Nach Linting-Regeln importieren/exportieren
 - [ ] Live-Parsing mit Fehlermeldungen
+
+#### Features
+- [ ] Referenzen herstellen, hervorheben + navigieren
+- [ ] Bilder unterstützen
+- [ ] Umgang mit weiteren Markdown-Features + Inline-HTML finden
 
 ### Release
 
@@ -163,7 +171,7 @@ Stats und Backlog bleiben davon unberührt.
 ## Reports
 
 #Version
-- 1.0.0
+- 0.9.0
 
 #Date
 - TBD
@@ -189,15 +197,17 @@ Stats und Backlog bleiben davon unberührt.
 - [ ] Release-Notes schreiben
 - [ ] Release fertig machen (via Actions)
 
-## Keyboard-Controls
+## Filtern und Controls
 
 #Version
-- 1.1.0
+- 1.0.0
 
 #Date
 - TBD
 
 ### Bugs und Verbesserungen
+
+### Filtern
 
 ### Keyboard-Controls
 
@@ -228,8 +238,6 @@ Stats und Backlog bleiben davon unberührt.
 ### Mobile
 
 - [ ] Mobilunterstützung ausarbeiten
-
-### Filtern
 
 ### Git-Integration
 
