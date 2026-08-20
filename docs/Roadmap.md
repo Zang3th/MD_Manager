@@ -130,63 +130,28 @@ Stats und Backlog bleiben davon unberührt.
 - [x] ~Release fertig machen (via Actions)~
 
 #Pin
-## Markdown-Standard
-
-#Version
-- 0.8.1
-
-#Date
-- TBD
-
-### Bugs und Verbesserungen
-
-- [x] ~Kursivschrift unter #Tags funktioniert nicht mehr~
-
-### Markdown-Erweiterungen
-
-#Info
-Markdown-Standard: Gängig, aber weiterhin funktional in unserem *Spirit* und gut lesbar/editierbar im Editor.
-
-#Warn
-Kompatibilität mit anderen Tools? Enforcement bei uns?
-
-#### Linting
-- [ ] Nach Linting-Regeln importieren/exportieren
-- [ ] Live-Parsing mit Fehlermeldungen
-
-#### Features
-- [ ] Referenzen herstellen, hervorheben + navigieren
-- [ ] Bilder unterstützen
-- [ ] Umgang mit weiteren Markdown-Features + Inline-HTML finden
-
-### Release
-
-- [ ] u.U. Docs umspeichern
-- [ ] Version-Bump + Snapshots aktualisieren
-- [ ] Screenshots aktualisieren (via Skill)
-- [ ] README.md anpassen (Änderungen + Stats)
-- [ ] Release-Notes schreiben
-- [ ] Release fertig machen (via Actions)
-
 ## Reports
 
 #Version
 - 0.9.0
 
 #Date
-- TBD
+- 14.09.26 - TBD
 
 ### Bugs und Verbesserungen
 
-### Export
-
-- [ ] PDF-Report
+- [x] ~Kursivschrift unter #Tags funktioniert nicht mehr~
+- [ ] Search-Fenster neutralisieren
 
 ### Kennzahlen
 
 - [ ] Cycle-Time, Burnup/down, ...
 - [ ] Dafür das Stats-Fenster erweitern
 - [ ] Separater Button öffnet Fullscreen-Anzeige
+
+### Export
+
+- [ ] PDF-Report
 
 ### Release
 
@@ -243,6 +208,23 @@ Kompatibilität mit anderen Tools? Enforcement bei uns?
 
 - [ ] Status
 - [ ] Side-by-Side Diff
+
+### Markdown-Erweiterungen
+
+#Info
+Markdown-Standard: Gängig, aber weiterhin funktional in unserem *Spirit* und gut lesbar/editierbar im Editor.
+
+#Warn
+Kompatibilität mit anderen Tools? Enforcement bei uns?
+
+#### Linting
+- [ ] Nach Linting-Regeln importieren/exportieren
+- [ ] Live-Parsing mit Fehlermeldungen
+
+#### Features
+- [ ] Referenzen herstellen, hervorheben + navigieren
+- [ ] Bilder unterstützen
+- [ ] Umgang mit weiteren Markdown-Features + Inline-HTML finden
 
 #Archive
 # Archive
