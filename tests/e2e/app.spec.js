@@ -3350,6 +3350,11 @@ test("an archive date card keeps its row beside a neighbour it does not overlap"
     "## Gamma", "", "#Version", "- 0.6.0", "", "#Date", "- 04.08.2026 - 07.08.2026", "", "### T", "", "#### G", "- [x] ~c~"].join("\n"));
   await page.keyboard.press("a");
   await expect(page.locator("#archive")).toBeVisible();
+  // The card geometry is written by a scheduled layout pass, and the keyboard shortcut reaches the
+  // measurement below without the round trips that let that pass run. Waiting for the inline
+  // position keeps the read behind the pass instead of racing the frame it lands in.
+  await expect(page.locator(".archive-date-card").first()).toHaveAttribute("style", /top:/);
+  await settleLayout(page);
 
   const geometry = await page.locator(".archive-date-card").evaluateAll(cards => cards.map(card => ({
     title: (card.querySelector(".archive-feature-title")?.textContent || "").trim(),
