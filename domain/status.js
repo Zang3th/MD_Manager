@@ -34,15 +34,11 @@ window.MDManager = window.MDManager || {};
     const tasks = regularFeatures.flatMap(feature => feature.tasks.filter(task => !task.ignored));
     const backlogTasks = backlog?.tasks.filter(task => !task.ignored) || [];
     const archivedTasks = archivedFeatures.flatMap(feature => feature.tasks.filter(task => !task.ignored));
-    // The feature counts and the open todos of the active features read the same lists, so
-    // they are collected once instead of walking the task tree twice.
     const featureEntries = regularFeatures.map(feature => feature.tasks.filter(task => !task.ignored).flatMap(entriesForTask));
     const entries = tasks.flatMap(entriesForTask);
     const backlogEntries = backlogTasks.flatMap(entriesForTask);
     const archivedEntries = archivedTasks.flatMap(entriesForTask);
     const entryProgress = progress(entries);
-    // A todo is only ever done or open, so "active" reports the open todos of the features
-    // that the Features row counts as active.
     const activeEntries = featureEntries.reduce((open, featureTodos) => {
       const featureState = progress(featureTodos);
       return featureState.inProgress ? open + featureTodos.length - featureState.done : open;
