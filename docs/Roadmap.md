@@ -141,7 +141,8 @@ Stats und Backlog bleiben davon unberührt.
 ### Bugs und Verbesserungen
 
 - [x] ~Kursivschrift unter #Tags funktioniert nicht mehr~
-- [ ] Search-Fenster neutralisieren
+- [x] ~Search-Fenster verbessern~
+- [x] ~Stats: Active-ToDo's zählen~
 
 ### Kennzahlen
 

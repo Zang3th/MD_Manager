@@ -2,6 +2,7 @@ window.MDManager = window.MDManager || {};
 
 (function (app) {
   const resultLimit = 50;
+  const excerptLimit = 88;
   const highlightDuration = 1200;
   /** @type {Record<MDSearchBadge, string>} */
   const badgeLabels = { feature: "Feature", task: "Task", group: "Group", todo: "ToDo", info: "Info", warn: "Warn", text: "Text" };
@@ -23,6 +24,10 @@ window.MDManager = window.MDManager || {};
   let results = [];
   let total = 0;
   let selected = 0;
+  /** @type {Element[]} */
+  let resultRows = [];
+  /** @type {Element | null} */
+  let selectedRow = null;
   /** @type {Element | null} */
   let highlighted = null;
   let highlightTimer = 0;
@@ -50,6 +55,41 @@ window.MDManager = window.MDManager || {};
     return markup;
   }
 
+  /**
+   * Keeps the densest run of subsequence matches visible instead of assuming the first
+   * matched character explains the result. The full item text remains the accessible
+   * name and activation source.
+   * @param {string} text @param {number[]} positions
+   * @returns {{text: string, positions: number[]}}
+   */
+  function matchedExcerpt(text, positions) {
+    if (text.length <= excerptLimit || !positions.length) return { text, positions };
+
+    const windowLength = excerptLimit - 2;
+    let left = 0;
+    let bestLeft = 0;
+    let bestRight = 0;
+    for (let right = 0; right < positions.length; right++) {
+      while (positions[right] - positions[left] >= windowLength) left++;
+      if (right - left > bestRight - bestLeft) {
+        bestLeft = left;
+        bestRight = right;
+      }
+    }
+
+    const matchStart = positions[bestLeft];
+    const matchEnd = positions[bestRight] + 1;
+    const context = windowLength - (matchEnd - matchStart);
+    const start = Math.max(0, Math.min(matchStart - Math.floor(context * 0.4), text.length - windowLength));
+    const end = Math.min(text.length, start + windowLength);
+    const leading = start ? "…" : "";
+    const trailing = end < text.length ? "…" : "";
+    return {
+      text: `${leading}${text.slice(start, end)}${trailing}`,
+      positions: positions.filter(position => position >= start && position < end).map(position => position - start + leading.length)
+    };
+  }
+
   /** @param {MDSearchItem} item */
   function accessibleName(item) {
     const parts = [badgeLabels[item.badge]];
@@ -64,13 +104,13 @@ window.MDManager = window.MDManager || {};
   function resultMarkup(result, index) {
     const item = result.item;
     const location = locationLabels[item.location];
+    const excerpt = matchedExcerpt(item.text, result.positions);
     return `<div class="search-result" role="option" id="searchResult-${index}" data-index="${index}" data-state="${item.state}" aria-selected="false" aria-label="${escapeHtml(accessibleName(item))}">
-      <span class="search-caret" aria-hidden="true">&gt;</span>
-      <span class="search-badge" data-badge="${item.badge}">${badgeLabels[item.badge]}</span>
       <span class="search-body">
-        <span class="search-title"><span class="search-state" aria-hidden="true"></span><span class="search-text">${highlightMarkup(item.text, result.positions)}</span></span>
+        <span class="search-title"><span class="search-state" aria-hidden="true"></span><span class="search-text">${highlightMarkup(excerpt.text, excerpt.positions)}</span></span>
         ${item.breadcrumb.length ? `<span class="search-breadcrumb">${escapeHtml(item.breadcrumb.join(" / "))}</span>` : ""}
       </span>
+      <span class="search-badge" data-badge="${item.badge}">${badgeLabels[item.badge]}</span>
       ${location ? `<span class="search-pill" data-location="${item.location}">${location}</span>` : ""}
     </div>`;
   }
@@ -83,11 +123,14 @@ window.MDManager = window.MDManager || {};
   }
 
   function renderResults() {
+    resultRows = [];
+    selectedRow = null;
+    list.scrollTop = 0;
     if (!input.value.trim()) {
-      // The placeholder already says what can be searched, so the empty body shows the
-      // badge vocabulary instead of repeating that sentence in prose.
-      list.innerHTML = `<div class="search-scope" aria-hidden="true">${Object.entries(badgeLabels)
-        .map(([badge, label]) => `<span class="search-badge" data-badge="${badge}">${label}</span>`).join("")}</div>`;
+      list.innerHTML = `<div class="search-empty-state" aria-hidden="true">
+        <strong class="search-empty-title">Search the entire project</strong>
+        <span class="search-empty-copy">Find features, tasks, notes, and todos.</span>
+      </div>`;
       setCount("", "");
       input.setAttribute("aria-expanded", "false");
       input.removeAttribute("aria-activedescendant");
@@ -101,35 +144,42 @@ window.MDManager = window.MDManager || {};
       return;
     }
     list.innerHTML = results.map(resultMarkup).join("");
+    resultRows = Array.from(list.querySelectorAll(".search-result"));
     setCount(`${results.length}/${total}`, total > results.length ? `${results.length} of ${total} matches` : `${total} ${total === 1 ? "match" : "matches"}`);
     input.setAttribute("aria-expanded", "true");
-    applySelection();
+    applySelection(false);
   }
 
-  function applySelection() {
-    const rows = list.querySelectorAll(".search-result");
-    rows.forEach((row, index) => {
-      const active = index === selected;
-      row.classList.toggle("is-selected", active);
-      row.setAttribute("aria-selected", String(active));
-    });
-    const active = rows[selected];
+  /** @param {boolean} ensureVisible */
+  function applySelection(ensureVisible) {
+    const active = resultRows[selected];
     if (!active) {
+      selectedRow = null;
       input.removeAttribute("aria-activedescendant");
       return;
     }
-    input.setAttribute("aria-activedescendant", active.id);
-    active.scrollIntoView({ block: "nearest" });
+    if (selectedRow !== active) {
+      if (selectedRow) {
+        selectedRow.classList.remove("is-selected");
+        selectedRow.setAttribute("aria-selected", "false");
+      }
+      active.classList.add("is-selected");
+      active.setAttribute("aria-selected", "true");
+      selectedRow = active;
+    }
+    if (input.getAttribute("aria-activedescendant") !== active.id) input.setAttribute("aria-activedescendant", active.id);
+    if (ensureVisible) active.scrollIntoView({ block: "nearest" });
   }
 
   /** @param {number} step */
   function moveSelection(step) {
     if (!results.length) return;
     selected = (selected + step + results.length) % results.length;
-    applySelection();
+    applySelection(true);
   }
 
   function runQuery() {
+    if (!searchIndex && project) searchIndex = app.search.index(project, app.render.taskContent);
     if (!searchIndex) {
       results = [];
       total = 0;
@@ -301,7 +351,7 @@ window.MDManager = window.MDManager || {};
     const index = Number(row.dataset.index);
     if (index === selected) return;
     selected = index;
-    applySelection();
+    applySelection(false);
   });
   list.addEventListener("click", event => {
     const row = event.target instanceof Element ? event.target.closest(".search-result") : null;

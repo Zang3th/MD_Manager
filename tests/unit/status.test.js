@@ -34,3 +34,23 @@ test("statistics separates regular work from backlog totals", () => {
   assert.equal(statistics.tasks.archive, 1);
   assert.equal(statistics.entries.archive, 1);
 });
+
+test("active todos count the open todos of the active features", () => {
+  const features = [
+    { tasks: [{ entries: [{ checked: true }, { checked: true }] }] },
+    { tasks: [{ entries: [{ checked: true }, { checked: false }] }, { entries: [{ checked: false }, { checked: false }] }] },
+    { tasks: [{ entries: [{ checked: false }] }] },
+    { isBacklog: true, tasks: [{ entries: [{ checked: false }, { checked: false }] }] },
+    { isArchived: true, tasks: [{ entries: [{ checked: true }, { checked: false }] }] }
+  ];
+  const statistics = status.statistics(features, (/** @type {any} */ task) => task.entries);
+  assert.equal(statistics.features.active, 1);
+  assert.equal(statistics.entries.active, 3);
+
+  const secondActive = status.statistics([...features, { tasks: [{ entries: [{ checked: true }, { checked: false }, { checked: false }] }] }], (/** @type {any} */ task) => task.entries);
+  assert.equal(secondActive.features.active, 2);
+  assert.equal(secondActive.entries.active, 5);
+
+  const noneActive = status.statistics([{ tasks: [{ entries: [{ checked: true }] }] }, { tasks: [{ entries: [{ checked: false }] }] }, { tasks: [] }], (/** @type {any} */ task) => task.entries);
+  assert.equal(noneActive.entries.active, 0);
+});

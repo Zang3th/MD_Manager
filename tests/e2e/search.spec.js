@@ -42,7 +42,10 @@ test("F opens the palette and Esc, outside click, and a closed project keep it p
   await openFixture(page, goldenFixture);
   await openPalette(page);
   await expect(page.locator("#searchInput")).toBeFocused();
-  await expect(page.locator(".search-scope .search-badge")).toHaveCount(7);
+  await expect(page.locator("#searchInput")).toHaveAttribute("placeholder", "Search project…");
+  await expect(page.locator(".search-empty-title")).toHaveText("Search the entire project");
+  await expect(page.locator(".search-empty-copy")).toHaveText("Find features, tasks, notes, and todos.");
+  await expect(page.locator(".search-empty-state .search-badge")).toHaveCount(0);
 
   await page.keyboard.press("Escape");
   await expect(page.locator("#searchPalette")).toBeHidden();
@@ -77,6 +80,36 @@ test("typing filters live and every result carries badge, state, breadcrumb, and
 
   await page.locator("#searchInput").fill("zzzzzz");
   await expect(page.locator(".search-empty")).toHaveText("No matches.");
+});
+
+test("long results expose the matched excerpt while retaining their full accessible name", async ({ page }) => {
+  const fullText = `${"leading context ".repeat(12)}the distant marker remains visible`;
+  await openFixture(page, ["# P", "", "## F", "", "### T", "", `- [ ] ${fullText}`].join("\n"));
+  await search(page, "distant marker");
+
+  const first = page.locator(rows).first();
+  const visibleText = await first.locator(".search-text").textContent();
+  expect(visibleText).not.toBeNull();
+  expect(visibleText?.startsWith("…")).toBe(true);
+  expect(visibleText?.length).toBeLessThanOrEqual(88);
+  await expect(first.locator(".search-text mark")).toHaveText("distant marker");
+  expect(await first.getAttribute("aria-label")).toContain(fullText);
+});
+
+test("the refined result hierarchy and keyboard legend stay application-native", async ({ page }) => {
+  await openFixture(page, goldenFixture);
+  await search(page, "keyboard");
+
+  const first = page.locator(rows).first();
+  await expect(first.locator(":scope > .search-body")).toHaveCount(1);
+  await expect(first.locator(":scope > .search-badge")).toHaveCount(1);
+  await expect(first.locator(".search-caret")).toHaveCount(0);
+  expect(await first.locator(":scope > *").evaluateAll(elements => elements.map(element => element.className))).toEqual(["search-body", "search-badge"]);
+  await expect(first).toHaveClass(/is-selected/);
+  await expect(page.locator(".search-legend kbd")).toHaveText(["↑", "↓", "Enter", "Esc"]);
+  await expect(page.locator(".search-legend")).toContainText("Navigate");
+  await expect(page.locator(".search-legend")).toContainText("Go to");
+  await expect(page.locator(".search-legend")).toContainText("Close");
 });
 
 test("every badge kind reaches the result list", async ({ page }) => {
@@ -127,6 +160,84 @@ test("arrows and Tab move the selection in both directions and wrap", async ({ p
   await expect(page.locator("#searchInput")).toBeFocused();
 });
 
+test("selection work stays targeted and pointer hover does not fight scrolling", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  const lines = ["# Large Project", "", "## Feature", "", "### Task"];
+  for (let count = 0; count < 60; count++) lines.push(`- [ ] alpha entry ${count}`);
+  await openFixture(page, lines.join("\n"));
+  await search(page, "alpha");
+  await expect(page.locator(rows)).toHaveCount(50);
+
+  const mutationCounts = await page.locator("#searchResults").evaluate(list => {
+    const observer = new MutationObserver(() => {});
+    observer.observe(list, { subtree: true, attributes: true, attributeFilter: ["class", "aria-selected"] });
+    document.getElementById("searchInput").dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true, cancelable: true }));
+    const records = observer.takeRecords();
+    observer.disconnect();
+    return {
+      classes: records.filter(record => record.attributeName === "class").length,
+      selections: records.filter(record => record.attributeName === "aria-selected").length
+    };
+  });
+  expect(mutationCounts).toEqual({ classes: 2, selections: 2 });
+
+  const pointerSelection = await page.locator("#searchResults").evaluate(async list => {
+    list.scrollTop = 320;
+    await new Promise(resolve => requestAnimationFrame(resolve));
+    const listRect = list.getBoundingClientRect();
+    const partial = Array.from(list.querySelectorAll(".search-result")).find(row => {
+      const rect = row.getBoundingClientRect();
+      return rect.top < listRect.bottom && rect.bottom > listRect.bottom;
+    });
+    if (!(partial instanceof HTMLElement)) return null;
+    const before = list.scrollTop;
+    partial.dispatchEvent(new MouseEvent("mousemove", { bubbles: true }));
+    return { before, after: list.scrollTop, index: Number(partial.dataset.index) };
+  });
+  expect(pointerSelection).not.toBeNull();
+  if (!pointerSelection) throw new Error("expected a partially visible search result");
+  expect(pointerSelection.after).toBe(pointerSelection.before);
+  await expect(page.locator(`${rows}[aria-selected="true"]`)).toHaveAttribute("data-index", String(pointerSelection.index));
+
+  await page.keyboard.press("ArrowDown");
+  await expect(page.locator(`${rows}[aria-selected="true"]`)).toHaveAttribute("data-index", String(pointerSelection.index + 1));
+  expect(await page.locator("#searchResults").evaluate(list => list.scrollTop)).toBeGreaterThan(pointerSelection.after);
+
+  const accent = await page.locator(rows).first().evaluate(row => {
+    const style = getComputedStyle(row, "::before");
+    return { transform: style.transform, transitionDuration: style.transitionDuration };
+  });
+  expect(accent).toEqual({ transform: "none", transitionDuration: "0s" });
+  expect(await page.locator(rows).evaluateAll(resultRows => resultRows.reduce((total, row) => total + row.getAnimations({ subtree: true }).length, 0))).toBe(0);
+});
+
+test("query rendering resets scroll without using selection geometry", async ({ page }) => {
+  const lines = ["# Large Project", "", "## Feature", "", "### Task"];
+  for (let count = 0; count < 60; count++) lines.push(`- [ ] alpha entry ${count}`);
+  await openFixture(page, lines.join("\n"));
+  await search(page, "alpha");
+  await expect(page.locator(rows)).toHaveCount(50);
+
+  const reset = await page.locator("#searchResults").evaluate(list => {
+    list.scrollTop = 320;
+    const original = Element.prototype.scrollIntoView;
+    let calls = 0;
+    /** @param {boolean | ScrollIntoViewOptions} [parameter] */
+    Element.prototype.scrollIntoView = function (parameter) {
+      calls++;
+      return original.call(this, parameter);
+    };
+    const input = /** @type {HTMLInputElement} */ (document.getElementById("searchInput"));
+    input.value = "alpha entry";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    Element.prototype.scrollIntoView = original;
+    return { calls, scrollTop: list.scrollTop };
+  });
+
+  expect(reset).toEqual({ calls: 0, scrollTop: 0 });
+  await expect(page.locator(`${rows}[aria-selected="true"]`)).toHaveAttribute("data-index", "0");
+});
+
 test("the panel keeps its dimensions between an empty query and a full result list", async ({ page }) => {
   await openFixture(page, goldenFixture);
   await openPalette(page);
@@ -142,6 +253,7 @@ test("the panel keeps its dimensions between an empty query and a full result li
 });
 
 test("Enter reveals a workspace todo by expanding its card and highlighting the row", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await openFixture(page, goldenFixture);
   await search(page, "Continue a todo after");
   await page.keyboard.press("Enter");
@@ -151,6 +263,16 @@ test("Enter reveals a workspace todo by expanding its card and highlighting the 
   await expect(card).toHaveAttribute("aria-expanded", "true");
   await expect(card.locator(".todo-item.search-hit")).toHaveCount(1);
   await expect(card.locator(".todo-item.search-hit .todo-text")).toHaveText("Continue a todo after pressing Enter");
+  const feedback = await card.locator(".todo-item.search-hit").evaluate(target => {
+    const style = getComputedStyle(target);
+    return {
+      reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
+      animationName: style.animationName,
+      outlineStyle: style.outlineStyle,
+      outlineWidth: style.outlineWidth
+    };
+  });
+  expect(feedback).toEqual({ reducedMotion: true, animationName: "none", outlineStyle: "solid", outlineWidth: "2px" });
 });
 
 test("clicking a note result expands the collapsed feature note and marks the exact item", async ({ page }) => {
@@ -226,4 +348,16 @@ test("toggling a todo without a full render still updates the next search", asyn
 
   await search(page, "alpha target");
   await expect(page.locator(rows).first()).toHaveAttribute("data-state", "done");
+});
+
+test("invalidating an open palette rebuilds the index and keeps later queries live", async ({ page }) => {
+  await openFixture(page, ["# P", "", "## F", "", "### T", "", "- [ ] alpha target todo", "- [ ] beta other"].join("\n"));
+  await search(page, "alpha target");
+  await expect(page.locator(rows).first()).toContainText("alpha target todo");
+
+  await page.evaluate(() => window.MDManager.searchPalette.invalidate());
+  await expect(page.locator(rows).first()).toContainText("alpha target todo");
+
+  await page.locator("#searchInput").fill("beta other");
+  await expect(page.locator(rows).first()).toContainText("beta other");
 });
