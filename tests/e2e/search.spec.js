@@ -265,14 +265,54 @@ test("Enter reveals a workspace todo by expanding its card and highlighting the 
   await expect(card.locator(".todo-item.search-hit .todo-text")).toHaveText("Continue a todo after pressing Enter");
   const feedback = await card.locator(".todo-item.search-hit").evaluate(target => {
     const style = getComputedStyle(target);
+    const plate = getComputedStyle(target, "::after");
     return {
       reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
       animationName: style.animationName,
       outlineStyle: style.outlineStyle,
-      outlineWidth: style.outlineWidth
+      outlineWidth: style.outlineWidth,
+      plateAnimationName: plate.animationName,
+      plateBorderRadius: plate.borderRadius,
+      plateExtendsPastRow: [plate.top, plate.right, plate.bottom, plate.left].every(value => Number.parseFloat(value) < 0),
+      plateHasTint: plate.backgroundColor !== "rgba(0, 0, 0, 0)",
+      plateHasShadow: plate.boxShadow !== "none",
+      platePointerEvents: plate.pointerEvents
     };
   });
-  expect(feedback).toEqual({ reducedMotion: true, animationName: "none", outlineStyle: "solid", outlineWidth: "2px" });
+  expect(feedback).toEqual({
+    reducedMotion: true,
+    animationName: "none",
+    outlineStyle: "none",
+    outlineWidth: "0px",
+    plateAnimationName: "none",
+    plateBorderRadius: "7px",
+    plateExtendsPastRow: true,
+    plateHasTint: true,
+    plateHasShadow: true,
+    platePointerEvents: "none"
+  });
+});
+
+test("a row highlight stays faded between animation completion and class cleanup", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await openFixture(page, ["# P", "", "## F", "", "### T", "", "- [ ] alpha target"].join("\n"));
+  await search(page, "alpha target");
+  await page.keyboard.press("Enter");
+
+  const target = page.locator(".todo-item.search-hit");
+  await expect(target).toBeVisible();
+  const finalState = await target.evaluate(element => {
+    const animation = element.getAnimations({ subtree: true }).find(candidate => candidate instanceof CSSAnimation && candidate.animationName === "search-hit-row");
+    if (!animation) return null;
+    animation.finish();
+    const plate = getComputedStyle(element, "::after");
+    return {
+      fillMode: plate.animationFillMode,
+      opacity: plate.opacity,
+      stillHighlighted: element.classList.contains("search-hit")
+    };
+  });
+  expect(finalState).toEqual({ fillMode: "forwards", opacity: "0", stillHighlighted: true });
 });
 
 test("clicking a note result expands the collapsed feature note and marks the exact item", async ({ page }) => {
@@ -291,6 +331,7 @@ test("clicking a note result expands the collapsed feature note and marks the ex
 });
 
 test("an archive result switches the view and lands on the task row inside floating details", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await openFixture(page, goldenFixture);
   await search(page, "Complete the date-based archive fixture");
   await page.keyboard.press("Enter");
@@ -298,7 +339,62 @@ test("an archive result switches the view and lands on the task row inside float
   await expect(page.locator("body")).toHaveClass(/archive-view-active/);
   const feature = page.locator("#archive .archive-feature").filter({ hasText: "Archived Date Fixture" });
   await expect(feature.locator(".archive-feature-toggle")).toHaveClass(/is-popover-anchor/);
-  await expect(page.locator("#archive .archive-popover-tasks li.search-hit")).toHaveText("Date archive task");
+  const task = page.locator("#archive .archive-popover-tasks li.search-hit");
+  await expect(task).toHaveText("Date archive task");
+  const feedback = await task.evaluate(target => {
+    const bullet = getComputedStyle(target, "::before");
+    const plate = getComputedStyle(target, "::after");
+    return {
+      bulletWidth: bullet.width,
+      bulletHeight: bullet.height,
+      plateBorderRadius: plate.borderRadius,
+      plateHasTint: plate.backgroundColor !== "rgba(0, 0, 0, 0)",
+      plateHasShadow: plate.boxShadow !== "none"
+    };
+  });
+  expect(feedback).toEqual({ bulletWidth: "4px", bulletHeight: "4px", plateBorderRadius: "7px", plateHasTint: true, plateHasShadow: true });
+});
+
+test("an archive feature result frames its complete square label cell", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await openFixture(page, goldenFixture);
+  await search(page, "Archived Date Fixture");
+  await page.keyboard.press("Enter");
+
+  const feature = page.locator("#archive .archive-feature").filter({ hasText: "Archived Date Fixture" });
+  const label = feature.locator(".archive-feature-toggle");
+  const plot = feature.locator(".archive-swimlane-plot");
+  await expect(feature).not.toHaveClass(/search-hit/);
+  await expect(label).toHaveClass(/search-hit/);
+  await expect(label).toHaveCSS("outline-style", "none");
+  await expect(label).toHaveCSS("position", "sticky");
+  const [labelBounds, plotBounds, cornerBounds] = await Promise.all([
+    label.boundingBox(),
+    plot.boundingBox(),
+    page.locator(".archive-axis-corner").boundingBox()
+  ]);
+  expect(labelBounds).not.toBeNull();
+  expect(plotBounds).not.toBeNull();
+  expect(cornerBounds).not.toBeNull();
+  expect(labelBounds?.x).toBeCloseTo(cornerBounds?.x || 0, 1);
+  expect((labelBounds?.x || 0) + (labelBounds?.width || 0)).toBeCloseTo(plotBounds?.x || 0, 1);
+  const frame = await label.evaluate(target => {
+    const style = getComputedStyle(target, "::after");
+    return {
+      inset: [style.top, style.right, style.bottom, style.left],
+      borderRadius: style.borderRadius,
+      borderWidths: [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth],
+      borderStyles: [style.borderTopStyle, style.borderRightStyle, style.borderBottomStyle, style.borderLeftStyle],
+      pointerEvents: style.pointerEvents
+    };
+  });
+  expect(frame).toEqual({
+    inset: ["0px", "0px", "0px", "0px"],
+    borderRadius: "0px",
+    borderWidths: ["2px", "2px", "2px", "2px"],
+    borderStyles: ["solid", "solid", "solid", "solid"],
+    pointerEvents: "none"
+  });
 });
 
 test("a backlog result opens the backlog before revealing the target", async ({ page }) => {

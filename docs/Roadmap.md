@@ -98,6 +98,7 @@ Stats und Backlog bleiben davon unberührt.
 - [x] ~Kursivschrift unter #Tags funktioniert nicht mehr~
 - [x] ~Search-Fenster verbessern~
 - [x] ~Stats: Active-ToDo's zählen~
+- [x] ~Highlighting von Suchergebnissen verbessern~
 
 ### Archiv-Zeitstrahl
 

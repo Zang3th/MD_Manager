@@ -286,6 +286,9 @@ window.MDManager = window.MDManager || {};
     const cells = timeline.headerCells.map(cell => `<span class="archive-axis-cell" style="--archive-position:${cell.position}%;--archive-width:${cell.width}%"><span class="archive-axis-cell-label">${escapeHtml(cell.label)}</span></span>`).join("");
     const gridData = escapeHtml(JSON.stringify(sortedTicks.map(tick => [tick.position, tick.level, tick.labelPosition])));
     const empty = count ? "" : '<div class="empty start-screen archive-empty"><p class="recent-files-empty">No archived features yet.</p></div>';
+    // With no lane there is no timeline to head, so the table chrome stays away entirely and the
+    // summary stands on its own above whatever is left to show.
+    if (!lanes.length) return `<div class="archive-date-heading">${archiveSummaryMarkup(count, timeline)}</div>${empty ? `<div class="archive-swimlane-list-empty">${empty}</div>` : ""}${unmatched}`;
     return `<div class="archive-date-axis" data-archive-grid="${gridData}" data-archive-ruler-per-cell="${timeline.rulerPerCell}" data-archive-scale="${timeline.scale}"><div class="archive-axis-corner">${archiveSummaryMarkup(count, timeline)}</div><div class="archive-axis-plot"><div class="archive-date-scale"><div class="archive-axis-cells">${cells}</div>${headerGrid}${labels}</div></div></div>
       <div class="archive-swimlane-list${empty ? " archive-swimlane-list-empty" : ""}">${empty || `<div class="archive-swimlane-rows">${bodyGrid}${lanes.map(lane => archiveSwimlaneMarkup(lane, featureIndexes.get(lane.feature) ?? -1)).join("")}${edgeOverlay}</div>`}</div>${unmatched}`;
   }

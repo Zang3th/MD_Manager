@@ -3,7 +3,7 @@ window.MDManager = window.MDManager || {};
 (function (app) {
   const resultLimit = 50;
   const excerptLimit = 88;
-  const highlightDuration = 1200;
+  const highlightDuration = 1800;
   /** @type {Record<MDSearchBadge, string>} */
   const badgeLabels = { feature: "Feature", task: "Task", group: "Group", todo: "ToDo", info: "Info", warn: "Warn", text: "Text" };
   /** @type {Record<MDSearchState, string>} */
@@ -284,7 +284,9 @@ window.MDManager = window.MDManager || {};
     if (item.location === "archive") {
       root.scrollIntoView({ behavior, block: "center" });
       const details = revealArchived(root);
-      const target = item.kind === "feature" ? root : details?.querySelectorAll(".archive-popover-tasks li")[item.taskPosition] || null;
+      const target = item.kind === "feature"
+        ? root.classList.contains("archive-swimlane-feature") ? root.querySelector(".archive-swimlane-label") : root
+        : details?.querySelectorAll(".archive-popover-tasks li")[item.taskPosition] || null;
       markTarget(target);
       return;
     }
