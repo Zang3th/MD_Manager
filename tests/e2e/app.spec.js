@@ -2157,13 +2157,25 @@ test("Archive header, feature column, and shared grids stay aligned through two-
   await expect(axis).toHaveCSS("box-shadow", "none");
   const initial = await page.evaluate(() => ({
     axisTop: document.querySelector(".archive-date-axis").getBoundingClientRect().top,
-    labelLeft: document.querySelector(".archive-swimlane-label").getBoundingClientRect().left
+    labelLeft: document.querySelector(".archive-swimlane-label").getBoundingClientRect().left,
+    scrollportTop: document.querySelector("#archive > .archive-content").getBoundingClientRect().top
   }));
-  await content.evaluate(node => { node.scrollTop = 1; node.scrollLeft = 80; });
-  await expect.poll(() => axis.evaluate(node => node.getBoundingClientRect().top)).toBeCloseTo(initial.axisTop, 5);
+  // The header is fixed: it carries the inset above the table as its own padding, so it starts
+  // pinned and never travels. Nothing may appear in the strip between the application bar and it.
+  const laneAboveAxis = () => page.evaluate(() => {
+    const axis = document.querySelector(".archive-date-axis").getBoundingClientRect();
+    const port = document.querySelector("#archive > .archive-content").getBoundingClientRect();
+    if (axis.top - port.top < 1) return false;
+    const probe = document.elementsFromPoint(port.left + port.width / 2, (port.top + axis.top) / 2);
+    return probe.some(node => node.closest(".archive-swimlane-rows"));
+  });
+  expect(initial.axisTop).toBeCloseTo(initial.scrollportTop, 5);
+  for (const offset of [1, 6, 12, 300]) {
+    await content.evaluate((node, top) => { node.scrollTop = top; node.scrollLeft = 80; }, offset);
+    await expect.poll(() => axis.evaluate(node => node.getBoundingClientRect().top)).toBeCloseTo(initial.axisTop, 5);
+    await expect.poll(laneAboveAxis).toBe(false);
+  }
   await expect.poll(() => firstLabel.evaluate(node => node.getBoundingClientRect().left)).toBeCloseTo(initial.labelLeft, 5);
-  await content.evaluate(node => { node.scrollTop = 300; });
-  await expect.poll(() => axis.evaluate(node => node.getBoundingClientRect().top)).toBeCloseTo(initial.axisTop, 5);
 
   const grid = await timeline.evaluate(node => {
     const xValues = (/** @type {string} */ selector) => [...(node.querySelector(selector)?.getAttribute("d")?.matchAll(/M([\d.]+)/g) || [])].map(match => Number(match[1]));
