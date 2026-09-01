@@ -15,9 +15,7 @@ const baselineNames = [
   "help-dialog-dark.png",
   "help-dialog-light.png",
   "task-edit-dialog-dark.png",
-  "task-edit-dialog-light.png",
-  "archive-dark.png",
-  "archive-light.png"
+  "task-edit-dialog-light.png"
 ];
 
 /** @param {string} root @param {string} relative @param {string} content */

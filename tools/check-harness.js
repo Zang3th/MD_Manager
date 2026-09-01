@@ -11,9 +11,7 @@ const PLATFORM_BASELINE_NAMES = [
   "help-dialog-dark.png",
   "help-dialog-light.png",
   "task-edit-dialog-dark.png",
-  "task-edit-dialog-light.png",
-  "archive-dark.png",
-  "archive-light.png"
+  "task-edit-dialog-light.png"
 ];
 
 /** @param {string} value */

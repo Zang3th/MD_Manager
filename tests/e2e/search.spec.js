@@ -290,15 +290,15 @@ test("clicking a note result expands the collapsed feature note and marks the ex
   await expect(note.locator(".search-hit")).toHaveCSS("display", "block");
 });
 
-test("an archive result switches the view and lands on the task row inside the archive card", async ({ page }) => {
+test("an archive result switches the view and lands on the task row inside floating details", async ({ page }) => {
   await openFixture(page, goldenFixture);
   await search(page, "Complete the date-based archive fixture");
   await page.keyboard.press("Enter");
 
   await expect(page.locator("body")).toHaveClass(/archive-view-active/);
   const feature = page.locator("#archive .archive-feature").filter({ hasText: "Archived Date Fixture" });
-  await expect(feature.locator(".archive-feature-toggle")).toHaveAttribute("aria-expanded", "true");
-  await expect(feature.locator(".archive-tasks li.search-hit")).toHaveText("Date archive task");
+  await expect(feature.locator(".archive-feature-toggle")).toHaveClass(/is-popover-anchor/);
+  await expect(page.locator("#archive .archive-popover-tasks li.search-hit")).toHaveText("Date archive task");
 });
 
 test("a backlog result opens the backlog before revealing the target", async ({ page }) => {

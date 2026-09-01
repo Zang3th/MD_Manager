@@ -1,7 +1,7 @@
 window.MDManager = window.MDManager || {};
 
 (function (app) {
-  const archiveMonthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  const archiveMonthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const dayMs = 24 * 60 * 60 * 1000;
   /** @template T @param {T[]} items @param {number} fromIndex @param {number} toIndex */
   function moveItem(items, fromIndex, toIndex) {
@@ -96,11 +96,6 @@ window.MDManager = window.MDManager || {};
     return match ? match[1].split(".").map(Number) : [];
   }
 
-  /** @param {string} value */
-  function versionLabel(value) {
-    return /^v/i.test(value.trim()) ? value.trim() : `v${value.trim()}`;
-  }
-
   /** @param {number[]} a @param {number[]} b */
   function compareVersionParts(a, b) {
     const length = Math.max(a.length, b.length);
@@ -144,205 +139,322 @@ window.MDManager = window.MDManager || {};
     return 0;
   }
 
-  /** @param {{time: number, year: number, month: number, day: number}} date */
-  function isoWeek(date) {
-    const value = new Date(date.time);
-    const weekday = value.getUTCDay() || 7;
-    value.setUTCDate(value.getUTCDate() + 4 - weekday);
-    const weekYear = value.getUTCFullYear();
-    const yearStart = Date.UTC(weekYear, 0, 1);
-    return { year: weekYear, week: Math.ceil(((value.getTime() - yearStart) / dayMs + 1) / 7) };
+  /** @param {number} day */
+  function archiveDayLabel(day) {
+    const date = new Date(day * dayMs);
+    return `${String(date.getUTCDate()).padStart(2, "0")}.${String(date.getUTCMonth() + 1).padStart(2, "0")}.${date.getUTCFullYear()}`;
   }
 
-  /** @param {MDArchiveScale} scale @param {{value: string, time: number, year: number, month: number, day: number}} date */
-  function archivePeriod(scale, date) {
-    if (scale === "day") return { key: `${date.year}-${String(date.month).padStart(2, "0")}-${String(date.day).padStart(2, "0")}`, label: date.value };
-    if (scale === "week") {
-      const week = isoWeek(date);
-      return { key: `${week.year}-${String(week.week).padStart(2, "0")}`, label: `Week ${week.week}, ${week.year}` };
-    }
-    if (scale === "month") return { key: `${date.year}-${String(date.month).padStart(2, "0")}`, label: `${archiveMonthNames[date.month - 1]} ${date.year}` };
-    return { key: String(date.year), label: String(date.year) };
+  /**
+   * ISO-8601 week number. The week runs Monday to Sunday and belongs to the year holding its
+   * Thursday, which is what a reader means by "KW".
+   * @param {number} time
+   */
+  function archiveIsoWeek(time) {
+    const date = new Date(time);
+    const thursday = new Date(time + (4 - (date.getUTCDay() || 7)) * dayMs);
+    const yearStart = Date.UTC(thursday.getUTCFullYear(), 0, 1);
+    return Math.ceil(((thursday.getTime() - yearStart) / dayMs + 1) / 7);
   }
 
-  const maxArchiveTicks = 400;
-  /** @type {Record<MDArchiveScale, {minor: string, major: string}>} */
-  const archiveTickUnits = {
-    day: { minor: "day", major: "week" },
-    week: { minor: "week", major: "month" },
-    month: { minor: "month", major: "quarter" },
-    year: { minor: "quarter", major: "year" }
-  };
-
-  /** @param {string} unit @param {number} time @returns {number} */
-  function archiveUnitStart(unit, time) {
+  /** @param {string} unit @param {number} step @param {number} time @returns {number} */
+  function archiveUnitStart(unit, step, time) {
     const date = new Date(time);
     const dayStart = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
     if (unit === "day") return dayStart;
     if (unit === "week") return dayStart - ((new Date(dayStart).getUTCDay() || 7) - 1) * dayMs;
     if (unit === "month") return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1);
     if (unit === "quarter") return Date.UTC(date.getUTCFullYear(), Math.floor(date.getUTCMonth() / 3) * 3, 1);
-    return Date.UTC(date.getUTCFullYear(), 0, 1);
+    return Date.UTC(Math.floor(date.getUTCFullYear() / step) * step, 0, 1);
   }
 
-  /** @param {string} unit @param {number} time @returns {number} */
-  function archiveUnitNext(unit, time) {
-    if (unit === "day") return time + dayMs;
-    if (unit === "week") return time + 7 * dayMs;
+  /** @param {string} unit @param {number} step @param {number} time @returns {number} */
+  function archiveUnitNext(unit, step, time) {
+    if (unit === "day") return time + step * dayMs;
+    if (unit === "week") return time + step * 7 * dayMs;
     const date = new Date(time);
-    if (unit === "month") return Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1);
-    if (unit === "quarter") return Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 3, 1);
-    return Date.UTC(date.getUTCFullYear() + 1, 0, 1);
+    if (unit === "month") return Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + step, 1);
+    if (unit === "quarter") return Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + step * 3, 1);
+    return Date.UTC(date.getUTCFullYear() + step, 0, 1);
   }
 
-  /** @param {string} unit @param {number} first @param {number} last @returns {number[]} */
-  function archiveUnitBoundaries(unit, first, last) {
+  /** @param {{unit: string, step: number}} interval @param {number} index @param {number} origin @returns {number} */
+  function archiveAnchoredTime(interval, index, origin) {
+    if (interval.unit === "day") return origin + index * interval.step * dayMs;
+    if (interval.unit === "week") return origin + index * interval.step * 7 * dayMs;
+    const date = new Date(origin);
+    const months = interval.unit === "month" ? 1 : interval.unit === "quarter" ? 3 : 12;
+    return Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + index * interval.step * months, date.getUTCDate());
+  }
+
+  /**
+   * Ruler positions counted off the first archived date rather than off a calendar boundary, so the
+   * opening line marks the day the work actually started and every later line is a whole number of
+   * steps from it.
+   * @param {{unit: string, step: number}} interval @param {number} origin @param {number} first @param {number} last @returns {number[]}
+   */
+  function archiveAnchoredTimes(interval, origin, first, last) {
     /** @type {number[]} */
     const times = [];
-    for (let time = archiveUnitStart(unit, first); time < last; time = archiveUnitNext(unit, time)) {
+    // The plot can open before the first archived date. The rhythm still counts off that date, so
+    // the steps before it are the same steps with a negative index rather than a second sequence.
+    for (let index = -1; index > -400; index -= 1) {
+      const time = archiveAnchoredTime(interval, index, origin);
+      if (time < first) break;
+      times.unshift(time);
+    }
+    for (let index = 0; index < 400; index += 1) {
+      const time = archiveAnchoredTime(interval, index, origin);
+      if (time >= last) break;
+      if (time >= first) times.push(time);
+    }
+    return times;
+  }
+
+  /** @param {{unit: string, step: number}} interval @param {number} first @param {number} last @returns {number[]} */
+  function archiveUnitBoundaries(interval, first, last) {
+    /** @type {number[]} */
+    const times = [];
+    for (let time = archiveUnitStart(interval.unit, interval.step, first); time < last; time = archiveUnitNext(interval.unit, interval.step, time)) {
       if (time > first) times.push(time);
     }
     return times;
   }
 
-  // An idle stretch counts as compressible once it dwarfs the idle stretches this archive produces
-  // anyway. The reference is the lower median of all candidates, so it survives one extreme outlier,
-  // and it reads the dates alone: a stretch can never collapse or reappear because the window
-  // changed size. Uniformly spaced archives keep every stretch, because there the spacing carries
-  // the meaning and the density scale already sizes them.
-  const archiveGapFactor = 6;
-
-  /** @param {number} duration */
-  function archiveGapLabel(duration) {
-    const days = Math.round(duration / dayMs);
-    if (days >= 400) {
-      const years = Math.round(days / 365.25);
-      return `${years} year${years === 1 ? "" : "s"}`;
-    }
-    if (days >= 45) {
-      const months = Math.round(days / 30.4375);
-      return `${months} month${months === 1 ? "" : "s"}`;
-    }
-    return `${days} day${days === 1 ? "" : "s"}`;
+  /** @param {MDArchiveScale} scale @param {number} spanDays */
+  function archiveTickIntervals(scale, spanDays) {
+    if (scale === "day") return { minor: { unit: "day", step: 1 }, major: { unit: "week", step: 1 } };
+    if (scale === "week") return { minor: { unit: "day", step: 1 }, major: { unit: "month", step: 1 } };
+    if (scale === "month") return { minor: { unit: "week", step: 1 }, major: { unit: "quarter", step: 1 } };
+    if (spanDays <= 3653) return { minor: { unit: "quarter", step: 1 }, major: { unit: "year", step: 1 } };
+    if (spanDays <= 18263) return { minor: { unit: "year", step: 1 }, major: { unit: "year", step: 5 } };
+    return { minor: { unit: "year", step: 5 }, major: { unit: "year", step: 10 } };
   }
 
-  /** @param {MDArchiveTimelineEntry[]} entries @returns {MDArchiveTimelineGap[]} */
-  function archiveGaps(entries) {
-    /** @type {{from: number, to: number}[]} */
-    const candidates = [];
-    let covered = Number.NEGATIVE_INFINITY;
-    for (const entry of entries) {
-      const start = /** @type {MDArchiveDate} */ (entry.date).time;
-      const end = (entry.endDate || /** @type {MDArchiveDate} */ (entry.date)).time;
-      if (covered > Number.NEGATIVE_INFINITY && start > covered) candidates.push({ from: covered, to: start });
-      covered = Math.max(covered, end);
-    }
-    // Two stretches do not say what this archive's typical stretch is — whichever is shorter would
-    // define the reference and make the other one look extreme. Three is the smallest count where a
-    // median sits between two others.
-    if (candidates.length < 3) return [];
-    const durations = candidates.map(gap => gap.to - gap.from).sort((left, right) => left - right);
-    const median = durations[Math.floor((durations.length - 1) / 2)];
-    return candidates.filter(gap => gap.to - gap.from > archiveGapFactor * median).map(gap => ({ ...gap, label: archiveGapLabel(gap.to - gap.from) }));
+  /**
+   * A bare day number cannot be read once the coarse row groups by quarters or years, so a ruler
+   * label always carries the month it belongs to.
+   * @param {string} unit @param {number} time
+   */
+  function archiveFineLabel(unit, time) {
+    const date = new Date(time);
+    if (unit === "day" || unit === "week") return `${String(date.getUTCDate()).padStart(2, "0")}.${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+    if (unit === "month" || unit === "quarter") return `${archiveMonthNames[date.getUTCMonth()]} ${String(date.getUTCFullYear()).slice(-2)}`;
+    return String(date.getUTCFullYear());
   }
 
-  /** @param {MDArchiveScale} scale @param {number} first @param {number} last @param {MDArchiveTimelineGap[]} gaps @returns {MDArchiveTick[]} */
-  function archiveTicks(scale, first, last, gaps) {
+  /** @param {string} unit @param {number} time */
+  function archiveCellLabel(unit, time) {
+    const date = new Date(time);
+    if (unit === "week") return `KW ${archiveIsoWeek(time)}`;
+    if (unit === "month") return `${archiveMonthNames[date.getUTCMonth()]} ${String(date.getUTCFullYear()).slice(-2)}`;
+    if (unit === "quarter") return `Q${Math.floor(date.getUTCMonth() / 3) + 1} ${date.getUTCFullYear()}`;
+    return String(date.getUTCFullYear());
+  }
+
+  /** @param {MDArchiveScale} scale @param {number} first @param {number} last @param {number} startDay @param {number} spanDays @param {number} [origin] @param {{unit: string, step: number} | null} [subdivision] @returns {MDArchiveTick[]} */
+  function archiveTicks(scale, first, last, startDay, spanDays, origin = first, subdivision = null) {
     if (!(last > first)) return [];
-    const units = archiveTickUnits[scale];
-    /** @param {number} time */
-    const skipped = time => gaps.some(gap => time > gap.from && time < gap.to);
-    const majorTimes = archiveUnitBoundaries(units.major, first, last).filter(time => !skipped(time));
-    const majors = new Set(majorTimes);
+    const intervals = archiveTickIntervals(scale, spanDays);
+    const majorTimes = archiveUnitBoundaries(intervals.major, first, last);
+    // The coarse row names the periods, so a boundary tick only draws a line. The fine row carries
+    // the short labels instead, which is where a reader looks for the exact position.
     /** @type {MDArchiveTick[]} */
-    const ticks = majorTimes.map(time => ({ time, level: /** @type {MDArchiveTickLevel} */ ("major") }));
-    if (ticks.length <= maxArchiveTicks) {
-      for (const time of archiveUnitBoundaries(units.minor, first, last)) {
-        if (!majors.has(time) && !skipped(time)) ticks.push({ time, level: "minor" });
-      }
+    const ticks = majorTimes.map(time => {
+      const tickPosition = (time / dayMs - startDay) / spanDays * 100;
+      return { time, level: /** @type {MDArchiveTickLevel} */ ("major"), label: "", position: tickPosition, labelPosition: tickPosition };
+    });
+    // A subdivided cell cuts on its own calendar boundaries, so every cell is ruled identically and
+    // a line never lands at some arbitrary fraction of one. Everything else counts off the first
+    // archived date.
+    const fine = subdivision || intervals.minor;
+    const fineTimes = subdivision ? archiveUnitBoundaries(subdivision, first, last) : archiveAnchoredTimes(intervals.minor, origin, first, last);
+    const majors = new Set(majorTimes);
+    for (const time of fineTimes) {
+      // A step that is also a boundary is already drawn as one; emitting it twice would stack two
+      // strokes on one position. The rhythm is unaffected, because the boundary rules that position.
+      if (majors.has(time)) continue;
+      const tickPosition = (time / dayMs - startDay) / spanDays * 100;
+      ticks.push({ time, level: "minor", label: archiveFineLabel(fine.unit, time), position: tickPosition, labelPosition: tickPosition });
     }
     ticks.sort((left, right) => left.time - right.time);
-    if (ticks.length <= maxArchiveTicks) return ticks;
-    const stride = Math.ceil(ticks.length / maxArchiveTicks);
-    return ticks.filter((_, index) => index % stride === 0);
+    if (ticks.length <= 200) return ticks;
+    // Keep the ruler bounded without discarding its tail. Extreme but valid four-digit year spans
+    // can produce more calendar boundaries than the browser can use; sampling the complete sorted
+    // sequence preserves coverage at both ends instead of concentrating every line at the start.
+    return Array.from({ length: 200 }, (_, index) => ticks[Math.round(index * (ticks.length - 1) / 199)]);
   }
 
-  /** @param {MDFeature[]} features @param {MDArchiveOrder} [order] @returns {MDArchiveTimeline} */
-  function archiveTimeline(features, order = "date") {
-    /** @type {MDArchiveTimelineEntry[]} */
-    const entries = [];
+  /**
+   * How a cell is divided. A quarter reads in months and a year in quarters, so the ruler lands on
+   * the boundaries a reader already has names for and every cell is cut the same way. Shorter cells
+   * keep the date-anchored ruler, which counts off the first archived day instead.
+   * @param {{unit: string, step: number}} cell @returns {{unit: string, step: number} | null}
+   */
+  function archiveCellSubdivision(cell) {
+    if (cell.unit === "quarter") return { unit: "month", step: 1 };
+    if (cell.unit === "year") return cell.step === 1 ? { unit: "quarter", step: 1 } : { unit: "year", step: cell.step === 5 ? 1 : 5 };
+    return null;
+  }
+
+  /**
+   * How many ruler steps one cell holds. Thinning the ruler may only drop whole multiples of this,
+   * otherwise one cell would keep a line where its neighbour lost one.
+   * @param {{unit: string, step: number}} cell
+   */
+  function archiveCellRulerCount(cell) {
+    const subdivision = archiveCellSubdivision(cell);
+    if (!subdivision) return 0;
+    const cellDays = cell.unit === "quarter" ? 3 : 12 * cell.step;
+    const stepDays = subdivision.unit === "month" ? 1 : subdivision.unit === "quarter" ? 3 : 12 * subdivision.step;
+    // Interior lines only: the two ends of a cell are its own boundaries.
+    return Math.round(cellDays / stepDays) - 1;
+  }
+
+  /** @param {MDArchiveScale} scale @param {number} spanDays @returns {{unit: string, step: number}} */
+  function archiveCellInterval(scale, spanDays) {
+    if (scale === "day") return { unit: "week", step: 1 };
+    if (scale === "week") return { unit: "month", step: 1 };
+    if (scale === "month") return { unit: "quarter", step: 1 };
+    if (spanDays <= 3653) return { unit: "year", step: 1 };
+    if (spanDays <= 18263) return { unit: "year", step: 5 };
+    return { unit: "year", step: 10 };
+  }
+
+  /**
+   * Splits the domain into the calendar periods the header names. Only whole calendar containers
+   * qualify, so the coarse row always groups by something a reader can name. The cells tile the
+   * domain end to end, including the partial periods it opens and closes with. How wide a cell
+   * renders, and whether its name fits, is a pixel question the layout answers.
+   * @param {MDArchiveScale} scale @param {number} first @param {number} last @param {number} startDay @param {number} spanDays
+   * @returns {MDArchiveHeaderCell[]}
+   */
+  function archiveHeaderCells(scale, first, last, startDay, spanDays) {
+    if (!(last > first)) return [];
+    const interval = archiveCellInterval(scale, spanDays);
+    /** @param {number} time */
+    const position = time => (time / dayMs - startDay) / spanDays * 100;
+    const edges = [first, ...archiveUnitBoundaries(interval, first, last), last];
+    /** @type {MDArchiveHeaderCell[]} */
+    const cells = [];
+    for (let index = 0; index < edges.length - 1; index += 1) {
+      const from = position(edges[index]);
+      cells.push({ label: archiveCellLabel(interval.unit, archiveUnitStart(interval.unit, interval.step, edges[index])), position: from, width: position(edges[index + 1]) - from });
+    }
+    return cells;
+  }
+
+  /** @param {MDFeature[]} features @returns {MDArchiveTimeline} */
+  function archiveTimeline(features) {
     /** @type {MDFeature[]} */
     const unmatched = [];
-    /** @type {MDArchiveDate[]} */
-    const rangeDates = [];
+    /** @type {MDArchiveTimelineLane[]} */
+    const lanes = [];
     for (const feature of features) {
-      if (order === "version") {
-        const parts = versionParts(feature.version || "");
-        if (parts.length) entries.push({ feature, label: versionLabel(feature.version || "") });
-        else unmatched.push(feature);
-        continue;
-      }
-      /** @type {MDArchiveTimelineRange[]} */
+      /** @type {MDArchiveTimelineSegment[]} */
       const ranges = [];
+      /** @type {MDArchiveTimelinePoint[]} */
+      const points = [];
       for (const range of feature.dates) {
         const from = parsedArchiveDate(range.from);
         if (!from) continue;
+        const startDay = from.time / dayMs;
         const parsedTo = parsedArchiveDate(range.to);
-        const to = parsedTo && parsedTo.time >= from.time ? parsedTo : undefined;
-        rangeDates.push(from);
-        if (to) rangeDates.push(to);
-        ranges.push({ from, to, label: to && to.time !== from.time ? `${from.value} – ${to.value}` : from.value });
+        if (range.to.trim() && parsedTo && parsedTo.time > from.time) {
+          const endDay = parsedTo.time / dayMs;
+          ranges.push({ startDay, endDay, endExclusive: endDay + 1, durationDays: endDay - startDay + 1, label: `${from.value} – ${parsedTo.value}`, position: 0, width: 0 });
+        } else {
+          points.push({ day: startDay, label: from.value, position: 0 });
+        }
       }
-      if (!ranges.length) {
+      if (!ranges.length && !points.length) {
         unmatched.push(feature);
         continue;
       }
-      ranges.sort((left, right) => left.from.time - right.from.time);
-      const start = ranges[0].from;
-      const end = ranges.reduce((latest, range) => {
-        const candidate = range.to || range.from;
-        return candidate.time > latest.time ? candidate : latest;
-      }, start);
-      const rangeLabel = ranges.length === 1 ? ranges[0].label : `${start.value} – ${end.value} · ${ranges.length} periods`;
-      entries.push({ feature, date: start, endDate: end.time > start.time ? end : undefined, label: start.value, rangeLabel, ranges, rangeCount: ranges.length });
+
+      points.sort((left, right) => left.day - right.day);
+      ranges.sort((left, right) => left.startDay - right.startDay || left.endExclusive - right.endExclusive);
+      const startDay = Math.min(ranges[0]?.startDay ?? Number.POSITIVE_INFINITY, points[0]?.day ?? Number.POSITIVE_INFINITY);
+      let endExclusive = Number.NEGATIVE_INFINITY;
+      for (const range of ranges) endExclusive = Math.max(endExclusive, range.endExclusive);
+      for (const point of points) endExclusive = Math.max(endExclusive, point.day + 1);
+      lanes.push({ feature, startDay, endExclusive, ranges, points, pauses: [], accessibleSummary: "" });
     }
-    if (order === "version") {
-      entries.sort((left, right) => compareVersionParts(versionParts(left.feature.version || ""), versionParts(right.feature.version || "")));
-      /** @type {Map<string, MDArchiveTimelineGroup>} */
-      const versionGroups = new Map();
-      for (const entry of entries) {
-        const parts = versionParts(entry.feature.version || "");
-        const key = parts.join(".");
-        let group = versionGroups.get(key);
-        if (!group) {
-          group = { key: `version-${key}`, label: entry.label, entries: [] };
-          versionGroups.set(key, group);
-        }
-        group.entries.push(entry);
-      }
-      return { order, scale: "day", from: entries[0]?.label || "", to: entries[entries.length - 1]?.label || "", entries, groups: [...versionGroups.values()], unmatched };
-    }
-    rangeDates.sort((left, right) => left.time - right.time);
-    entries.sort((left, right) => /** @type {NonNullable<typeof left.date>} */ (left.date).time - /** @type {NonNullable<typeof right.date>} */ (right.date).time);
-    if (!rangeDates.length) return { order, scale: "day", from: "", to: "", entries, markers: [], ticks: [], gaps: [], groups: [], unmatched };
-    const first = /** @type {NonNullable<ReturnType<typeof parsedArchiveDate>>} */ (rangeDates[0]);
-    const last = /** @type {NonNullable<ReturnType<typeof parsedArchiveDate>>} */ (rangeDates[rangeDates.length - 1]);
-    const span = Math.round((last.time - first.time) / dayMs);
+
+    lanes.sort((left, right) => left.startDay - right.startDay);
+    if (!lanes.length) return { scale: "day", from: "", to: "", lanes, headerCells: [], rulerPerCell: 0, ticks: [], unmatched };
+    const domainStartDay = lanes[0].startDay;
+    let domainEndExclusive = Number.NEGATIVE_INFINITY;
+    for (const lane of lanes) domainEndExclusive = Math.max(domainEndExclusive, lane.endExclusive);
+    // A little room on both sides keeps the opening and closing marks off the table edge and gives
+    // their labels somewhere to sit. The reported range stays the real one.
+    const dataSpan = Math.max(1, domainEndExclusive - domainStartDay);
     /** @type {MDArchiveScale} */
-    const scale = span <= 31 ? "day" : span <= 183 ? "week" : span <= 731 ? "month" : "year";
-    /** @type {Map<string, MDArchiveTimelineGroup>} */
-    const groups = new Map();
-    for (const date of rangeDates) {
-      const value = archivePeriod(scale, date);
-      if (!groups.has(value.key)) groups.set(value.key, { ...value, entries: [] });
+    const scale = dataSpan <= 32 ? "day" : dataSpan <= 184 ? "week" : dataSpan <= 732 ? "month" : "year";
+    const cell = archiveCellInterval(scale, dataSpan);
+    // The plot opens and closes on whole cells wherever the cell is the unit the reader counts in, so
+    // no period is shown as a stump: a week view starts on its Monday even when the work does not,
+    // and a quarter or year view shows the whole period. Only a month cell keeps a proportional
+    // margin instead, because rounding out to a whole month would visibly shrink the work.
+    const wholeCells = cell.unit === "week" || cell.unit === "quarter" || cell.unit === "year";
+    const padding = Math.max(1, Math.round(dataSpan * 0.04));
+    const plotStartDay = wholeCells
+      ? archiveUnitStart(cell.unit, cell.step, domainStartDay * dayMs) / dayMs
+      : domainStartDay - padding;
+    const plotEndExclusive = wholeCells
+      ? archiveUnitNext(cell.unit, cell.step, archiveUnitStart(cell.unit, cell.step, (domainEndExclusive - 1) * dayMs)) / dayMs
+      : domainEndExclusive + padding;
+    const span = plotEndExclusive - plotStartDay;
+    /** @param {number} day */
+    const position = day => (day - plotStartDay) / span * 100;
+    for (const lane of lanes) {
+      for (const range of lane.ranges) {
+        range.position = position(range.startDay);
+        range.width = (range.endExclusive - range.startDay) / span * 100;
+      }
+      // A date is one instant, not a cell: the day it names begins there. A range already opens at
+      // that instant, so anchoring a single day to it as well puts both on the ruler line that
+      // carries the same date, and stops one calendar date from rendering in two places.
+      for (const point of lane.points) point.position = position(point.day);
+      const activity = [
+        ...lane.ranges.map(range => ({ startDay: range.startDay, endExclusive: range.endExclusive })),
+        ...lane.points.map(point => ({ startDay: point.day, endExclusive: point.day + 1 }))
+      ].sort((left, right) => left.startDay - right.startDay || left.endExclusive - right.endExclusive);
+      /** @type {Array<{startDay: number, endExclusive: number}>} */
+      const activeUnions = [];
+      for (const item of activity) {
+        const current = activeUnions.at(-1);
+        if (current && item.startDay <= current.endExclusive) {
+          if (item.endExclusive > current.endExclusive) {
+            current.endExclusive = item.endExclusive;
+          }
+        } else activeUnions.push({ ...item });
+      }
+      for (let index = 0; index < activeUnions.length - 1; index += 1) {
+        const previous = activeUnions[index];
+        const next = activeUnions[index + 1];
+        const durationDays = next.startDay - previous.endExclusive;
+        if (durationDays > 0) {
+          lane.pauses.push({ startDay: previous.endExclusive, endExclusive: next.startDay, durationDays, label: `${durationDays} day${durationDays === 1 ? "" : "s"} pause`, position: position(previous.endExclusive), width: durationDays / span * 100 });
+        }
+      }
+      const rangeSummary = lane.ranges.map(range => `${archiveDayLabel(range.startDay)} to ${archiveDayLabel(range.endDay)}`);
+      const pointSummary = lane.points.map(point => archiveDayLabel(point.day));
+      const pauses = lane.pauses.map(pause => pause.label);
+      lane.accessibleSummary = `${lane.feature.title}. ${[...rangeSummary, ...pointSummary, ...pauses].join("; ")}.`;
     }
-    for (const entry of entries) {
-      const value = archivePeriod(scale, /** @type {NonNullable<typeof entry.date>} */ (entry.date));
-      groups.get(value.key)?.entries.push(entry);
-    }
-    const markerDates = [...new Map(rangeDates.map(date => [date.time, date])).values()];
-    const gaps = archiveGaps(entries);
-    return { order, scale, from: first.value, to: last.value, fromTime: first.time, toTime: last.time, entries, markers: markerDates, ticks: archiveTicks(scale, first.time, last.time, gaps), gaps, groups: [...groups.values()], unmatched };
+    const firstTime = plotStartDay * dayMs;
+    const lastTime = plotEndExclusive * dayMs;
+    return {
+      scale,
+      from: archiveDayLabel(domainStartDay),
+      to: archiveDayLabel(domainEndExclusive - 1),
+      lanes,
+      headerCells: archiveHeaderCells(scale, firstTime, lastTime, plotStartDay, span),
+      rulerPerCell: archiveCellRulerCount(cell),
+      ticks: archiveTicks(scale, firstTime, lastTime, plotStartDay, span, domainStartDay * dayMs, archiveCellSubdivision(cell)),
+      unmatched
+    };
   }
 
   /** @param {MDProject} project */

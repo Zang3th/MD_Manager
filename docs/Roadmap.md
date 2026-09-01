@@ -1,50 +1,5 @@
 # MD_Manager
 
-## Pinning und Archivierung
-
-#Version
-- 0.7.0
-
-#Date
-- 07.08.2026 - 10.08.2026
-
-### Bugs und Verbesserungen
-
-#### Browserkompatibilität
-- [x] ~Error-Notifications persistent machen + Kopieren der Meldung anbieten~
-- [x] ~Ordentliche Fehlermeldungen anzeigen, wenn der Browser nicht unterstützt wird~
-
-#### Hochkantmodus
-- [x] ~Im Edit-Dialog werden Zeilenenden nicht korrekt umgebrochen und dargestellt~
-- [x] ~Edit-Dialoge breiter machen~
-
-#### Darstellung & Rendering
-- [x] ~ToDo-Gruppierungen zeigen Trennlinie nur an, wenn zuvor ein ToDo im Task dargestellt wurde~
-- [x] ~Stats und Backlog im Grid genau wie im Board rendern~
-- [x] ~Golden Parsing-File an neue Features anpassen~
-
-#### Leere Features/Tasks
-- [x] ~Unnötige Leerzeilen entfernen => Drap-and-Drop muss weiter funktionieren~
-
-### Feature-Karten
-
-- [x] ~Edit- und Close-Button in Dot-Submenü packen, da weitere Buttons hinzukommen~
-
-### Pinning
-
-- [x] ~Anpinnen/Lösen von einem einzelnen Feature erlauben~
-- [x] ~Neues Tag integrieren (+ Symbol)~
-- [x] ~Springen zum Pin via Keyboard~
-- [x] ~README ergänzen~
-
-### Archiv
-
-- [x] ~Archivierung von Features anbieten~
-- [x] ~Neues Tag integrieren (+ Symbol)~
-- [x] ~In Stats nachpflegen~
-- [x] ~Anzeige und Toggle ähnlich zum Backlog~
-- [x] ~README ergänzen~
-
 ## Zeitstrahl
 
 #Version
@@ -130,6 +85,38 @@ Stats und Backlog bleiben davon unberührt.
 - [x] ~Release fertig machen (via Actions)~
 
 #Pin
+## Swimlanes
+
+#Version
+- 0.8.1
+
+#Date
+- 17.08.26 - TBD
+
+### Bugs und Verbesserungen
+
+- [x] ~Kursivschrift unter #Tags funktioniert nicht mehr~
+- [x] ~Search-Fenster verbessern~
+- [x] ~Stats: Active-ToDo's zählen~
+
+### Archiv-Zeitstrahl
+
+- [x] ~Auf Visualisierung mittels Swimlanes umstellen~
+- [x] ~Alte Datumsvisualisierung rauswerfen~
+- [x] ~Floating-Window für Features integrieren~
+- [x] ~Hover-States integrieren~
+- [x] ~UI verschönern~
+- [x] ~Tests + Code-Review~
+
+### Release
+
+- [ ] u.U. Docs umspeichern
+- [ ] Version-Bump + Snapshots aktualisieren
+- [ ] Screenshots aktualisieren (via Skill)
+- [ ] README.md anpassen (Änderungen + Stats)
+- [ ] Release-Notes schreiben
+- [ ] Release fertig machen (via Actions)
+
 ## Reports
 
 #Version
@@ -137,12 +124,6 @@ Stats und Backlog bleiben davon unberührt.
 
 #Date
 - 14.09.26 - TBD
-
-### Bugs und Verbesserungen
-
-- [x] ~Kursivschrift unter #Tags funktioniert nicht mehr~
-- [x] ~Search-Fenster verbessern~
-- [x] ~Stats: Active-ToDo's zählen~
 
 ### Kennzahlen
 
@@ -627,3 +608,48 @@ Kompatibilität mit anderen Tools? Enforcement bei uns?
 - [x] ~Ordentliche README im Stil der anderen Projekte erstellen~
 - [x] ~Repository pflegen~
 - [x] ~Release + Deployment neuer Versionen automatisieren~
+
+## Pinning und Archivierung
+
+#Version
+- 0.7.0
+
+#Date
+- 09.08.2026 - 10.08.2026
+
+### Bugs und Verbesserungen
+
+#### Browserkompatibilität
+- [x] ~Error-Notifications persistent machen + Kopieren der Meldung anbieten~
+- [x] ~Ordentliche Fehlermeldungen anzeigen, wenn der Browser nicht unterstützt wird~
+
+#### Hochkantmodus
+- [x] ~Im Edit-Dialog werden Zeilenenden nicht korrekt umgebrochen und dargestellt~
+- [x] ~Edit-Dialoge breiter machen~
+
+#### Darstellung & Rendering
+- [x] ~ToDo-Gruppierungen zeigen Trennlinie nur an, wenn zuvor ein ToDo im Task dargestellt wurde~
+- [x] ~Stats und Backlog im Grid genau wie im Board rendern~
+- [x] ~Golden Parsing-File an neue Features anpassen~
+
+#### Leere Features/Tasks
+- [x] ~Unnötige Leerzeilen entfernen => Drap-and-Drop muss weiter funktionieren~
+
+### Feature-Karten
+
+- [x] ~Edit- und Close-Button in Dot-Submenü packen, da weitere Buttons hinzukommen~
+
+### Pinning
+
+- [x] ~Anpinnen/Lösen von einem einzelnen Feature erlauben~
+- [x] ~Neues Tag integrieren (+ Symbol)~
+- [x] ~Springen zum Pin via Keyboard~
+- [x] ~README ergänzen~
+
+### Archiv
+
+- [x] ~Archivierung von Features anbieten~
+- [x] ~Neues Tag integrieren (+ Symbol)~
+- [x] ~In Stats nachpflegen~
+- [x] ~Anzeige und Toggle ähnlich zum Backlog~
+- [x] ~README ergänzen~

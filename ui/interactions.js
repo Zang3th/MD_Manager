@@ -54,6 +54,10 @@ window.MDManager = window.MDManager || {};
   let workspaceZoomAnchor = null;
   /** @type {number | null} */
   let workspaceZoomAnchorFrame = null;
+  /** @type {HTMLElement | null} */
+  let archivePopoverAnchor = null;
+  /** @type {number | null} */
+  let archivePopoverFrame = null;
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   const clipboardIndicatorTemplate = /** @type {HTMLTemplateElement} */ (document.getElementById("clipboardIndicatorTemplate"));
   const clipboardResizeObserver = new ResizeObserver(scheduleClipboardPosition);
@@ -66,7 +70,6 @@ window.MDManager = window.MDManager || {};
       ...viewState,
       tasks: viewState.tasks.slice(),
       featureNotes: viewState.featureNotes.slice(),
-      archiveExpandedFeatures: viewState.archiveExpandedFeatures.slice(),
       featureScrolls: viewState.featureScrolls.map(scroll => ({ ...scroll }))
     };
   }
@@ -545,17 +548,16 @@ window.MDManager = window.MDManager || {};
     const backlogButton = document.getElementById("toggleBacklog");
     const metadataButton = document.getElementById("toggleMetadata");
     const statsButton = document.getElementById("toggleStats");
-    const archiveControlsButton = document.getElementById("toggleArchiveControls");
     backlogButton.hidden = archiveActive;
     metadataButton.hidden = archiveActive;
     statsButton.hidden = archiveActive;
-    archiveControlsButton.hidden = !archiveActive;
     if (archiveActive) {
       closeWorkspaceZoom();
       const backlog = document.getElementById("backlog");
       backlog.hidden = true;
       document.body.classList.add("hide-stats");
     } else {
+      closeArchiveFeaturePopover();
       const backlog = document.getElementById("backlog");
       backlog.hidden = backlogButton.disabled || backlogButton.getAttribute("aria-pressed") !== "true";
       document.body.classList.toggle("hide-stats", statsButton.getAttribute("aria-pressed") !== "true");
@@ -565,12 +567,80 @@ window.MDManager = window.MDManager || {};
     app.layout.layout();
   }
 
+  function positionArchivePopover() {
+    archivePopoverFrame = null;
+    const archiveContent = /** @type {HTMLElement | null} */ (document.querySelector("#archive > .archive-content"));
+    if (archiveContent?.querySelector(".archive-date-timeline")) {
+      const maximum = Math.max(0, archiveContent.scrollWidth - archiveContent.offsetWidth);
+      archiveContent.classList.toggle("archive-can-scroll-right", archiveContent.scrollLeft < maximum - 1);
+    }
+    const popover = /** @type {HTMLElement | null} */ (document.getElementById("archiveFeaturePopover"));
+    if (!popover || popover.hidden || !archivePopoverAnchor?.isConnected) return;
+    const anchorBounds = archivePopoverAnchor.getBoundingClientRect();
+    const popoverBounds = popover.getBoundingClientRect();
+    const headerBottom = document.querySelector(".header")?.getBoundingClientRect().bottom || 0;
+    const axisBottom = document.querySelector("#archive .archive-date-axis")?.getBoundingClientRect().bottom || 0;
+    const margin = 12;
+    const gap = 10;
+    let left = anchorBounds.right + gap;
+    if (left + popoverBounds.width > window.innerWidth - margin) left = anchorBounds.left - popoverBounds.width - gap;
+    left = Math.max(margin, Math.min(left, window.innerWidth - popoverBounds.width - margin));
+    const minimumTop = Math.max(headerBottom, axisBottom) + margin;
+    const maximumHeight = Math.max(0, window.innerHeight - minimumTop - margin);
+    const effectiveHeight = Math.min(popoverBounds.height, maximumHeight);
+    let top = Math.max(minimumTop, anchorBounds.top);
+    if (top + effectiveHeight > window.innerHeight - margin) top = window.innerHeight - effectiveHeight - margin;
+    top = Math.max(minimumTop, top);
+    popover.style.setProperty("--archive-popover-left", `${Math.round(left)}px`);
+    popover.style.setProperty("--archive-popover-top", `${Math.round(top)}px`);
+    popover.style.setProperty("--archive-popover-max-height", `${Math.round(maximumHeight)}px`);
+  }
+
+  function scheduleArchivePopoverPosition() {
+    if (archivePopoverFrame !== null) return;
+    archivePopoverFrame = requestAnimationFrame(positionArchivePopover);
+  }
+
+  /** @param {boolean} [restoreFocus] */
+  function closeArchiveFeaturePopover(restoreFocus = false) {
+    const popover = /** @type {HTMLElement | null} */ (document.getElementById("archiveFeaturePopover"));
+    if (popover) {
+      popover.hidden = true;
+      popover.removeAttribute("data-feature");
+    }
+    archivePopoverAnchor?.setAttribute("aria-expanded", "false");
+    archivePopoverAnchor?.classList.remove("is-popover-anchor");
+    if (restoreFocus && archivePopoverAnchor?.isConnected) archivePopoverAnchor.focus({ preventScroll: true });
+    archivePopoverAnchor = null;
+  }
+
+  /** @param {HTMLElement} anchor @param {boolean} [focus] */
+  function openArchiveFeaturePopover(anchor, focus = true) {
+    if (!project) return;
+    const featureIndex = Number(anchor.closest(".archive-feature")?.getAttribute("data-feature"));
+    if (!Number.isFinite(featureIndex)) return;
+    const current = document.getElementById("archiveFeaturePopover");
+    if (!current?.hasAttribute("hidden") && current?.getAttribute("data-feature") === String(featureIndex) && archivePopoverAnchor === anchor) {
+      closeArchiveFeaturePopover(true);
+      return;
+    }
+    closeArchiveFeaturePopover();
+    const popover = app.render.archiveFeaturePopover(project, featureIndex);
+    if (!popover) return;
+    archivePopoverAnchor = anchor;
+    anchor.setAttribute("aria-expanded", "true");
+    anchor.classList.add("is-popover-anchor");
+    positionArchivePopover();
+    if (focus) popover.focus({ preventScroll: true });
+  }
+
   /** @returns {MDViewState} */
   function captureViewState() {
     const content = document.getElementById("content");
     const archive = document.getElementById("archive");
     const archiveContent = archive.querySelector(".archive-content");
-    const expandedArchiveFeatures = [...archive.querySelectorAll('.archive-feature-toggle[aria-expanded="true"]')].map(toggle => Number(toggle.closest(".archive-feature")?.getAttribute("data-feature"))).filter(Number.isFinite);
+    const archivePopover = /** @type {HTMLElement | null} */ (archive.querySelector(".archive-feature-popover:not([hidden])"));
+    const archiveOpenFeature = archivePopover ? Number(archivePopover.dataset.feature) : null;
     const backlog = document.getElementById("backlog");
     const backlogContent = backlog.querySelector(".backlog-content");
     const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -583,9 +653,7 @@ window.MDManager = window.MDManager || {};
       tasks: [...document.querySelectorAll(".card")].map(task => task.getAttribute("aria-expanded") === "true"),
       featureNotes: [...document.querySelectorAll(".feature-note")].map(note => note.getAttribute("aria-expanded") === "true"),
       view: document.body.classList.contains("archive-view-active") ? "archive" : "workspace",
-      archiveOrder: /** @type {MDArchiveOrder} */ (archive.querySelector('[data-archive-order][aria-pressed="true"]')?.getAttribute("data-archive-order") || "date"),
-      archiveControlsOpen: !archive.querySelector(".archive-control-panel")?.hasAttribute("hidden"),
-      archiveExpandedFeatures: expandedArchiveFeatures,
+      archiveOpenFeature: Number.isFinite(archiveOpenFeature) ? archiveOpenFeature : null,
       backlogOpen: document.getElementById("toggleBacklog").getAttribute("aria-pressed") === "true",
       statsOpen: document.getElementById("toggleStats").getAttribute("aria-pressed") === "true",
       contentScrollLeft: content.scrollLeft,
@@ -626,6 +694,14 @@ window.MDManager = window.MDManager || {};
     if (!viewState) return;
     requestAnimationFrame(() => {
       restoreScrollState(viewState);
+      if (viewState.archiveOpenFeature === null) {
+        // The render replaced the node the popover was anchored to. Clearing it here keeps the
+        // module from holding a detached element until the next time the popover is used.
+        closeArchiveFeaturePopover();
+      } else {
+        const anchor = document.querySelector(`#archive .archive-feature[data-feature="${viewState.archiveOpenFeature}"] .archive-feature-toggle`);
+        if (anchor instanceof HTMLElement) openArchiveFeaturePopover(anchor, false);
+      }
       if (viewState.focusSelector) {
         const target = document.querySelector(viewState.focusSelector);
         if (target instanceof HTMLElement) target.focus({ preventScroll: true });
@@ -858,6 +934,7 @@ window.MDManager = window.MDManager || {};
   /** @param {MDProject} nextProject @param {(action: MDUndoAction, options?: {render?: boolean}) => boolean} onChanged */
   function setProject(nextProject, onChanged) {
     hoveredElement = null;
+    closeArchiveFeaturePopover();
     closeWorkspaceZoom();
     stopWorkspaceZoomAnchor();
     project = nextProject;
@@ -937,7 +1014,7 @@ window.MDManager = window.MDManager || {};
         const hadArchive = Boolean(activeProject.hasArchive);
         const beforeViewState = captureViewState();
         const afterViewState = copyViewState(beforeViewState);
-        const expandedArchiveFeatures = /** @type {MDFeature[]} */ (beforeViewState.archiveExpandedFeatures.map(index => activeProject.features[index]).filter(Boolean));
+        const openArchiveFeature = beforeViewState.archiveOpenFeature === null ? null : activeProject.features[beforeViewState.archiveOpenFeature] || null;
         const firstTask = [...document.querySelectorAll(".card")].indexOf(featureElement.querySelector(".card"));
         if (firstTask >= 0) afterViewState.tasks.splice(firstTask, featureElement.querySelectorAll(".card").length);
         const firstNote = [...document.querySelectorAll(".feature-note")].indexOf(featureElement.querySelector(".feature-note"));
@@ -947,7 +1024,8 @@ window.MDManager = window.MDManager || {};
         await animateRemoval(featureElement);
         const archived = perform("Feature archived", () => {
           const result = app.domain.archiveFeature(activeProject, activeProject.features.indexOf(feature));
-          afterViewState.archiveExpandedFeatures = expandedArchiveFeatures.map(expandedFeature => activeProject.features.indexOf(expandedFeature)).filter(index => index >= 0);
+          const openFeatureIndex = openArchiveFeature ? activeProject.features.indexOf(openArchiveFeature) : -1;
+          afterViewState.archiveOpenFeature = openFeatureIndex >= 0 ? openFeatureIndex : null;
           return result;
         }, () => {
           app.domain.restoreArchivedFeature(activeProject, feature, featureIndex, pinned, hadArchive);
@@ -1178,20 +1256,8 @@ window.MDManager = window.MDManager || {};
   document.getElementById("archive").addEventListener("mouseout", handleTitleLeave);
   document.getElementById("archive").addEventListener("click", event => {
     const target = eventElement(event);
-    if (target.closest(".archive-controls-close")) {
-      const panel = document.querySelector("#archive .archive-control-panel");
-      if (panel) panel.hidden = true;
-      document.getElementById("toggleArchiveControls").setAttribute("aria-pressed", "false");
-      closeViewMenu();
-      return;
-    }
-    const orderButton = target.closest("[data-archive-order]");
-    if (orderButton && project) {
-      const viewState = captureViewState();
-      viewState.archiveOrder = /** @type {MDArchiveOrder} */ (orderButton.getAttribute("data-archive-order"));
-      app.render.archive(project, viewState);
-      app.layout.archiveTimeline();
-      requestAnimationFrame(() => restoreScrollState(viewState));
+    if (target.closest(".archive-feature-popover-close")) {
+      closeArchiveFeaturePopover(true);
       return;
     }
     const unarchiveButton = /** @type {HTMLElement | null} */ (target.closest("[data-unarchive-feature]"));
@@ -1202,10 +1268,9 @@ window.MDManager = window.MDManager || {};
       if (!feature?.isArchived) return;
       const beforeViewState = captureViewState();
       const afterViewState = copyViewState(beforeViewState);
-      const remainingExpandedFeatures = /** @type {MDFeature[]} */ (beforeViewState.archiveExpandedFeatures.map(index => activeProject.features[index]).filter(expandedFeature => expandedFeature && expandedFeature !== feature));
+      afterViewState.archiveOpenFeature = null;
       const unarchived = perform("Feature unarchived", () => {
         const result = app.domain.unarchiveFeature(activeProject, activeProject.features.indexOf(feature));
-        afterViewState.archiveExpandedFeatures = remainingExpandedFeatures.map(expandedFeature => activeProject.features.indexOf(expandedFeature)).filter(index => index >= 0);
         return result;
       }, () => {
         app.domain.archiveFeature(activeProject, activeProject.features.indexOf(feature));
@@ -1213,16 +1278,19 @@ window.MDManager = window.MDManager || {};
       if (unarchived) app.notifications.show("info", "Feature unarchived", [{ value: feature.title }, " moved to Workspace."]);
       return;
     }
-    const button = target.closest(".archive-feature-toggle");
-    if (!button) return;
-    const open = button.getAttribute("aria-expanded") !== "true";
-    const featureElement = button.closest(".archive-feature");
-    if (!featureElement) return;
-    button.setAttribute("aria-expanded", String(open));
-    featureElement.classList.toggle("expanded", open);
-    featureElement.querySelector(".archive-tasks").hidden = !open;
-    if (featureElement.closest(".archive-date-timeline")) app.layout.archiveTimeline();
+    const button = /** @type {HTMLElement | null} */ (target.closest(".archive-feature-toggle"));
+    if (button) {
+      openArchiveFeaturePopover(button);
+      return;
+    }
   });
+  document.addEventListener("click", event => {
+    if (!archivePopoverAnchor) return;
+    const target = eventElement(event);
+    if (!target.closest(".archive-feature-popover,.archive-feature-toggle")) closeArchiveFeaturePopover();
+  });
+  document.getElementById("archive").addEventListener("scroll", scheduleArchivePopoverPosition, true);
+  window.addEventListener("resize", scheduleArchivePopoverPosition);
   document.getElementById("toggleBacklog").addEventListener("click", toggleBacklog);
   document.getElementById("addFeature").addEventListener("click", () => {
     if (!project) return;
@@ -1327,6 +1395,7 @@ window.MDManager = window.MDManager || {};
     const key = event.key.toLowerCase();
     const letterShortcut = !event.ctrlKey && !event.metaKey && !event.altKey && !editsText && !document.querySelector("dialog[open]");
     if (event.key === "Escape") {
+      closeArchiveFeaturePopover(true);
       closeFeatureMenus();
       closeViewMenu();
       closeSaveMenu();
@@ -1389,14 +1458,6 @@ window.MDManager = window.MDManager || {};
   });
 
   document.getElementById("toggleStats").addEventListener("click", toggleStats);
-  document.getElementById("toggleArchiveControls").addEventListener("click", event => {
-    if (!document.body.classList.contains("archive-view-active")) return;
-    const panel = document.querySelector("#archive .archive-control-panel");
-    if (!panel) return;
-    const open = panel.hasAttribute("hidden");
-    panel.hidden = !open;
-    (/** @type {HTMLElement} */ (event.currentTarget)).setAttribute("aria-pressed", String(open));
-  });
   document.getElementById("toggleClock").addEventListener("click", event => {
     const clock = document.getElementById("appClock");
     const active = clock.hidden;
@@ -1434,7 +1495,7 @@ window.MDManager = window.MDManager || {};
     if (!target.closest(".save-menu")) closeSaveMenu();
     if (!target.closest(".help-menu")) closeHelp();
     if (!target.closest(".workspace-zoom")) closeWorkspaceZoom();
-    if (!target.closest(".release,.card,.task-editor-dialog,.feature-editor-dialog")) {
+    if (!target.closest(".release,.card,.archive-feature,.archive-feature-popover,.task-editor-dialog,.feature-editor-dialog")) {
       hoveredElement = null;
       if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     }

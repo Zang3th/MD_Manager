@@ -265,10 +265,14 @@ window.MDManager = window.MDManager || {};
     }, highlightDuration);
   }
 
-  /** @param {Element} root */
+  /** @param {Element} root @returns {Element | null} */
   function revealArchived(root) {
+    const featureIndex = root.getAttribute("data-feature");
+    const openPopover = document.querySelector(`#archive .archive-feature-popover:not([hidden])[data-feature="${featureIndex}"]`);
+    if (openPopover) return openPopover;
     const toggle = root.querySelector(".archive-feature-toggle");
-    if (toggle && toggle.getAttribute("aria-expanded") !== "true") /** @type {HTMLElement} */ (toggle).click();
+    if (toggle) /** @type {HTMLElement} */ (toggle).click();
+    return document.querySelector(`#archive .archive-feature-popover:not([hidden])[data-feature="${featureIndex}"]`);
   }
 
   /** @param {MDSearchItem} item */
@@ -278,9 +282,9 @@ window.MDManager = window.MDManager || {};
     const behavior = app.interactions.navigation.reducedMotion() ? "auto" : "smooth";
 
     if (item.location === "archive") {
-      revealArchived(root);
-      const target = item.kind === "feature" ? root : root.querySelectorAll(".archive-tasks li")[item.taskPosition] || null;
-      (target || root).scrollIntoView({ behavior, block: "center" });
+      root.scrollIntoView({ behavior, block: "center" });
+      const details = revealArchived(root);
+      const target = item.kind === "feature" ? root : details?.querySelectorAll(".archive-popover-tasks li")[item.taskPosition] || null;
       markTarget(target);
       return;
     }

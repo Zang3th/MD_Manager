@@ -206,162 +206,130 @@ window.MDManager = window.MDManager || {};
       </div>`;
   }
 
-  /** @param {MDProject} project @param {MDFeature} feature @param {MDArchiveOrder} order @param {Set<number>} expandedFeatures @param {MDArchiveTimelineEntry} [entry] */
-  function archiveFeatureMarkup(project, feature, order, expandedFeatures, entry) {
-    const featureIndex = project.features.indexOf(feature);
-    const expanded = expandedFeatures.has(featureIndex);
-    const visibleTasks = feature.tasks.filter(task => !task.ignored);
-    const version = feature.version ? (/^v/i.test(feature.version.trim()) ? feature.version.trim() : `v${feature.version.trim()}`) : "";
-    const dates = feature.dates.filter(date => date.from || date.to).map(date => [date.from, date.to && date.to !== date.from ? date.to : ""].filter(Boolean).join(" – "));
-    const entryRanges = entry?.ranges || [];
-    const metadata = order === "date" ? (version ? [version] : []) : dates;
-    let inactive = "";
-    if (order === "date" && entry?.date && entry.endDate && entryRanges.length > 1) {
-      const duration = entry.endDate.time - entry.date.time;
-      let workedUntil = entry.date.time;
-      for (const range of entryRanges) {
-        if (range.from.time > workedUntil) {
-          const left = (workedUntil - entry.date.time) / duration * 100;
-          const width = (range.from.time - workedUntil) / duration * 100;
-          inactive += `<span class="archive-feature-inactive" style="left:${left}%;width:${width}%"></span>`;
-        }
-        workedUntil = Math.max(workedUntil, (range.to || range.from).time);
-      }
-    }
-    const tasksId = `archiveTasks${featureIndex}`;
-    return `<article class="archive-feature${expanded ? " expanded" : ""}" data-feature="${featureIndex}">${inactive}
-      <button class="archive-feature-toggle" type="button" aria-expanded="${expanded}" aria-controls="${tasksId}">
+  /** @param {MDFeature} feature */
+  function archiveFeatureVersion(feature) {
+    return feature.version ? (/^v/i.test(feature.version.trim()) ? feature.version.trim() : `v${feature.version.trim()}`) : "";
+  }
+
+  /** @param {MDFeature} feature */
+  function archiveFeatureDates(feature) {
+    return feature.dates.filter(date => date.from || date.to).map(date => [date.from, date.to && date.to !== date.from ? date.to : ""].filter(Boolean).join(" – "));
+  }
+
+  /** @param {MDFeature} feature @param {number} featureIndex */
+  function archiveFeatureMarkup(feature, featureIndex) {
+    const version = archiveFeatureVersion(feature);
+    return `<article class="archive-feature" data-feature="${featureIndex}">
+      <button class="archive-feature-toggle" type="button" aria-haspopup="dialog" aria-controls="archiveFeaturePopover" aria-expanded="false">
         <span class="archive-feature-title" data-full-title="${escapeHtml(feature.title)}"><span class="title-text">${escapeHtml(feature.title)}</span></span>
-        ${metadata.length ? `<span class="archive-feature-meta">${metadata.map(line => `<span>${escapeHtml(line)}</span>`).join("")}</span>` : ""}
+        ${version ? `<span class="archive-feature-version">${escapeHtml(version)}</span>` : ""}
       </button>
-      <div class="archive-tasks" id="${tasksId}"${expanded ? "" : " hidden"}>${visibleTasks.length ? `<ul>${visibleTasks.map(task => `<li>${escapeHtml(task.title)}</li>`).join("")}</ul>` : '<p class="archive-no-tasks">No tasks</p>'}</div>
-      <button class="archive-unarchive" data-unarchive-feature="${featureIndex}" type="button" aria-label="Move to Workspace" data-tooltip="Move to Workspace">${unarchiveIcon}</button>
     </article>`;
   }
 
-  /** @param {MDProject} project @param {MDArchiveTimeline} timeline @param {Set<number>} expandedFeatures */
-  function archiveDateTimelineMarkup(project, timeline, expandedFeatures) {
-    const unmatched = timeline.unmatched.length ? `<section class="archive-date-unmatched"><h3>Without date</h3><div>${timeline.unmatched.map(feature => archiveFeatureMarkup(project, feature, "date", expandedFeatures)).join("")}</div></section>` : "";
-    if (timeline.fromTime === undefined || timeline.toTime === undefined) return unmatched;
-    /** @type {Map<number, string>} */
-    const markerLevels = new Map();
-    const entries = (timeline.entries || []).filter(entry => entry.date);
-    for (const entry of entries) {
-      const start = /** @type {MDArchiveDate} */ (entry.date);
-      const end = entry.endDate || start;
-      markerLevels.set(start.time, "main");
-      markerLevels.set(end.time, "main");
-      for (const range of entry.ranges || []) {
-        if (!markerLevels.has(range.from.time)) markerLevels.set(range.from.time, "sub");
-        if (range.to && !markerLevels.has(range.to.time)) markerLevels.set(range.to.time, "sub");
-      }
-    }
-    const markers = (timeline.markers || []).map(date => {
-      const endpoint = date.time === timeline.fromTime || date.time === timeline.toTime;
-      return `<span class="archive-date-marker archive-date-marker-${markerLevels.get(date.time) || "sub"}${endpoint ? " archive-date-marker-endpoint" : ""}" data-time="${date.time}"><span>${escapeHtml(date.value)}</span></span>`;
+  /** @param {MDArchiveTimelineLane} lane @param {number} featureIndex */
+  function archiveSwimlaneMarkup(lane, featureIndex) {
+    const feature = lane.feature;
+    const version = archiveFeatureVersion(feature);
+    const objectLabel = (/** @type {string} */ label) => `<span class="archive-object-label">${escapeHtml(label)}</span>`;
+    const durationLabel = (/** @type {number} */ days) => `${days} ${days === 1 ? "day" : "days"}`;
+    const baselines = '<span class="archive-lane-baseline"></span>';
+    const ranges = lane.ranges.map(range => {
+      const ends = `${range.startDay === lane.startDay ? " archive-track-start" : ""}${range.endExclusive === lane.endExclusive ? " archive-track-end" : ""}`;
+      return `<span class="archive-active-segment${ends}" style="--archive-position:${range.position}%;--archive-width:${range.width}%">${objectLabel(durationLabel(range.durationDays))}</span>`;
     }).join("");
-    const ticks = (timeline.ticks || []).map(tick => `<span class="archive-date-tick archive-date-tick-${tick.level}" data-time="${tick.time}"></span>`).join("");
-    const breaks = (timeline.gaps || []).map(gap => `<span class="archive-date-break" data-from="${gap.from}" data-to="${gap.to}"><span class="archive-date-break-mark"></span><span class="archive-date-break-label">${escapeHtml(gap.label)}</span></span>`).join("");
-    /** @type {string[]} */
-    const guides = [];
-    const cards = entries.map((entry, index) => {
-      const start = /** @type {MDArchiveDate} */ (entry.date);
-      const end = entry.endDate || start;
-      const interior = new Set();
-      for (const range of entry.ranges || []) {
-        interior.add(range.from.time);
-        if (range.to) interior.add(range.to.time);
-      }
-      interior.delete(start.time);
-      interior.delete(end.time);
-      guides.push(`<path class="archive-date-guide archive-date-guide-start" data-entry="${index}"></path>`);
-      if (entry.endDate) guides.push(`<path class="archive-date-guide archive-date-guide-end" data-entry="${index}"></path>`);
-      for (const time of interior) guides.push(`<path class="archive-date-guide archive-date-guide-sub" data-entry="${index}" data-time="${time}"></path>`);
-      return `<div class="archive-date-card${entry.endDate ? "" : " archive-date-card-point"}" data-entry="${index}" data-start="${start.time}" data-end="${end.time}">${archiveFeatureMarkup(project, entry.feature, "date", expandedFeatures, entry)}</div>`;
-    }).join("");
-    return `<svg class="archive-date-lines" aria-hidden="true" focusable="false"><path class="archive-date-axis-line"></path>${guides.join("")}</svg>
-      <div class="archive-date-ticks" aria-hidden="true">${ticks}</div>
-      <div class="archive-date-breaks" aria-hidden="true">${breaks}</div>
-      <div class="archive-date-markers" aria-hidden="true">${markers}</div>
-      <div class="archive-date-cards">${cards}</div>${unmatched}`;
+    const pauses = lane.pauses.map(pause => `<span class="archive-pause-segment" style="--archive-position:${pause.position}%;--archive-width:${pause.width}%">${objectLabel(durationLabel(pause.durationDays))}</span>`).join("");
+    const points = lane.points.map(point => `<span class="archive-date-point" style="--archive-position:${point.position}%">${objectLabel(point.label)}</span>`).join("");
+    return `<article class="archive-feature archive-swimlane-feature" data-feature="${featureIndex}">
+      <div class="archive-swimlane-row">
+        <button class="archive-feature-toggle archive-swimlane-label" type="button" aria-haspopup="dialog" aria-controls="archiveFeaturePopover" aria-expanded="false" aria-label="${escapeHtml(lane.accessibleSummary)}">
+          <span class="archive-feature-title" data-full-title="${escapeHtml(feature.title)}"><span class="title-text">${escapeHtml(feature.title)}</span></span>
+          ${version ? `<span class="archive-swimlane-version">${escapeHtml(version)}</span>` : ""}
+        </button>
+        <div class="archive-swimlane-plot" aria-hidden="true"><div class="archive-date-scale">${baselines}${pauses}${ranges}${points}</div></div>
+      </div>
+    </article>`;
   }
 
-  /** @param {MDProject} project @param {MDFeature[]} features @param {MDArchiveOrder} order @param {number[]} expandedFeatureIndices */
-  function archiveTimelineContents(project, features, order, expandedFeatureIndices) {
+  /** @param {number} count @param {MDArchiveTimeline} timeline */
+  function archiveSummaryMarkup(count, timeline) {
+    const range = timeline.from ? `${escapeHtml(timeline.from)}${timeline.to !== timeline.from ? ` – ${escapeHtml(timeline.to)}` : ""}` : "No matching metadata";
+    return `<div class="archive-axis-summary"><div class="archive-summary-line"><h2 class="archive-title">Archive</h2><span class="archive-summary-separator" aria-hidden="true">/</span><span class="archive-count">${count} ${count === 1 ? "Feature" : "Features"}</span></div>${count ? `<p class="archive-range${timeline.from ? "" : " archive-range-empty"}">${range}</p>` : ""}</div>`;
+  }
+
+  /** @param {MDProject} project @param {MDArchiveTimeline} timeline @param {number} count */
+  function archiveDateTimelineMarkup(project, timeline, count) {
+    const featureIndexes = new Map(project.features.map((feature, index) => [feature, index]));
+    const unmatched = timeline.unmatched.length ? `<section class="archive-date-unmatched"><h3>Without date</h3><div>${timeline.unmatched.map(feature => archiveFeatureMarkup(feature, featureIndexes.get(feature) ?? -1)).join("")}</div></section>` : "";
+    const lanes = timeline.lanes;
+    const sortedTicks = timeline.ticks.filter(tick => tick.position > 0 && tick.position < 100).slice().sort((left, right) => left.position - right.position);
+    const boundaries = [0, ...sortedTicks.map(tick => tick.position), 100];
+    const steps = boundaries.slice(1).map((position, index) => position - boundaries[index]).filter(step => step > 0).sort((left, right) => left - right);
+    const regularStep = steps.length ? steps[Math.floor(steps.length / 2)] : 100;
+    const edgeClearance = regularStep / 2;
+    const interiorTicks = sortedTicks.filter(tick => tick.position >= edgeClearance && tick.position <= 100 - edgeClearance);
+    const majorPositions = interiorTicks.filter(tick => tick.level === "major").map(tick => tick.position);
+    const fallbackTicks = interiorTicks.filter(tick => tick.level === "major" || majorPositions.every(position => Math.abs(position - tick.position) >= edgeClearance));
+    const pathData = (/** @type {MDArchiveTickLevel} */ level, /** @type {number} */ fromY, /** @type {number} */ toY) => fallbackTicks.filter(tick => tick.level === level).map(tick => `M${tick.position} ${fromY}V${toY}`).join("");
+    const tickPaths = (/** @type {number} */ fromY, /** @type {number} */ toY) => `<path class="archive-grid-path archive-grid-path-minor" d="${pathData("minor", fromY, toY)}"></path><path class="archive-grid-path archive-grid-path-major" d="${pathData("major", fromY, toY)}"></path>`;
+    const edgePath = (/** @type {number} */ fromY, /** @type {number} */ toY) => `<path class="archive-grid-path archive-grid-path-endpoint" d="M0 ${fromY}V${toY}"></path>`;
+    const labels = sortedTicks.filter(tick => tick.label).map(tick => `<span class="archive-grid-label" data-archive-label-position="${tick.labelPosition}" style="--archive-label-position:${tick.labelPosition}%">${escapeHtml(tick.label)}</span>`).join("");
+    // Paint order is document order: the ticks and the period boundary go down first, the rule closes
+    // them off, and the left plot edge frames everything on top.
+    const headerGrid = `<svg class="archive-axis-grid" aria-hidden="true" focusable="false" viewBox="0 0 100 100" preserveAspectRatio="none" shape-rendering="crispEdges">${tickPaths(52, 100)}<path class="archive-axis-line" d="M0 52H100"></path>${edgePath(0, 100)}</svg>`;
+    const bodyGrid = `<svg class="archive-date-grid" aria-hidden="true" focusable="false" viewBox="0 0 100 100" preserveAspectRatio="none" shape-rendering="crispEdges">${tickPaths(0, 100)}</svg>`;
+    // The plot edges bound the table, so they are drawn after the lanes and above them; a bar that
+    // reaches an edge must not paint over the frame that encloses it.
+    const edgeOverlay = `<svg class="archive-date-grid archive-edge-overlay" aria-hidden="true" focusable="false" viewBox="0 0 100 100" preserveAspectRatio="none" shape-rendering="crispEdges">${edgePath(0, 100)}</svg>`;
+    // The coarse row names the periods; the summary line above already states the domain range, so
+    // the ruler does not repeat it.
+    const cells = timeline.headerCells.map(cell => `<span class="archive-axis-cell" style="--archive-position:${cell.position}%;--archive-width:${cell.width}%"><span class="archive-axis-cell-label">${escapeHtml(cell.label)}</span></span>`).join("");
+    const gridData = escapeHtml(JSON.stringify(sortedTicks.map(tick => [tick.position, tick.level, tick.labelPosition])));
+    const empty = count ? "" : '<div class="empty start-screen archive-empty"><p class="recent-files-empty">No archived features yet.</p></div>';
+    return `<div class="archive-date-axis" data-archive-grid="${gridData}" data-archive-ruler-per-cell="${timeline.rulerPerCell}" data-archive-scale="${timeline.scale}"><div class="archive-axis-corner">${archiveSummaryMarkup(count, timeline)}</div><div class="archive-axis-plot"><div class="archive-date-scale"><div class="archive-axis-cells">${cells}</div>${headerGrid}${labels}</div></div></div>
+      <div class="archive-swimlane-list${empty ? " archive-swimlane-list-empty" : ""}">${empty || `<div class="archive-swimlane-rows">${bodyGrid}${lanes.map(lane => archiveSwimlaneMarkup(lane, featureIndexes.get(lane.feature) ?? -1)).join("")}${edgeOverlay}</div>`}</div>${unmatched}`;
+  }
+
+  /** @param {MDProject} project @param {MDFeature[]} features */
+  function archiveTimelineContents(project, features) {
     /** @type {MDArchiveTimeline} */
-    const timeline = app.archive.timeline(features, order);
-    const expandedFeatures = new Set(expandedFeatureIndices);
-    const range = timeline.from ? `<p class="archive-range">${escapeHtml(timeline.from)}${timeline.to !== timeline.from ? ` – ${escapeHtml(timeline.to)}` : ""}</p>` : '<p class="archive-range archive-range-empty">No matching metadata</p>';
-    if (order === "date") {
-      /** @type {Record<string, string>} */
-      const dataset = {};
-      if (timeline.fromTime !== undefined && timeline.toTime !== undefined) {
-        dataset.fromTime = String(timeline.fromTime);
-        dataset.toTime = String(timeline.toTime);
-        dataset.scale = timeline.scale;
-      }
-      return { range, dataset, timeline: archiveDateTimelineMarkup(project, timeline, expandedFeatures) };
-    }
-    const groups = timeline.groups.map(group => `<section class="archive-period" data-period="${escapeHtml(group.key)}">
-      <h3 class="archive-period-title"><span>${escapeHtml(group.label)}</span></h3>
-      <span class="archive-period-dot" aria-hidden="true"></span>
-      <div class="archive-period-features">${group.entries.map(entry => archiveFeatureMarkup(project, entry.feature, order, expandedFeatures, entry)).join("")}</div>
-    </section>`).join("");
-    const unmatched = timeline.unmatched.length ? `<section class="archive-period archive-unmatched" data-period="unmatched">
-      <h3 class="archive-period-title"><span>Without ${order}</span></h3>
-      <span class="archive-period-dot" aria-hidden="true"></span>
-      <div class="archive-period-features">${timeline.unmatched.map(feature => archiveFeatureMarkup(project, feature, order, expandedFeatures)).join("")}</div>
-    </section>` : "";
-    return { range, dataset: {}, timeline: `<svg class="archive-timeline-line" aria-hidden="true" focusable="false"><path class="archive-timeline-path" vector-effect="non-scaling-stroke"></path></svg>${groups}${unmatched}` };
+    const timeline = app.archive.timeline(features);
+    return archiveDateTimelineMarkup(project, timeline, features.length);
   }
 
-  /** @param {Record<string, string>} dataset */
-  function datasetAttributes(dataset) {
-    return Object.entries(dataset).map(([name, value]) => ` data-${name.replace(/[A-Z]/g, character => `-${character.toLowerCase()}`)}="${escapeHtml(value)}"`).join("");
+  /** @param {MDProject} project @param {MDFeature[]} features */
+  function archiveContents(project, features) {
+    const timeline = archiveTimelineContents(project, features);
+    return `<div class="archive-content"><div class="archive-stage"><div class="archive-timeline archive-date-timeline">${timeline}</div></div></div>
+      <aside class="archive-feature-popover" id="archiveFeaturePopover" role="dialog" aria-modal="false" tabindex="-1" hidden></aside>`;
   }
 
-  /** @param {HTMLElement} element @param {Record<string, string>} dataset */
-  function applyDataset(element, dataset) {
-    for (const name of ["fromTime", "toTime", "scale"]) {
-      if (dataset[name] === undefined) delete element.dataset[name];
-      else element.dataset[name] = dataset[name];
-    }
-  }
-
-  /** @param {MDProject} project @param {MDFeature[]} features @param {Partial<MDViewState>} [viewState] */
-  function archiveContents(project, features, viewState) {
-    const order = viewState?.archiveOrder || "date";
-    const count = features.length;
-    const timelineContents = archiveTimelineContents(project, features, order, viewState?.archiveExpandedFeatures || []);
-    const controlsOpen = viewState?.archiveControlsOpen !== false;
-    const stage = count ? `<div class="archive-stage"><div class="archive-timeline${order === "date" ? " archive-date-timeline" : ""}"${datasetAttributes(timelineContents.dataset)}>${timelineContents.timeline}</div></div>` : '<div class="archive-stage archive-stage-empty"><div class="empty start-screen archive-empty"><p class="recent-files-empty">No archived features yet.</p></div></div>';
-    return `<div class="archive-summary"><div class="archive-summary-line"><h2 class="archive-title">Archive</h2><span class="archive-summary-separator" aria-hidden="true">/</span><span class="archive-count">${count} ${count === 1 ? "Feature" : "Features"}</span></div>${count ? timelineContents.range : ""}</div>
-      <div class="archive-content">${stage}</div>
-      <aside class="archive-control-panel" aria-label="Timeline controls"${controlsOpen ? "" : " hidden"}><div class="archive-control-panel-header"><span class="archive-control-title">Timeline controls</span><button class="archive-controls-close" type="button" aria-label="Close timeline controls" data-tooltip="Close timeline controls">${deleteIcon}</button></div><div class="archive-controls">
-        <div class="archive-control-group"><span class="archive-control-label">Sort by</span><div class="archive-order" role="group" aria-label="Archive order"><button type="button" data-archive-order="date" aria-pressed="${order === "date"}">Date</button><button type="button" data-archive-order="version" aria-pressed="${order === "version"}">Version</button></div></div>
-      </div></aside>`;
-  }
-
-  /** @param {MDProject} project @param {Partial<MDViewState>} [viewState] */
-  function renderArchive(project, viewState) {
+  /** @param {MDProject} project */
+  function renderArchive(project) {
     const archivedFeatures = project.features.filter(feature => feature.isArchived && !feature.ignored);
     const archive = document.getElementById("archive");
-    archive.innerHTML = archiveContents(project, archivedFeatures, viewState);
+    archive.innerHTML = archiveContents(project, archivedFeatures);
     archive.setAttribute("aria-label", project.archiveTitle || "Archive");
-    document.getElementById("toggleArchiveControls").setAttribute("aria-pressed", String(viewState?.archiveControlsOpen !== false));
   }
 
-  /** @param {MDProject} project @param {MDViewState} viewState */
-  function updateArchiveTimeline(project, viewState) {
-    const archive = document.getElementById("archive");
-    const features = project.features.filter(feature => feature.isArchived && !feature.ignored);
-    const contents = archiveTimelineContents(project, features, viewState.archiveOrder, viewState.archiveExpandedFeatures);
-    archive.querySelector(".archive-range")?.replaceWith(/** @type {HTMLElement} */ (document.createRange().createContextualFragment(contents.range).firstElementChild));
-    const timeline = /** @type {HTMLElement | null} */ (archive.querySelector(".archive-timeline"));
-    if (!timeline) return;
-    timeline.classList.toggle("archive-date-timeline", viewState.archiveOrder === "date");
-    applyDataset(timeline, contents.dataset);
-    timeline.innerHTML = contents.timeline;
+  /** @param {MDProject} project @param {number} featureIndex @returns {HTMLElement | null} */
+  function renderArchiveFeaturePopover(project, featureIndex) {
+    const feature = project.features[featureIndex];
+    const popover = /** @type {HTMLElement | null} */ (document.getElementById("archiveFeaturePopover"));
+    if (!popover || !feature?.isArchived) return null;
+    const version = archiveFeatureVersion(feature);
+    const dates = archiveFeatureDates(feature);
+    const visibleTasks = feature.tasks.filter(task => !task.ignored);
+    const titleId = `archiveFeaturePopoverTitle${featureIndex}`;
+    popover.dataset.feature = String(featureIndex);
+    popover.setAttribute("aria-labelledby", titleId);
+    popover.innerHTML = `<header class="archive-feature-popover-header"><div><h3 id="${titleId}">${escapeHtml(feature.title)}</h3>${version ? `<span class="archive-popover-version">${escapeHtml(version)}</span>` : ""}</div><button class="archive-feature-popover-close" type="button" aria-label="Close feature details">${deleteIcon}</button></header>
+      <div class="archive-feature-popover-content">${dates.length ? `<section class="archive-popover-section"><h4>Date${dates.length === 1 ? "" : "s"}</h4><div class="archive-popover-dates">${dates.map(date => `<span>${escapeHtml(date)}</span>`).join("")}</div></section>` : ""}
+        <section class="archive-popover-section archive-popover-tasks"><h4>Tasks</h4>${visibleTasks.length ? `<ul>${visibleTasks.map(task => `<li>${escapeHtml(task.title)}</li>`).join("")}</ul>` : '<p class="archive-no-tasks">No tasks</p>'}</section>
+      </div>
+      <footer class="archive-feature-popover-footer"><button class="archive-popover-unarchive" data-unarchive-feature="${featureIndex}" type="button">${unarchiveIcon}<span>Move to Workspace</span></button></footer>`;
+    popover.hidden = false;
+    return popover;
   }
 
   /** @param {MDFeature} feature */
@@ -425,14 +393,13 @@ window.MDManager = window.MDManager || {};
     document.getElementById("showArchiveView").setAttribute("aria-pressed", String(archiveActive));
     content.hidden = archiveActive;
     const archive = document.getElementById("archive");
-    renderArchive(project, viewState);
+    renderArchive(project);
     archive.hidden = !archiveActive;
     document.getElementById("addFeature").hidden = archiveActive;
     document.getElementById("toggleBacklog").hidden = archiveActive;
     document.getElementById("toggleMetadata").hidden = archiveActive;
     const statsButton = document.getElementById("toggleStats");
     statsButton.hidden = archiveActive;
-    document.getElementById("toggleArchiveControls").hidden = !archiveActive;
     const statsOpen = viewState ? viewState.statsOpen : true;
     statsButton.setAttribute("aria-pressed", String(statsOpen));
     document.body.classList.toggle("hide-stats", archiveActive || !statsOpen);
@@ -535,7 +502,7 @@ window.MDManager = window.MDManager || {};
   app.render = {
     project: render,
     archive: renderArchive,
-    archiveTimeline: updateArchiveTimeline,
+    archiveFeaturePopover: renderArchiveFeaturePopover,
     start: showStart,
     saveError: showSaveError,
     featureWidth: setFeatureWidth,

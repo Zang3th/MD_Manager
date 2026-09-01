@@ -56,16 +56,16 @@ type MDFeature = {
 };
 type MDMarkdownWarning = { lineNumber: number; message: string };
 type MDProject = { title: string; newline: string; beforeFeatures: string[]; features: MDFeature[]; warnings: MDMarkdownWarning[]; hasArchive?: boolean; archiveTitle?: string };
-type MDArchiveOrder = "date" | "version";
 type MDArchiveScale = "day" | "week" | "month" | "year";
 type MDArchiveDate = { value: string; time: number; year: number; month: number; day: number };
 type MDArchiveTickLevel = "major" | "minor";
-type MDArchiveTick = { time: number; level: MDArchiveTickLevel };
-type MDArchiveTimelineRange = { from: MDArchiveDate; to?: MDArchiveDate; label: string };
-type MDArchiveTimelineEntry = { feature: MDFeature; label: string; date?: MDArchiveDate; endDate?: MDArchiveDate; rangeLabel?: string; ranges?: MDArchiveTimelineRange[]; rangeCount?: number };
-type MDArchiveTimelineGroup = { key: string; label: string; entries: MDArchiveTimelineEntry[] };
-type MDArchiveTimelineGap = { from: number; to: number; label: string };
-type MDArchiveTimeline = { order: MDArchiveOrder; scale: MDArchiveScale; from: string; to: string; fromTime?: number; toTime?: number; entries?: MDArchiveTimelineEntry[]; markers?: MDArchiveDate[]; ticks?: MDArchiveTick[]; gaps?: MDArchiveTimelineGap[]; groups: MDArchiveTimelineGroup[]; unmatched: MDFeature[] };
+type MDArchiveHeaderCell = { label: string; position: number; width: number };
+type MDArchiveTick = { time: number; level: MDArchiveTickLevel; label: string; position: number; labelPosition: number };
+type MDArchiveTimelineSegment = { startDay: number; endDay: number; endExclusive: number; durationDays: number; label: string; position: number; width: number };
+type MDArchiveTimelinePoint = { day: number; label: string; position: number };
+type MDArchiveTimelinePause = { startDay: number; endExclusive: number; durationDays: number; label: string; position: number; width: number };
+type MDArchiveTimelineLane = { feature: MDFeature; startDay: number; endExclusive: number; ranges: MDArchiveTimelineSegment[]; points: MDArchiveTimelinePoint[]; pauses: MDArchiveTimelinePause[]; accessibleSummary: string };
+type MDArchiveTimeline = { scale: MDArchiveScale; from: string; to: string; headerCells: MDArchiveHeaderCell[]; rulerPerCell: number; lanes: MDArchiveTimelineLane[]; ticks: MDArchiveTick[]; unmatched: MDFeature[] };
 type MDUndoAction = {
   label: string;
   undo(): void;
@@ -113,9 +113,7 @@ type MDViewState = {
   tasks: boolean[];
   featureNotes: boolean[];
   view: "workspace" | "archive";
-  archiveOrder: MDArchiveOrder;
-  archiveControlsOpen: boolean;
-  archiveExpandedFeatures: number[];
+  archiveOpenFeature: number | null;
   backlogOpen: boolean;
   statsOpen: boolean;
   featureScrolls: Array<{left: number; top: number}>;
