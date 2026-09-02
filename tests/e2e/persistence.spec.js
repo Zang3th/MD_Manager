@@ -134,7 +134,7 @@ test("feature-card zoom is restored from the matching recent file after reload",
       getFile: async () => ({ text: async () => markdown, lastModified: 1, size: markdown.length }),
       isSameEntry: async (/** @type {unknown} */ other) => other === handle
     };
-    let record = { id: "project", name: handle.name, projectTitle: "Project", openedAt: 1, featureWidth: Number(sessionStorage.getItem("featureWidth")) || 540, handle };
+    let record = { id: "project", name: handle.name, projectTitle: "Project", openedAt: 1, featureWidth: Number(window.name) || 540, handle };
     /** @type {any} */
     const database = {
       close() {},
@@ -150,7 +150,7 @@ test("feature-card zoom is restored from the matching recent file after reload",
           },
           put(/** @type {any} */ next) {
             record = next;
-            sessionStorage.setItem("featureWidth", String(next.featureWidth));
+            window.name = String(next.featureWidth);
             queueMicrotask(() => transaction.oncomplete());
           },
           delete() {}
@@ -174,9 +174,10 @@ test("feature-card zoom is restored from the matching recent file after reload",
   const slider = page.locator("#featureWidth");
   await slider.press("ArrowLeft");
   await expect(page.locator("#content > .release")).toHaveCSS("width", "460px");
-  await expect.poll(() => page.evaluate(() => sessionStorage.getItem("featureWidth"))).toBe("460");
+  await expect.poll(() => page.evaluate(() => window.name)).toBe("460");
 
   await page.reload();
+  await expect.poll(() => page.evaluate(() => window.name)).toBe("460");
   await page.locator(".recent-file-open").click();
   await expect(page.locator("#featureZoomValue")).toHaveText("120%");
   await expect(page.locator("#content > .release")).toHaveCSS("width", "460px");
