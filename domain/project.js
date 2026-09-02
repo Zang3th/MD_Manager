@@ -362,7 +362,7 @@ window.MDManager = window.MDManager || {};
         const parsedTo = parsedArchiveDate(range.to);
         if (range.to.trim() && parsedTo && parsedTo.time > from.time) {
           const endDay = parsedTo.time / dayMs;
-          ranges.push({ startDay, endDay, endExclusive: endDay + 1, durationDays: endDay - startDay + 1, label: `${from.value} – ${parsedTo.value}`, position: 0, width: 0 });
+          ranges.push({ startDay, endDay, endExclusive: endDay + 1, durationDays: endDay - startDay + 1, position: 0, width: 0 });
         } else {
           points.push({ day: startDay, label: from.value, position: 0 });
         }
@@ -378,11 +378,24 @@ window.MDManager = window.MDManager || {};
       let endExclusive = Number.NEGATIVE_INFINITY;
       for (const range of ranges) endExclusive = Math.max(endExclusive, range.endExclusive);
       for (const point of points) endExclusive = Math.max(endExclusive, point.day + 1);
-      lanes.push({ feature, startDay, endExclusive, ranges, points, pauses: [], accessibleSummary: "" });
+      lanes.push({
+        feature,
+        startDay,
+        endExclusive,
+        ranges,
+        points,
+        pauses: [],
+        metrics: {
+          recordedDays: 0,
+          spanDays: endExclusive - startDay,
+          pauseDays: 0
+        },
+        accessibleSummary: ""
+      });
     }
 
     lanes.sort((left, right) => left.startDay - right.startDay);
-    if (!lanes.length) return { scale: "day", from: "", to: "", lanes, headerCells: [], rulerPerCell: 0, ticks: [], unmatched };
+    if (!lanes.length) return { scale: "day", from: "", to: "", plotStartDay: 0, spanDays: 0, lanes, headerCells: [], rulerPerCell: 0, ticks: [], unmatched };
     const domainStartDay = lanes[0].startDay;
     let domainEndExclusive = Number.NEGATIVE_INFINITY;
     for (const lane of lanes) domainEndExclusive = Math.max(domainEndExclusive, lane.endExclusive);
@@ -441,6 +454,8 @@ window.MDManager = window.MDManager || {};
       const rangeSummary = lane.ranges.map(range => `${archiveDayLabel(range.startDay)} to ${archiveDayLabel(range.endDay)}`);
       const pointSummary = lane.points.map(point => archiveDayLabel(point.day));
       const pauses = lane.pauses.map(pause => pause.label);
+      lane.metrics.pauseDays = lane.pauses.reduce((total, pause) => total + pause.durationDays, 0);
+      lane.metrics.recordedDays = lane.metrics.spanDays - lane.metrics.pauseDays;
       lane.accessibleSummary = `${lane.feature.title}. ${[...rangeSummary, ...pointSummary, ...pauses].join("; ")}.`;
     }
     const firstTime = plotStartDay * dayMs;
@@ -449,6 +464,8 @@ window.MDManager = window.MDManager || {};
       scale,
       from: archiveDayLabel(domainStartDay),
       to: archiveDayLabel(domainEndExclusive - 1),
+      plotStartDay,
+      spanDays: span,
       lanes,
       headerCells: archiveHeaderCells(scale, firstTime, lastTime, plotStartDay, span),
       rulerPerCell: archiveCellRulerCount(cell),

@@ -61,11 +61,12 @@ type MDArchiveDate = { value: string; time: number; year: number; month: number;
 type MDArchiveTickLevel = "major" | "minor";
 type MDArchiveHeaderCell = { label: string; position: number; width: number };
 type MDArchiveTick = { time: number; level: MDArchiveTickLevel; label: string; position: number; labelPosition: number };
-type MDArchiveTimelineSegment = { startDay: number; endDay: number; endExclusive: number; durationDays: number; label: string; position: number; width: number };
+type MDArchiveTimelineSegment = { startDay: number; endDay: number; endExclusive: number; durationDays: number; position: number; width: number };
 type MDArchiveTimelinePoint = { day: number; label: string; position: number };
 type MDArchiveTimelinePause = { startDay: number; endExclusive: number; durationDays: number; label: string; position: number; width: number };
-type MDArchiveTimelineLane = { feature: MDFeature; startDay: number; endExclusive: number; ranges: MDArchiveTimelineSegment[]; points: MDArchiveTimelinePoint[]; pauses: MDArchiveTimelinePause[]; accessibleSummary: string };
-type MDArchiveTimeline = { scale: MDArchiveScale; from: string; to: string; headerCells: MDArchiveHeaderCell[]; rulerPerCell: number; lanes: MDArchiveTimelineLane[]; ticks: MDArchiveTick[]; unmatched: MDFeature[] };
+type MDArchiveTimelineMetrics = { recordedDays: number; spanDays: number; pauseDays: number };
+type MDArchiveTimelineLane = { feature: MDFeature; startDay: number; endExclusive: number; ranges: MDArchiveTimelineSegment[]; points: MDArchiveTimelinePoint[]; pauses: MDArchiveTimelinePause[]; metrics: MDArchiveTimelineMetrics; accessibleSummary: string };
+type MDArchiveTimeline = { scale: MDArchiveScale; from: string; to: string; plotStartDay: number; spanDays: number; headerCells: MDArchiveHeaderCell[]; rulerPerCell: number; lanes: MDArchiveTimelineLane[]; ticks: MDArchiveTick[]; unmatched: MDFeature[] };
 type MDUndoAction = {
   label: string;
   undo(): void;

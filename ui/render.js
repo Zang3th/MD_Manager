@@ -11,6 +11,8 @@ window.MDManager = window.MDManager || {};
   const pinIcon = '<svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-pin"></use></svg>';
   const featureWidths = [380, 460, 540];
   let taskContentCache = new WeakMap();
+  /** @type {WeakMap<MDFeature, MDArchiveTimelineLane>} */
+  let archiveLaneByFeature = new WeakMap();
 
   /** @param {number} width @returns {number} */
   function setFeatureWidth(width) {
@@ -289,14 +291,16 @@ window.MDManager = window.MDManager || {};
     // With no lane there is no timeline to head, so the table chrome stays away entirely and the
     // summary stands on its own above whatever is left to show.
     if (!lanes.length) return `<div class="archive-date-heading">${archiveSummaryMarkup(count, timeline)}</div>${empty ? `<div class="archive-swimlane-list-empty">${empty}</div>` : ""}${unmatched}`;
-    return `<div class="archive-date-axis" data-archive-grid="${gridData}" data-archive-ruler-per-cell="${timeline.rulerPerCell}" data-archive-scale="${timeline.scale}"><div class="archive-axis-corner">${archiveSummaryMarkup(count, timeline)}</div><div class="archive-axis-plot"><div class="archive-date-scale"><div class="archive-axis-cells">${cells}</div>${headerGrid}${labels}</div></div></div>
-      <div class="archive-swimlane-list${empty ? " archive-swimlane-list-empty" : ""}">${empty || `<div class="archive-swimlane-rows">${bodyGrid}${lanes.map(lane => archiveSwimlaneMarkup(lane, featureIndexes.get(lane.feature) ?? -1)).join("")}${edgeOverlay}</div>`}</div>${unmatched}`;
+    const crosshair = '<div class="archive-crosshair-track" aria-hidden="true"><span class="archive-crosshair-line"></span></div>';
+    return `<div class="archive-date-axis" data-archive-grid="${gridData}" data-archive-ruler-per-cell="${timeline.rulerPerCell}" data-archive-scale="${timeline.scale}" data-archive-plot-start="${timeline.plotStartDay}" data-archive-plot-span="${timeline.spanDays}"><div class="archive-axis-corner">${archiveSummaryMarkup(count, timeline)}</div><div class="archive-axis-plot"><div class="archive-date-scale"><div class="archive-axis-cells">${cells}</div>${headerGrid}${labels}<span class="archive-crosshair-readout" aria-hidden="true"></span></div></div></div>
+      <div class="archive-swimlane-list${empty ? " archive-swimlane-list-empty" : ""}">${empty || `<div class="archive-swimlane-rows">${bodyGrid}${lanes.map(lane => archiveSwimlaneMarkup(lane, featureIndexes.get(lane.feature) ?? -1)).join("")}${crosshair}${edgeOverlay}</div>`}</div>${unmatched}`;
   }
 
   /** @param {MDProject} project @param {MDFeature[]} features */
   function archiveTimelineContents(project, features) {
     /** @type {MDArchiveTimeline} */
     const timeline = app.archive.timeline(features);
+    archiveLaneByFeature = new WeakMap(timeline.lanes.map(lane => [lane.feature, lane]));
     return archiveDateTimelineMarkup(project, timeline, features.length);
   }
 
@@ -323,11 +327,19 @@ window.MDManager = window.MDManager || {};
     const version = archiveFeatureVersion(feature);
     const dates = archiveFeatureDates(feature);
     const visibleTasks = feature.tasks.filter(task => !task.ignored);
+    const lane = archiveLaneByFeature.get(feature);
+    const dayValue = (/** @type {number} */ days) => `${days} ${days === 1 ? "day" : "days"}`;
+    const timelineMetrics = [
+      ["Work", lane ? dayValue(lane.metrics.recordedDays) : "—"],
+      ["Pause", lane ? dayValue(lane.metrics.pauseDays) : "—"],
+      ["Total", lane ? dayValue(lane.metrics.spanDays) : "—"]
+    ];
     const titleId = `archiveFeaturePopoverTitle${featureIndex}`;
     popover.dataset.feature = String(featureIndex);
     popover.setAttribute("aria-labelledby", titleId);
     popover.innerHTML = `<header class="archive-feature-popover-header"><div><h3 id="${titleId}">${escapeHtml(feature.title)}</h3>${version ? `<span class="archive-popover-version">${escapeHtml(version)}</span>` : ""}</div><button class="archive-feature-popover-close" type="button" aria-label="Close feature details">${deleteIcon}</button></header>
       <div class="archive-feature-popover-content">${dates.length ? `<section class="archive-popover-section"><h4>Date${dates.length === 1 ? "" : "s"}</h4><div class="archive-popover-dates">${dates.map(date => `<span>${escapeHtml(date)}</span>`).join("")}</div></section>` : ""}
+        <section class="archive-popover-section archive-popover-timeline"><h4>Timeline</h4><dl class="archive-popover-metrics">${timelineMetrics.map(([label, value]) => `<div><dt>${label}</dt><dd>${value}</dd></div>`).join("")}</dl></section>
         <section class="archive-popover-section archive-popover-tasks"><h4>Tasks</h4>${visibleTasks.length ? `<ul>${visibleTasks.map(task => `<li>${escapeHtml(task.title)}</li>`).join("")}</ul>` : '<p class="archive-no-tasks">No tasks</p>'}</section>
       </div>
       <footer class="archive-feature-popover-footer"><button class="archive-popover-unarchive" data-unarchive-feature="${featureIndex}" type="button">${unarchiveIcon}<span>Move to Workspace</span></button></footer>`;

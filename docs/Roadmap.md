@@ -91,7 +91,8 @@ Stats und Backlog bleiben davon unberührt.
 - 0.8.1
 
 #Date
-- 17.08.26 - TBD
+- 17.08.26 - 20.08.26
+- 29.08.26 - TBD
 
 ### Bugs und Verbesserungen
 
@@ -108,6 +109,10 @@ Stats und Backlog bleiben davon unberührt.
 - [x] ~Hover-States integrieren~
 - [x] ~UI verschönern~
 - [x] ~Tests + Code-Review~
+
+#### Nacharbeitungen
+- [x] ~Lane-Highlighting~
+- [x] ~Datums-Crosshair~
 
 ### Release
 

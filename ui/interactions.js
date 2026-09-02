@@ -58,6 +58,10 @@ window.MDManager = window.MDManager || {};
   let archivePopoverAnchor = null;
   /** @type {number | null} */
   let archivePopoverFrame = null;
+  /** @type {number | null} */
+  let archiveCrosshairFrame = null;
+  /** @type {{timeline: HTMLElement, scroller: HTMLElement, scrollLeft: number, plotLeft: number, plotWidth: number, plotStartDay: number, spanDays: number, readoutWidth: number, clientX: number, line: HTMLElement, readout: HTMLElement} | null} */
+  let archiveCrosshairState = null;
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   const clipboardIndicatorTemplate = /** @type {HTMLTemplateElement} */ (document.getElementById("clipboardIndicatorTemplate"));
   const clipboardResizeObserver = new ResizeObserver(scheduleClipboardPosition);
@@ -535,6 +539,7 @@ window.MDManager = window.MDManager || {};
   /** @param {"workspace" | "archive"} view */
   function setView(view) {
     if (!project) return;
+    hideArchiveCrosshair();
     const archiveActive = view === "archive";
     const content = document.getElementById("content");
     const archive = document.getElementById("archive");
@@ -599,6 +604,80 @@ window.MDManager = window.MDManager || {};
   function scheduleArchivePopoverPosition() {
     if (archivePopoverFrame !== null) return;
     archivePopoverFrame = requestAnimationFrame(positionArchivePopover);
+  }
+
+  /** @param {number} day */
+  function archiveCrosshairDate(day) {
+    const date = new Date(day * 24 * 60 * 60 * 1000);
+    return `${String(date.getUTCDate()).padStart(2, "0")}.${String(date.getUTCMonth() + 1).padStart(2, "0")}.${String(date.getUTCFullYear()).padStart(4, "0")}`;
+  }
+
+  function hideArchiveCrosshair() {
+    if (archiveCrosshairFrame !== null) cancelAnimationFrame(archiveCrosshairFrame);
+    archiveCrosshairFrame = null;
+    archiveCrosshairState?.timeline.classList.remove("archive-crosshair-active");
+    archiveCrosshairState = null;
+  }
+
+  function updateArchiveCrosshair() {
+    archiveCrosshairFrame = null;
+    const state = archiveCrosshairState;
+    if (!state?.timeline.isConnected || !state.plotWidth || !state.spanDays) {
+      hideArchiveCrosshair();
+      return;
+    }
+    const position = Math.max(0, Math.min(state.plotWidth, state.clientX - state.plotLeft));
+    const lastDay = state.plotStartDay + state.spanDays - 1;
+    const day = Math.max(state.plotStartDay, Math.min(lastDay, Math.round(state.plotStartDay + position / state.plotWidth * state.spanDays)));
+    const lineX = (day - state.plotStartDay) / state.spanDays * state.plotWidth;
+    const badgeInset = state.readoutWidth / 2 + 4;
+    const badgeX = Math.max(badgeInset, Math.min(lineX, state.plotWidth - badgeInset));
+    state.line.style.transform = `translate3d(${lineX}px,0,0) translateX(-50%)`;
+    state.readout.style.transform = `translate3d(${badgeX}px,0,0) translateX(-50%)`;
+    state.readout.textContent = archiveCrosshairDate(day);
+    state.timeline.classList.add("archive-crosshair-active");
+  }
+
+  /** @param {PointerEvent} event */
+  function moveArchiveCrosshair(event) {
+    if (event.pointerType !== "mouse") {
+      hideArchiveCrosshair();
+      return;
+    }
+    const plot = /** @type {HTMLElement | null} */ (eventElement(event).closest(".archive-swimlane-plot"));
+    const rows = /** @type {HTMLElement | null} */ (plot?.closest(".archive-swimlane-rows"));
+    const timeline = /** @type {HTMLElement | null} */ (rows?.closest(".archive-date-timeline"));
+    const scroller = /** @type {HTMLElement | null} */ (timeline?.closest(".archive-content"));
+    if (!plot || !rows || !timeline || !scroller) {
+      hideArchiveCrosshair();
+      return;
+    }
+    if (archiveCrosshairState?.timeline !== timeline) {
+      const axis = /** @type {HTMLElement | null} */ (timeline.querySelector(".archive-date-axis"));
+      const line = /** @type {HTMLElement | null} */ (rows.querySelector(".archive-crosshair-line"));
+      const readout = /** @type {HTMLElement | null} */ (axis?.querySelector(".archive-crosshair-readout"));
+      const plotStartDay = Number(axis?.dataset.archivePlotStart);
+      const spanDays = Number(axis?.dataset.archivePlotSpan);
+      const bounds = plot.getBoundingClientRect();
+      if (!line || !readout || !Number.isFinite(plotStartDay) || !(spanDays > 0) || !bounds.width) {
+        hideArchiveCrosshair();
+        return;
+      }
+      archiveCrosshairState = {
+        timeline,
+        scroller,
+        scrollLeft: scroller.scrollLeft,
+        plotLeft: bounds.left,
+        plotWidth: bounds.width,
+        plotStartDay,
+        spanDays,
+        readoutWidth: readout.offsetWidth,
+        clientX: event.clientX,
+        line,
+        readout
+      };
+    } else archiveCrosshairState.clientX = event.clientX;
+    if (archiveCrosshairFrame === null) archiveCrosshairFrame = requestAnimationFrame(updateArchiveCrosshair);
   }
 
   /** @param {boolean} [restoreFocus] */
@@ -934,6 +1013,7 @@ window.MDManager = window.MDManager || {};
   /** @param {MDProject} nextProject @param {(action: MDUndoAction, options?: {render?: boolean}) => boolean} onChanged */
   function setProject(nextProject, onChanged) {
     hoveredElement = null;
+    hideArchiveCrosshair();
     closeArchiveFeaturePopover();
     closeWorkspaceZoom();
     stopWorkspaceZoomAnchor();
@@ -1252,9 +1332,24 @@ window.MDManager = window.MDManager || {};
   document.getElementById("content").addEventListener("pointerdown", startFeatureHold);
   document.addEventListener("pointerup", clearFeatureHold);
   document.addEventListener("pointercancel", clearFeatureHold);
-  document.getElementById("archive").addEventListener("mouseover", handleTitleEnter);
-  document.getElementById("archive").addEventListener("mouseout", handleTitleLeave);
-  document.getElementById("archive").addEventListener("click", event => {
+  const archive = document.getElementById("archive");
+  archive.addEventListener("mouseover", handleTitleEnter);
+  archive.addEventListener("mouseout", handleTitleLeave);
+  archive.addEventListener("pointerenter", () => archive.classList.remove("archive-pointer-outside"));
+  archive.addEventListener("pointermove", event => {
+    archive.classList.remove("archive-pointer-outside");
+    moveArchiveCrosshair(event);
+  });
+  archive.addEventListener("pointerleave", () => {
+    archive.classList.add("archive-pointer-outside");
+    hideArchiveCrosshair();
+  });
+  window.addEventListener("blur", () => {
+    archive.classList.add("archive-pointer-outside");
+    hideArchiveCrosshair();
+  });
+  window.addEventListener("focus", () => archive.classList.remove("archive-pointer-outside"));
+  archive.addEventListener("click", event => {
     const target = eventElement(event);
     if (target.closest(".archive-feature-popover-close")) {
       closeArchiveFeaturePopover(true);
@@ -1289,8 +1384,14 @@ window.MDManager = window.MDManager || {};
     const target = eventElement(event);
     if (!target.closest(".archive-feature-popover,.archive-feature-toggle")) closeArchiveFeaturePopover();
   });
-  document.getElementById("archive").addEventListener("scroll", scheduleArchivePopoverPosition, true);
-  window.addEventListener("resize", scheduleArchivePopoverPosition);
+  archive.addEventListener("scroll", event => {
+    if (archiveCrosshairState && event.target === archiveCrosshairState.scroller && archiveCrosshairState.scroller.scrollLeft !== archiveCrosshairState.scrollLeft) hideArchiveCrosshair();
+    scheduleArchivePopoverPosition();
+  }, true);
+  window.addEventListener("resize", () => {
+    hideArchiveCrosshair();
+    scheduleArchivePopoverPosition();
+  });
   document.getElementById("toggleBacklog").addEventListener("click", toggleBacklog);
   document.getElementById("addFeature").addEventListener("click", () => {
     if (!project) return;

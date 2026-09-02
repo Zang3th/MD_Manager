@@ -2095,6 +2095,277 @@ test("Archive object hover is stationary, centered, and theme-consistent", async
   }
 });
 
+test("Archive polish keeps gradients, endpoint caps, diamonds, and whole-lane emphasis coherent", async ({ page }) => {
+  await openFixture(page, swimlaneFixture);
+  await toggleArchiveFromView(page);
+  await settleLayout(page);
+
+  const archive = page.locator("#archive");
+  const early = archive.locator(".archive-swimlane-feature").first();
+  const laterRange = archive.locator(".archive-active-segment").last();
+  const interiorRange = early.locator(".archive-active-segment").nth(1);
+  const point = early.locator(".archive-date-point");
+
+  await expect(early.locator(".archive-active-segment").first()).toHaveClass(/archive-track-start/);
+  await expect(early.locator(".archive-active-segment").first()).not.toHaveClass(/archive-track-end/);
+  await expect(laterRange).toHaveClass(/archive-track-start/);
+  await expect(laterRange).toHaveClass(/archive-track-end/);
+  await expect(interiorRange).not.toHaveClass(/archive-track-start|archive-track-end/);
+  const rangePaint = await laterRange.evaluate(node => {
+    const style = getComputedStyle(node);
+    const start = getComputedStyle(node, "::before");
+    const end = getComputedStyle(node, "::after");
+    return {
+      gradient: style.backgroundImage,
+      topEdge: style.boxShadow,
+      start: [start.content, start.width, start.top, start.bottom, start.backgroundColor, start.left],
+      end: [end.content, end.width, end.top, end.bottom, end.backgroundColor, end.right]
+    };
+  });
+  expect(rangePaint.gradient).toContain("linear-gradient");
+  expect(rangePaint.topEdge).toContain("inset");
+  expect(rangePaint.start.slice(0, 4)).toEqual(['""', "3px", "-2px", "-2px"]);
+  expect(rangePaint.end.slice(0, 4)).toEqual(['""', "3px", "-2px", "-2px"]);
+  expect(rangePaint.start[4]).not.toBe("rgba(0, 0, 0, 0)");
+  expect(rangePaint.end[4]).toBe(rangePaint.start[4]);
+  expect(rangePaint.start[5]).toBe("0px");
+  expect(rangePaint.end[5]).toBe("0px");
+  expect(await interiorRange.evaluate(node => [getComputedStyle(node, "::before").content, getComputedStyle(node, "::after").content])).toEqual(["none", "none"]);
+
+  const pointBefore = await point.boundingBox();
+  const diamond = await point.evaluate(node => {
+    const marker = getComputedStyle(node, "::before");
+    const label = getComputedStyle(node.querySelector(".archive-object-label"));
+    return { borderRadius: marker.borderRadius, transform: marker.transform, labelTransform: label.transform };
+  });
+  expect(diamond.borderRadius).toBe("0px");
+  expect(diamond.transform).toMatch(/^matrix\(0\.7071\d*, 0\.7071\d*, -0\.7071\d*, 0\.7071\d*,/);
+  expect(diamond.labelTransform).toMatch(/^matrix\(1, 0, 0, 1,/);
+  await point.hover();
+  expect(await point.boundingBox()).toEqual(pointBefore);
+  await expect.poll(() => point.evaluate(node => getComputedStyle(node, "::after").opacity)).toBe("1");
+  const halo = await point.evaluate(node => {
+    const style = getComputedStyle(node, "::after");
+    return {
+      borderRadius: style.borderRadius,
+      inset: [style.top, style.right, style.bottom, style.left],
+      shadowOffsets: style.boxShadow.match(/-?\d+(?:\.\d+)?px/g)?.slice(0, 2)
+    };
+  });
+  expect(halo).toEqual({ borderRadius: "50%", inset: ["-7px", "-7px", "-7px", "-7px"], shadowOffsets: ["0px", "0px"] });
+  await expect.poll(() => archive.locator(".archive-crosshair-readout").evaluate(node => getComputedStyle(node).opacity)).toBe("0");
+  await expect(point.locator(".archive-object-label")).toHaveCSS("opacity", "1");
+
+  const row = early.locator(".archive-swimlane-row");
+  const label = early.locator(".archive-swimlane-label");
+  const plot = early.locator(".archive-swimlane-plot");
+  await page.locator("#projectTitle").hover();
+  const resting = await row.evaluate(node => {
+    const label = node.querySelector(".archive-swimlane-label");
+    const plot = node.querySelector(".archive-swimlane-plot");
+    return [getComputedStyle(label).backgroundColor, getComputedStyle(plot).backgroundColor];
+  });
+  const restingTokens = await row.evaluate(node => {
+    const style = getComputedStyle(node);
+    return [style.getPropertyValue("--archive-lane-label"), style.getPropertyValue("--archive-lane-tint")];
+  });
+  await plot.hover();
+  const hoveredTokens = await row.evaluate(node => {
+    const style = getComputedStyle(node);
+    return [style.getPropertyValue("--archive-lane-label"), style.getPropertyValue("--archive-lane-tint")];
+  });
+  const hovered = await row.evaluate(node => {
+    const label = node.querySelector(".archive-swimlane-label");
+    const plot = node.querySelector(".archive-swimlane-plot");
+    return [getComputedStyle(label).backgroundColor, getComputedStyle(plot).backgroundColor];
+  });
+  expect(hovered).not.toEqual(resting);
+  await page.evaluate(() => window.dispatchEvent(new Event("blur")));
+  await expect(archive).toHaveClass(/archive-pointer-outside/);
+  expect(await row.evaluate(node => {
+    const style = getComputedStyle(node);
+    return [style.getPropertyValue("--archive-lane-label"), style.getPropertyValue("--archive-lane-tint")];
+  })).toEqual(restingTokens);
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(archive).not.toHaveClass(/archive-pointer-outside/);
+  expect(await row.evaluate(node => {
+    const style = getComputedStyle(node);
+    return [style.getPropertyValue("--archive-lane-label"), style.getPropertyValue("--archive-lane-tint")];
+  })).toEqual(hoveredTokens);
+  await page.locator("#projectTitle").hover();
+  await expect(archive).toHaveClass(/archive-pointer-outside/);
+  expect(await row.evaluate(node => {
+    const style = getComputedStyle(node);
+    return [style.getPropertyValue("--archive-lane-label"), style.getPropertyValue("--archive-lane-tint")];
+  })).toEqual(restingTokens);
+  await label.focus();
+  const focused = await row.evaluate(node => [
+    getComputedStyle(node.querySelector(".archive-swimlane-label")).backgroundColor,
+    getComputedStyle(node.querySelector(".archive-swimlane-plot")).backgroundColor
+  ]);
+  expect(focused).not.toEqual(resting);
+  await label.evaluate(node => /** @type {HTMLElement} */ (node).click());
+  await page.locator("#projectTitle").hover();
+  await expect(label).toHaveClass(/is-popover-anchor/);
+  expect(await row.evaluate(node => getComputedStyle(node.querySelector(".archive-swimlane-plot")).backgroundColor)).not.toBe(resting[1]);
+  const anchoredTokens = await row.evaluate(node => {
+    const style = getComputedStyle(node);
+    return [style.getPropertyValue("--archive-lane-label"), style.getPropertyValue("--archive-lane-tint")];
+  });
+  expect(anchoredTokens).not.toEqual(hoveredTokens);
+  await plot.hover();
+  expect(await row.evaluate(node => {
+    const style = getComputedStyle(node);
+    return [style.getPropertyValue("--archive-lane-label"), style.getPropertyValue("--archive-lane-tint")];
+  })).toEqual(anchoredTokens);
+
+  await page.locator("#projectTitle").click();
+  const undatedFeature = archive.locator(".archive-date-unmatched .archive-feature");
+  const undatedToggle = undatedFeature.locator(".archive-feature-toggle");
+  await undatedFeature.evaluate(node => Promise.all(node.getAnimations({ subtree: true }).map(animation => animation.finished.catch(() => undefined))));
+  const featureResting = await undatedFeature.evaluate(node => {
+    const style = getComputedStyle(node);
+    return [style.borderTopColor, style.boxShadow, style.transform];
+  });
+  await undatedToggle.hover();
+  await undatedFeature.evaluate(node => Promise.all(node.getAnimations({ subtree: true }).map(animation => animation.finished.catch(() => undefined))));
+  const featureHovered = await undatedFeature.evaluate(node => {
+    const style = getComputedStyle(node);
+    return [style.borderTopColor, style.boxShadow, style.transform];
+  });
+  expect(featureHovered).not.toEqual(featureResting);
+  await archive.evaluate(node => node.dispatchEvent(new PointerEvent("pointerleave", { pointerType: "mouse" })));
+  await expect(archive).toHaveClass(/archive-pointer-outside/);
+  await undatedFeature.evaluate(node => Promise.all(node.getAnimations({ subtree: true }).map(animation => animation.finished.catch(() => undefined))));
+  expect(await undatedFeature.evaluate(node => {
+    const style = getComputedStyle(node);
+    return [style.borderTopColor, style.boxShadow, style.transform];
+  })).toEqual(featureResting);
+
+  await openFixture(page, "# Caps\n\n#Archive\n# Archive\n\n## Short\n#Date\n- 2020-01-01 - 2020-01-02\n### Done\n- [x] ~done~\n\n## Long\n#Date\n- 2020-01-01 - 2030-12-31\n### Done\n- [x] ~done~");
+  await toggleArchiveFromView(page);
+  await settleLayout(page);
+  const short = page.locator("#archive .archive-active-segment").first();
+  await expect(short).toHaveClass(/archive-short-segment/);
+  await expect(short).toHaveClass(/archive-track-start/);
+  await expect(short).toHaveClass(/archive-track-end/);
+  const shortPaint = await short.evaluate(node => {
+    const marker = getComputedStyle(node, "::before");
+    return [marker.borderLeftWidth, marker.borderRightWidth, marker.backgroundImage];
+  });
+  expect(shortPaint.slice(0, 2)).toEqual(["3px", "3px"]);
+  expect(shortPaint[2]).toContain("linear-gradient");
+});
+
+test("Archive crosshair snaps precisely, clamps its badge, coalesces work, and follows scroll direction", async ({ page }) => {
+  await openFixture(page, swimlaneFixture);
+  await toggleArchiveFromView(page);
+  await settleLayout(page);
+
+  const timeline = page.locator("#archive .archive-date-timeline");
+  const plot = page.locator("#archive .archive-swimlane-plot").first();
+  const line = timeline.locator(".archive-crosshair-line");
+  const readout = timeline.locator(".archive-crosshair-readout");
+  const bounds = await plot.boundingBox();
+  const domain = await timeline.locator(".archive-date-axis").evaluate(node => ({
+    start: Number(/** @type {HTMLElement} */ (node).dataset.archivePlotStart),
+    span: Number(/** @type {HTMLElement} */ (node).dataset.archivePlotSpan)
+  }));
+  expect(bounds).not.toBeNull();
+  await expect(line).toHaveCSS("box-shadow", "none");
+  const targetDay = domain.start + 10;
+  const targetX = (bounds?.x || 0) + 10 / domain.span * (bounds?.width || 0);
+  await page.mouse.move(targetX, (bounds?.y || 0) + (bounds?.height || 0) / 2);
+  await expect(timeline).toHaveClass(/archive-crosshair-active/);
+  await expect(readout).toHaveText(new Date(targetDay * 24 * 60 * 60 * 1000).toLocaleDateString("de-DE", { timeZone: "UTC", day: "2-digit", month: "2-digit", year: "numeric" }));
+  const aligned = await plot.evaluate((node, lineElement) => {
+    const plot = node.getBoundingClientRect();
+    const line = lineElement.getBoundingClientRect();
+    return Math.abs(line.left + line.width / 2 - (plot.left + 10 / Number(node.closest(".archive-date-timeline").querySelector(".archive-date-axis").dataset.archivePlotSpan) * plot.width));
+  }, await line.elementHandle());
+  expect(aligned).toBeLessThanOrEqual(0.1);
+
+  const datePoint = timeline.locator(".archive-date-point");
+  await datePoint.hover();
+  await expect(timeline).toHaveClass(/archive-crosshair-active/);
+  const dateCenterDelta = await datePoint.evaluate((node, lineElement) => {
+    const point = node.getBoundingClientRect();
+    const crosshair = lineElement.getBoundingClientRect();
+    return Math.abs(crosshair.left + crosshair.width / 2 - (point.left + point.width / 2));
+  }, await line.elementHandle());
+  expect(dateCenterDelta).toBeLessThanOrEqual(0.1);
+
+  await page.mouse.move((bounds?.x || 0) + 1, (bounds?.y || 0) + 8);
+  await expect(readout).toHaveText(new Date(domain.start * 24 * 60 * 60 * 1000).toLocaleDateString("de-DE", { timeZone: "UTC", day: "2-digit", month: "2-digit", year: "numeric" }));
+  expect(await readout.evaluate((node, plotElement) => {
+    const badge = node.getBoundingClientRect();
+    const plot = plotElement.getBoundingClientRect();
+    return badge.left >= plot.left && badge.right <= plot.right;
+  }, await plot.elementHandle())).toBe(true);
+  await page.mouse.move((bounds?.x || 0) + (bounds?.width || 0) - 1, (bounds?.y || 0) + 8);
+  await expect(readout).toHaveText(new Date((domain.start + domain.span - 1) * 24 * 60 * 60 * 1000).toLocaleDateString("de-DE", { timeZone: "UTC", day: "2-digit", month: "2-digit", year: "numeric" }));
+  expect(await readout.evaluate((node, plotElement) => {
+    const badge = node.getBoundingClientRect();
+    const plot = plotElement.getBoundingClientRect();
+    return badge.left >= plot.left && badge.right <= plot.right;
+  }, await plot.elementHandle())).toBe(true);
+
+  await page.locator("#projectTitle").hover();
+  await expect(timeline).not.toHaveClass(/archive-crosshair-active/);
+  const scheduling = await plot.evaluate(node => {
+    const originalFrame = window.requestAnimationFrame;
+    const originalBounds = node.getBoundingClientRect.bind(node);
+    let frames = 0;
+    let reads = 0;
+    window.requestAnimationFrame = callback => {
+      frames += 1;
+      return originalFrame(callback);
+    };
+    node.getBoundingClientRect = () => {
+      reads += 1;
+      return originalBounds();
+    };
+    const bounds = originalBounds();
+    for (let index = 0; index < 20; index += 1) {
+      node.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, pointerType: "mouse", clientX: bounds.left + 40 + index }));
+    }
+    window.requestAnimationFrame = originalFrame;
+    node.getBoundingClientRect = originalBounds;
+    return { frames, reads };
+  });
+  expect(scheduling).toEqual({ frames: 1, reads: 1 });
+  await expect(timeline).toHaveClass(/archive-crosshair-active/);
+
+  await timeline.evaluate(node => {
+    const plot = node.querySelector(".archive-swimlane-plot");
+    plot.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, pointerType: "pen", clientX: plot.getBoundingClientRect().left + 100 }));
+  });
+  await expect(timeline).not.toHaveClass(/archive-crosshair-active/);
+  await plot.hover({ position: { x: 120, y: 10 } });
+  await expect(timeline).toHaveClass(/archive-crosshair-active/);
+  await page.locator("#showWorkspaceView").click();
+  await expect(timeline).not.toHaveClass(/archive-crosshair-active/);
+
+  await page.setViewportSize({ width: 900, height: 500 });
+  await openFixture(page, largeArchiveFixture(48));
+  await toggleArchiveFromView(page);
+  await settleLayout(page);
+  const scrollTimeline = page.locator("#archive .archive-date-timeline");
+  const content = page.locator("#archive > .archive-content");
+  const scrollPlot = page.locator("#archive .archive-swimlane-plot").first();
+  expect(await content.evaluate(node => node.scrollHeight > node.clientHeight && node.scrollWidth > node.clientWidth)).toBe(true);
+  await scrollPlot.hover({ position: { x: 120, y: 10 } });
+  await expect(scrollTimeline).toHaveClass(/archive-crosshair-active/);
+  const topBefore = await content.evaluate(node => node.scrollTop);
+  await page.mouse.wheel(0, 180);
+  await expect.poll(() => content.evaluate(node => node.scrollTop)).toBeGreaterThan(topBefore);
+  await expect(scrollTimeline).toHaveClass(/archive-crosshair-active/);
+  const leftBefore = await content.evaluate(node => node.scrollLeft);
+  await page.mouse.wheel(180, 0);
+  await expect.poll(() => content.evaluate(node => node.scrollLeft)).toBeGreaterThan(leftBefore);
+  await expect(scrollTimeline).not.toHaveClass(/archive-crosshair-active/);
+});
+
 test("Archive feature popover owns one expanded anchor, closes globally, and stays in the viewport", async ({ page }) => {
   await openFixture(page, swimlaneFixture);
   await toggleArchiveFromView(page);
@@ -2111,7 +2382,11 @@ test("Archive feature popover owns one expanded anchor, closes globally, and sta
   await expect(toggles.first()).toHaveAttribute("aria-expanded", "true");
   await expect(popover.locator("h3")).toHaveText("Early feature");
   await expect(popover.locator(".archive-popover-version")).toHaveText("v2.1.0");
+  await expect(popover.locator(".archive-feature-popover-content > .archive-popover-section > h4")).toHaveText(["Dates", "Timeline", "Tasks"]);
+  await expect(popover.locator(".archive-popover-summary")).toHaveCount(0);
   await expect(popover.locator(".archive-popover-dates > span")).toHaveText(["01.01.26 – 03.01.26", "10.01.2026 – 12.01.2026", "15.01.2026"]);
+  await expect(popover.locator(".archive-popover-timeline .archive-popover-metrics dt")).toHaveText(["Work", "Pause", "Total"]);
+  await expect(popover.locator(".archive-popover-timeline .archive-popover-metrics dd")).toHaveText(["7 days", "8 days", "15 days"]);
   await expect(popover.locator(".archive-popover-tasks li")).toHaveText(["First task", "Second task"]);
   await expect(popover.locator(".archive-popover-unarchive")).toHaveCSS("border-top-width", "2px");
   await page.locator("#archive .archive-swimlane-plot").first().hover();
@@ -2121,6 +2396,7 @@ test("Archive feature popover owns one expanded anchor, closes globally, and sta
   await expect(toggles.first()).toHaveAttribute("aria-expanded", "false");
   await expect(toggles.nth(1)).toHaveAttribute("aria-expanded", "true");
   await expect(popover.locator("h3")).toHaveText("Later feature");
+  await expect(popover.locator(".archive-popover-timeline .archive-popover-metrics dd")).toHaveText(["3 days", "0 days", "3 days"]);
   await page.locator("#projectTitle").click();
   await expect(popover).toBeHidden();
   await expect(toggles.nth(1)).toHaveAttribute("aria-expanded", "false");
@@ -2143,6 +2419,17 @@ test("Archive feature popover owns one expanded anchor, closes globally, and sta
   await page.locator("#showArchiveView").click();
   await expect(popover).toBeHidden();
   await expect(toggles.first()).toHaveAttribute("aria-expanded", "false");
+});
+
+test("an undated Archive popover keeps date metrics unavailable and reports visible tasks", async ({ page }) => {
+  await openFixture(page, swimlaneFixture);
+  await toggleArchiveFromView(page);
+  const feature = page.locator("#archive .archive-date-unmatched .archive-feature");
+  await feature.locator(".archive-feature-toggle").click();
+  const popover = page.locator("#archiveFeaturePopover");
+  await expect(popover.locator(".archive-feature-popover-content > .archive-popover-section > h4")).toHaveText(["Timeline", "Tasks"]);
+  await expect(popover.locator(".archive-popover-summary")).toHaveCount(0);
+  await expect(popover.locator(".archive-popover-timeline .archive-popover-metrics dd")).toHaveText(["—", "—", "—"]);
 });
 
 test("Archive header, feature column, and shared grids stay aligned through two-axis scroll and resize", async ({ page }) => {

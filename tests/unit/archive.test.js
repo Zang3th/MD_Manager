@@ -55,9 +55,12 @@ test("the ruler counts off the first archived date", () => {
 
 test("a domain shorter than one period still yields one covering cell", () => {
   // Tuesday to Saturday sits inside a single calendar week.
-  const cells = /** @type {any[]} */ (archive.timeline(span("2026-03-10", "2026-03-14")).headerCells);
+  const timeline = archive.timeline(span("2026-03-10", "2026-03-14"));
+  const cells = /** @type {any[]} */ (timeline.headerCells);
   assert.equal(cells.length, 1);
   assert.deepEqual([cells[0].position, cells[0].width, cells[0].label], [0, 100, "KW 11"]);
+  assert.equal(timeline.plotStartDay, Date.UTC(2026, 2, 9) / (24 * 60 * 60 * 1000));
+  assert.equal(timeline.spanDays, 7);
 });
 
 test("every ruler label names its month and cell edges stay unlabelled", () => {
@@ -153,6 +156,7 @@ test("date metadata becomes ranges, points, or unmatched lanes deterministically
   assert.equal(/** @type {any[]} */ (timeline.lanes)[2].points.length, 1, "an invalid end keeps its valid start as a point");
   assert.equal(/** @type {any[]} */ (timeline.lanes)[3].points.length, 1, "a reversed end keeps its valid start as a point");
   assert.equal(/** @type {any[]} */ (timeline.lanes)[4].ranges[0].durationDays, 3);
+  assert.deepEqual(Object.keys(/** @type {any[]} */ (timeline.lanes)[4].ranges[0]).sort(), ["durationDays", "endDay", "endExclusive", "position", "startDay", "width"]);
   assert.deepEqual([timeline.from, timeline.to], ["15.02.2026", "03.03.2026"]);
 });
 
@@ -170,6 +174,7 @@ test("pauses cover only real gaps between merged activity", () => {
     [3, "3 days pause"],
     [3, "3 days pause"]
   ]);
+  assert.deepEqual({ ...lane.metrics }, { recordedDays: 14, spanDays: 20, pauseDays: 6 });
   assert.ok(Math.abs(lane.pauses[0].position + lane.pauses[0].width - lane.ranges[2].position) < 1e-9);
   assert.ok(Math.abs(lane.pauses[1].position + lane.pauses[1].width - lane.points[1].position) < 1e-9);
   assert.match(lane.accessibleSummary, /^Interrupted\./);
@@ -187,9 +192,25 @@ test("scale thresholds are inclusive and step up only after their documented spa
 
 test("timeline output stays bounded, covers extreme spans, and carries no retired view data", () => {
   const timeline = archive.timeline(span("0100-01-01", "9999-12-31"));
-  assert.deepEqual(Object.keys(timeline).sort(), ["from", "headerCells", "lanes", "rulerPerCell", "scale", "ticks", "to", "unmatched"]);
-  assert.deepEqual(Object.keys(/** @type {any[]} */ (timeline.lanes)[0]).sort(), ["accessibleSummary", "endExclusive", "feature", "pauses", "points", "ranges", "startDay"]);
+  assert.deepEqual(Object.keys(timeline).sort(), ["from", "headerCells", "lanes", "plotStartDay", "rulerPerCell", "scale", "spanDays", "ticks", "to", "unmatched"]);
+  assert.deepEqual(Object.keys(/** @type {any[]} */ (timeline.lanes)[0]).sort(), ["accessibleSummary", "endExclusive", "feature", "metrics", "pauses", "points", "ranges", "startDay"]);
   assert.equal(timeline.ticks.length, 200);
   assert.ok(/** @type {any[]} */ (timeline.ticks).at(-1).position > 95, "the bounded ruler still reaches the end of the domain");
   assert.ok(/** @type {any[]} */ (timeline.ticks).every((tick, index, ticks) => index === 0 || tick.time > ticks[index - 1].time));
+});
+
+test("an empty timeline exposes an inert plot domain", () => {
+  const timeline = archive.timeline([]);
+  assert.equal(timeline.plotStartDay, 0);
+  assert.equal(timeline.spanDays, 0);
+});
+
+test("lane metrics expose only timeline durations", () => {
+  const timeline = archive.timeline([{
+    title: "Tasks",
+    version: "",
+    dates: [{ from: "2026-01-01", to: "2026-01-02" }],
+    tasks: [{ title: "Visible", lines: [] }, { title: "Hidden", lines: [], ignored: true }]
+  }]);
+  assert.deepEqual({ .../** @type {any[]} */ (timeline.lanes)[0].metrics }, { recordedDays: 2, spanDays: 2, pauseDays: 0 });
 });
