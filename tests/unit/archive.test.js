@@ -8,6 +8,26 @@ const span = (from, to) => [{ title: "Span", version: "", dates: [{ from, to }],
 /** @param {string} title @param {Array<{from: string, to: string}>} dates */
 const feature = (title, dates) => ({ title, version: "", dates, tasks: [] });
 
+test("display dates normalize supported source formats without changing metadata", () => {
+  for (const value of ["2026-01-05", "05.01.26", "05.01.2026", " 05.01.26 "]) assert.equal(archive.displayDate(value), "05.01.2026");
+  assert.equal(archive.displayDate("2024-02-29"), "29.02.2024");
+  for (const value of ["2026-02-29", "31.04.26", "TBD", "", "not a date"]) assert.equal(archive.displayDate(value), value);
+  const source = feature("Source", [{ from: "05.01.26", to: "2026-01-07" }, { from: "2026-01-08", to: "" }]);
+  const before = JSON.stringify(source);
+  const timeline = archive.timeline([source]);
+  assert.equal(JSON.stringify(source), before);
+  assert.equal(/** @type {any[]} */ (timeline.lanes)[0].points[0].label, "08.01.2026");
+});
+
+test("calendar ruler dates keep four-digit years at every scale", () => {
+  for (const to of ["2026-01-20", "2026-06-30", "2027-12-31", "2036-12-31"]) {
+    const timeline = archive.timeline(span("2026-01-01", to));
+    const dates = /** @type {any[]} */ (timeline.ticks).filter(tick => tick.label);
+    assert.ok(dates.length > 0);
+    for (const tick of dates) assert.equal(tick.label, archive.dayLabel(tick.time / 86400000));
+  }
+});
+
 /** @param {number} days */
 function inclusiveSpan(days) {
   const from = Date.UTC(2020, 0, 1);
@@ -38,7 +58,7 @@ test("the ruler counts off the first archived date", () => {
   const minors = /** @type {any[]} */ (timeline.ticks).filter(tick => tick.level === "minor");
 
   // A ruler line marks the day the work started, not the nearest calendar boundary.
-  const opening = minors.find(tick => tick.label === "07.01");
+  const opening = minors.find(tick => tick.label === "07.01.2026");
   assert.ok(opening, "the first archived date is ruled");
   assert.ok(opening.position > 0, "the plot opens before the first date");
 
@@ -69,7 +89,7 @@ test("every ruler label names its month and cell edges stay unlabelled", () => {
   assert.ok(ticks.filter(tick => tick.level === "major").every(tick => tick.label === ""));
   // A bare day number is ambiguous once the coarse row groups by quarters, so every label carries
   // its month.
-  assert.ok(ticks.filter(tick => tick.level === "minor").every(tick => /^\d{2}\.\d{2}$/.test(tick.label)));
+  assert.ok(ticks.filter(tick => tick.level === "minor").every(tick => /^\d{2}\.\d{2}\.\d{4}$/.test(tick.label)));
   assert.deepEqual(Array.from(ticks, (/** @type {any} */ tick) => tick.position).slice().sort((a, b) => a - b), Array.from(ticks, (/** @type {any} */ tick) => tick.position));
 });
 
@@ -126,7 +146,7 @@ test("a day view rules every day and names every week", () => {
   // The row above the timeline groups by calendar week rather than by the months it happens to
   // touch, and the ruler row keeps its day labels.
   assert.deepEqual(Array.from(/** @type {any[]} */ (timeline.headerCells), (/** @type {any} */ cell) => cell.label), ["KW 6", "KW 7", "KW 8", "KW 9"]);
-  assert.ok(ticks.filter(tick => tick.level === "minor").every(tick => /^\d{2}\.\d{2}$/.test(tick.label)));
+  assert.ok(ticks.filter(tick => tick.level === "minor").every(tick => /^\d{2}\.\d{2}\.\d{4}$/.test(tick.label)));
 
   // Every day boundary in the plot is ruled, whether by a thin line or by the week's thick one.
   const positions = Array.from(ticks, (/** @type {any} */ tick) => tick.position).sort((a, b) => a - b);
@@ -152,7 +172,7 @@ test("date metadata becomes ranges, points, or unmatched lanes deterministically
   assert.equal(timeline.unmatched.length, 1);
   assert.equal(timeline.unmatched[0].title, "Invalid start");
   assert.equal(/** @type {any[]} */ (timeline.lanes)[0].ranges.length, 0);
-  assert.equal(/** @type {any[]} */ (timeline.lanes)[0].points[0].label, "15.02.26");
+  assert.equal(/** @type {any[]} */ (timeline.lanes)[0].points[0].label, "15.02.2026");
   assert.equal(/** @type {any[]} */ (timeline.lanes)[2].points.length, 1, "an invalid end keeps its valid start as a point");
   assert.equal(/** @type {any[]} */ (timeline.lanes)[3].points.length, 1, "a reversed end keeps its valid start as a point");
   assert.equal(/** @type {any[]} */ (timeline.lanes)[4].ranges[0].durationDays, 3);

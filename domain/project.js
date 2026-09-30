@@ -24,17 +24,27 @@ window.MDManager = window.MDManager || {};
 
   /** @param {MDFeature} feature */
   function featureComplete(feature) {
-    const states = feature.tasks.filter(task => !task.ignored).flatMap(task => {
+    let hasTodo = false;
+    for (const task of feature.tasks) {
+      if (task.ignored) continue;
       let note = false;
-      return task.lines.flatMap(line => {
-        if (/^\s*#(?:Info|Warn)\s*$/i.test(line)) { note = true; return []; }
-        if (/^####\s+.+?\s*#*\s*$/.test(line)) { note = false; return []; }
-        if (note) return [];
+      let gap = false;
+      for (const line of task.lines) {
+        if (/^\s*#(?:Info|Warn)\s*$/i.test(line)) { note = true; gap = false; continue; }
+        if (/^####\s+.+?\s*#*\s*$/.test(line)) { note = false; gap = false; continue; }
+        if (!line.trim()) { if (note) gap = true; continue; }
+        if (note && gap) {
+          note = !/^\s*[-*+]\s+/.test(line);
+          gap = false;
+        }
+        if (note) continue;
         const todo = line.match(/^\s*[-*+]\s+(?:\[([ xX])\]\s+)?(.*)$/);
-        return todo ? [todo[1]?.toLowerCase() === "x" || /^~.*~$/.test(todo[2])] : [];
-      });
-    });
-    return states.length > 0 && states.every(Boolean);
+        if (!todo) continue;
+        hasTodo = true;
+        if (todo[1]?.toLowerCase() !== "x" && !/^~.*~$/.test(todo[2])) return false;
+      }
+    }
+    return hasTodo;
   }
 
   /** @param {MDFeature | undefined} feature */
@@ -142,7 +152,13 @@ window.MDManager = window.MDManager || {};
   /** @param {number} day */
   function archiveDayLabel(day) {
     const date = new Date(day * dayMs);
-    return `${String(date.getUTCDate()).padStart(2, "0")}.${String(date.getUTCMonth() + 1).padStart(2, "0")}.${date.getUTCFullYear()}`;
+    return `${String(date.getUTCDate()).padStart(2, "0")}.${String(date.getUTCMonth() + 1).padStart(2, "0")}.${String(date.getUTCFullYear()).padStart(4, "0")}`;
+  }
+
+  /** @param {string} value */
+  function archiveDisplayDate(value) {
+    const parsed = parsedArchiveDate(value);
+    return parsed ? archiveDayLabel(parsed.time / dayMs) : value;
   }
 
   /**
@@ -231,18 +247,6 @@ window.MDManager = window.MDManager || {};
     return { minor: { unit: "year", step: 5 }, major: { unit: "year", step: 10 } };
   }
 
-  /**
-   * A bare day number cannot be read once the coarse row groups by quarters or years, so a ruler
-   * label always carries the month it belongs to.
-   * @param {string} unit @param {number} time
-   */
-  function archiveFineLabel(unit, time) {
-    const date = new Date(time);
-    if (unit === "day" || unit === "week") return `${String(date.getUTCDate()).padStart(2, "0")}.${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
-    if (unit === "month" || unit === "quarter") return `${archiveMonthNames[date.getUTCMonth()]} ${String(date.getUTCFullYear()).slice(-2)}`;
-    return String(date.getUTCFullYear());
-  }
-
   /** @param {string} unit @param {number} time */
   function archiveCellLabel(unit, time) {
     const date = new Date(time);
@@ -267,7 +271,6 @@ window.MDManager = window.MDManager || {};
     // A subdivided cell cuts on its own calendar boundaries, so every cell is ruled identically and
     // a line never lands at some arbitrary fraction of one. Everything else counts off the first
     // archived date.
-    const fine = subdivision || intervals.minor;
     const fineTimes = subdivision ? archiveUnitBoundaries(subdivision, first, last) : archiveAnchoredTimes(intervals.minor, origin, first, last);
     const majors = new Set(majorTimes);
     for (const time of fineTimes) {
@@ -275,7 +278,7 @@ window.MDManager = window.MDManager || {};
       // strokes on one position. The rhythm is unaffected, because the boundary rules that position.
       if (majors.has(time)) continue;
       const tickPosition = (time / dayMs - startDay) / spanDays * 100;
-      ticks.push({ time, level: "minor", label: archiveFineLabel(fine.unit, time), position: tickPosition, labelPosition: tickPosition });
+      ticks.push({ time, level: "minor", label: archiveDayLabel(time / dayMs), position: tickPosition, labelPosition: tickPosition });
     }
     ticks.sort((left, right) => left.time - right.time);
     if (ticks.length <= 200) return ticks;
@@ -364,7 +367,7 @@ window.MDManager = window.MDManager || {};
           const endDay = parsedTo.time / dayMs;
           ranges.push({ startDay, endDay, endExclusive: endDay + 1, durationDays: endDay - startDay + 1, position: 0, width: 0 });
         } else {
-          points.push({ day: startDay, label: from.value, position: 0 });
+          points.push({ day: startDay, label: archiveDayLabel(startDay), position: 0 });
         }
       }
       if (!ranges.length && !points.length) {
@@ -480,7 +483,7 @@ window.MDManager = window.MDManager || {};
     return boundary < 0 ? project.features.length : boundary;
   }
 
-  app.archive = { timeline: archiveTimeline };
+  app.archive = { timeline: archiveTimeline, displayDate: archiveDisplayDate, dayLabel: archiveDayLabel };
   app.domain = {
     featureComplete,
     canArchiveFeature,

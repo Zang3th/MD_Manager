@@ -235,7 +235,7 @@ window.MDManager = window.MDManager || {};
       const scored = score(haystack, needle, entry.text);
       if (!scored) continue;
       matched.push(entry);
-      if (results.length === limit && scored.score <= floor) continue;
+      if (results.length === limit && scored.score < floor) continue;
       /** @type {MDSearchResult} */
       const result = { item: entry, score: scored.score, positions: scored.positions };
       let position = results.length;

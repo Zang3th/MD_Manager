@@ -85,14 +85,15 @@ Stats und Backlog bleiben davon unberührt.
 - [x] ~Release fertig machen (via Actions)~
 
 #Pin
-## Swimlanes
+## Swimlanes und Diagramme
 
 #Version
-- 0.8.1
+- 0.9.0
 
 #Date
 - 17.08.26 - 20.08.26
-- 29.08.26 - TBD
+- 29.08.26 - 02.09.26
+- 30.09.26 - TBD
 
 ### Bugs und Verbesserungen
 
@@ -100,6 +101,8 @@ Stats und Backlog bleiben davon unberührt.
 - [x] ~Search-Fenster verbessern~
 - [x] ~Stats: Active-ToDo's zählen~
 - [x] ~Highlighting von Suchergebnissen verbessern~
+- [x] ~Konfliktprüfung beim Speichern fixen~
+- [x] ~Kleinere Aufräumarbeiten und Verbesserungen~
 
 ### Archiv-Zeitstrahl
 
@@ -114,32 +117,13 @@ Stats und Backlog bleiben davon unberührt.
 - [x] ~Lane-Highlighting~
 - [x] ~Datums-Crosshair~
 
-### Release
+### Diagramme
 
-- [ ] u.U. Docs umspeichern
-- [ ] Version-Bump + Snapshots aktualisieren
-- [ ] Screenshots aktualisieren (via Skill)
-- [ ] README.md anpassen (Änderungen + Stats)
-- [ ] Release-Notes schreiben
-- [ ] Release fertig machen (via Actions)
-
-## Reports
-
-#Version
-- 0.9.0
-
-#Date
-- 14.09.26 - TBD
-
-### Kennzahlen
-
-- [ ] Cycle-Time, Burnup/down, ...
-- [ ] Dafür das Stats-Fenster erweitern
-- [ ] Separater Button öffnet Fullscreen-Anzeige
-
-### Export
-
-- [ ] PDF-Report
+- [ ] Separater Button öffnet Fullscreen-Anzeige der Statistiken
+- [ ] Zeigt übersichtlich alle Infos des Stats-Fensters an
+- [ ] Zusätzlich darunter zwei nebeneinanderstehende Diagramme
+- [ ] "Umfang gegen Dauer" als Streudiagramm
+- [ ] "Dauerverteilung" als Histogramm
 
 ### Release
 

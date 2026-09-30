@@ -476,6 +476,8 @@ window.MDManager = window.MDManager || {};
       }
     }
     const cleaned = lines;
+    let lastContentIndex = cleaned.length - 1;
+    while (lastContentIndex >= 0 && !cleaned[lastContentIndex].trim()) lastContentIndex--;
     const normalized = [];
     for (let index = 0; index < cleaned.length; index++) {
       const line = cleaned[index];
@@ -498,7 +500,7 @@ window.MDManager = window.MDManager || {};
       normalized.push(line);
 
       while (cleaned[index + 1]?.trim() === "") index++;
-      if (heading && cleaned.slice(index + 1).some(nextLine => nextLine.trim())) normalized.push("");
+      if (heading && index < lastContentIndex) normalized.push("");
     }
     if (cleaned.at(-1)?.trim() === "" && normalized.at(-1)?.trim() !== "") normalized.push("");
     return normalized.join(project.newline);

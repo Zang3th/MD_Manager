@@ -115,7 +115,7 @@ test("reloading changed Markdown in Archive preserves visible Workspace titles a
   await page.getByRole("button", { name: "Reload", exact: true }).click();
   await expect(page.locator("#archive")).toBeVisible();
 
-  await page.keyboard.press("w");
+  await page.locator("#showWorkspaceView").click();
   const featureTitle = page.locator("#content > .release .release-title");
   await expect(featureTitle).toHaveText("Reloaded Feature");
   await expect(featureTitle).toBeVisible();

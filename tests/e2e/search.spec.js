@@ -377,7 +377,7 @@ test("an archive feature result frames its complete square label cell", async ({
   expect(plotBounds).not.toBeNull();
   expect(cornerBounds).not.toBeNull();
   expect(labelBounds?.x).toBeCloseTo(cornerBounds?.x || 0, 1);
-  expect((labelBounds?.x || 0) + (labelBounds?.width || 0)).toBeCloseTo(plotBounds?.x || 0, 1);
+  expect((plotBounds?.x || 0) - (labelBounds?.x || 0) - (labelBounds?.width || 0)).toBeCloseTo(0, 1);
   const frame = await label.evaluate(target => {
     const style = getComputedStyle(target, "::after");
     return {

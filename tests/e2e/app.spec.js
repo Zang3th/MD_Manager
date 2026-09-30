@@ -257,7 +257,7 @@ test("recent files show the Markdown project title and filename", async ({ page 
   }]));
   await expect(page.locator(".recent-project-name")).toHaveText("MD Manager");
   await expect(page.locator(".recent-file-name")).toHaveText("Roadmap.md");
-  await expect(page.locator(".recent-file-time")).toHaveText("2026-08-03 12:34");
+  await expect(page.locator(".recent-file-time")).toHaveText("03.08.2026 12:34");
   await expect(page.locator(".recent-file")).toHaveCSS("border-top-width", "2px");
   await expect(page.locator(".recent-file-actions")).toHaveCSS("border-left-width", "0px");
   await expect(page.locator(".recent-delete")).toHaveCSS("border-top-width", "0px");
@@ -1073,7 +1073,7 @@ test("metadata uses natural Workspace header heights while keeping title rows al
   await openFixture(page);
   await expect(page.locator("#toggleMetadata")).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".release-version")).toHaveText("v1.2.3");
-  await expect(page.locator(".release-dates")).toContainText("2026-01-01");
+  await expect(page.locator(".release-dates")).toContainText("01.01.2026");
   const titleHeights = await page.locator("#content > .release .release-title").evaluateAll(nodes => nodes.map(node => node.getBoundingClientRect().height));
   expect(new Set(titleHeights).size).toBe(1);
   const headerHeights = await page.locator("#content > .release > .release-header").evaluateAll(nodes => nodes.map(node => node.getBoundingClientRect().height));
@@ -1101,7 +1101,7 @@ test("feature editor saves title, metadata, info, and warn as one undo step", as
   await expect(page.locator("#toggleMetadata")).toHaveAttribute("aria-pressed", "true");
   await expect(feature.locator(".release-title")).toHaveText("Renamed Feature");
   await expect(feature.locator(".release-version")).toHaveText("v2.0.0");
-  await expect(feature.locator(".release-dates")).toContainText("2027-06-30");
+  await expect(feature.locator(".release-dates")).toContainText("30.06.2027");
   await expect(feature.locator(".feature-notes")).toContainText("Updated metadata");
   await expect(feature.locator(".feature-notes")).toContainText("Check this");
   await page.locator("#undoChange").click();
@@ -2087,7 +2087,8 @@ test("Archive object hover is stationary, centered, and theme-consistent", async
     expect({ x: dotAfter.x, y: dotAfter.y, width: dotAfter.width, height: dotAfter.height }).toEqual({ x: dotBefore.x, y: dotBefore.y, width: dotBefore.width, height: dotBefore.height });
     expect(dotAfter.background).toBe(dotBefore.background);
     expect(dotAfter.border).not.toBe(dotBefore.border);
-    await expect(dot.locator(".archive-object-label")).toHaveCSS("opacity", "1");
+    await expect(dot.locator(".archive-object-label")).toBeHidden();
+    await expect(page.locator("#archive .archive-crosshair-readout")).toHaveCSS("opacity", "1");
 
     const pause = page.locator("#archive .archive-pause-segment").first();
     await pause.hover();
@@ -2153,8 +2154,8 @@ test("Archive polish keeps gradients, endpoint caps, diamonds, and whole-lane em
     };
   });
   expect(halo).toEqual({ borderRadius: "50%", inset: ["-7px", "-7px", "-7px", "-7px"], shadowOffsets: ["0px", "0px"] });
-  await expect.poll(() => archive.locator(".archive-crosshair-readout").evaluate(node => getComputedStyle(node).opacity)).toBe("0");
-  await expect(point.locator(".archive-object-label")).toHaveCSS("opacity", "1");
+  await expect.poll(() => archive.locator(".archive-crosshair-readout").evaluate(node => getComputedStyle(node).opacity)).toBe("1");
+  await expect(point.locator(".archive-object-label")).toBeHidden();
 
   const row = early.locator(".archive-swimlane-row");
   const label = early.locator(".archive-swimlane-label");
@@ -2250,8 +2251,9 @@ test("Archive polish keeps gradients, endpoint caps, diamonds, and whole-lane em
   await expect(short).toHaveClass(/archive-track-start/);
   await expect(short).toHaveClass(/archive-track-end/);
   const shortPaint = await short.evaluate(node => {
-    const marker = getComputedStyle(node, "::before");
-    return [marker.borderLeftWidth, marker.borderRightWidth, marker.backgroundImage];
+    const start = getComputedStyle(node, "::before");
+    const end = getComputedStyle(node, "::after");
+    return [start.width, end.width, getComputedStyle(node.querySelector(".archive-short-band")).backgroundImage];
   });
   expect(shortPaint.slice(0, 2)).toEqual(["3px", "3px"]);
   expect(shortPaint[2]).toContain("linear-gradient");
@@ -2384,7 +2386,7 @@ test("Archive feature popover owns one expanded anchor, closes globally, and sta
   await expect(popover.locator(".archive-popover-version")).toHaveText("v2.1.0");
   await expect(popover.locator(".archive-feature-popover-content > .archive-popover-section > h4")).toHaveText(["Dates", "Timeline", "Tasks"]);
   await expect(popover.locator(".archive-popover-summary")).toHaveCount(0);
-  await expect(popover.locator(".archive-popover-dates > span")).toHaveText(["01.01.26 – 03.01.26", "10.01.2026 – 12.01.2026", "15.01.2026"]);
+  await expect(popover.locator(".archive-popover-dates > span")).toHaveText(["01.01.2026 - 03.01.2026", "10.01.2026 - 12.01.2026", "15.01.2026"]);
   await expect(popover.locator(".archive-popover-timeline .archive-popover-metrics dt")).toHaveText(["Work", "Pause", "Total"]);
   await expect(popover.locator(".archive-popover-timeline .archive-popover-metrics dd")).toHaveText(["7 days", "8 days", "15 days"]);
   await expect(popover.locator(".archive-popover-tasks li")).toHaveText(["First task", "Second task"]);
@@ -2403,6 +2405,8 @@ test("Archive feature popover owns one expanded anchor, closes globally, and sta
 
   await toggles.first().click();
   await page.keyboard.press("Escape");
+  await expect(popover).toBeVisible();
+  await popover.locator(".archive-feature-popover-close").click();
   await expect(popover).toBeHidden();
   await expect(toggles.first()).toBeFocused();
 
@@ -2557,14 +2561,14 @@ test("complete features move to Archive and can be returned to Workspace with un
   await archive.locator(".archive-popover-unarchive").click();
   await expect(page.locator(".notification-title").last()).toHaveText("Feature unarchived");
   await expect(page.locator(".notification-body").last()).toHaveText("Complete Feature moved to Workspace.");
-  await page.keyboard.press("w");
+  await page.locator("#showWorkspaceView").click();
   await expect(page.locator("#content > .release .release-title")).toHaveText(["Complete Feature", "Spacer Feature"]);
   await page.keyboard.press("Control+z");
   await expect(page.locator("#archive")).toBeVisible();
   await expect(page.locator("#archive .archive-feature-title")).toHaveText("Complete Feature");
-  await page.keyboard.press("Control+Shift+z");
+  await page.locator("#redoChange").click();
   await expect(page.locator("#archive .archive-feature-title")).toHaveCount(0);
-  await page.keyboard.press("w");
+  await page.locator("#showWorkspaceView").click();
   await expect(page.locator("#content > .release .release-title")).toHaveText(["Complete Feature", "Spacer Feature"]);
 });
 
@@ -2738,7 +2742,7 @@ test("Workspace zoom changes only feature-card width and stays available across 
 
   await page.keyboard.press("a");
   await expect(zoom).toBeHidden();
-  await page.keyboard.press("w");
+  await page.locator("#showWorkspaceView").click();
   await expect(zoom).toBeVisible();
   await expect(page.locator("#featureZoomValue")).toHaveText("140%");
   await expect(releases.first()).toHaveCSS("width", "540px");
@@ -2812,7 +2816,7 @@ test("Archive round-trips preserve open and closed Workspace panels", async ({ p
   await page.keyboard.press("a");
   await expect(backlog).toBeHidden();
   await expect(stats).toBeHidden();
-  await page.keyboard.press("w");
+  await page.locator("#showWorkspaceView").click();
   await expect(backlog).toBeVisible();
   await expect(stats).toBeVisible();
 
@@ -2821,7 +2825,7 @@ test("Archive round-trips preserve open and closed Workspace panels", async ({ p
   await expect(backlog).toBeHidden();
   await expect(stats).toBeHidden();
   await page.keyboard.press("a");
-  await page.keyboard.press("w");
+  await page.locator("#showWorkspaceView").click();
   await expect(backlog).toBeHidden();
   await expect(stats).toBeHidden();
 });
@@ -3417,6 +3421,8 @@ test("view menu, keyboard shortcut, and accessibility states stay synchronized",
   await page.keyboard.press("a");
   await expect(page.locator("#showArchiveView")).toHaveAttribute("aria-pressed", "true");
   await page.keyboard.press("w");
+  await expect(page.locator("#showArchiveView")).toHaveAttribute("aria-pressed", "true");
+  await page.locator("#showWorkspaceView").click();
   await expect(page.locator("#showWorkspaceView")).toHaveAttribute("aria-pressed", "true");
 });
 

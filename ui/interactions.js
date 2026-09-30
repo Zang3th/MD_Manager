@@ -58,9 +58,11 @@ window.MDManager = window.MDManager || {};
   let archivePopoverAnchor = null;
   /** @type {number | null} */
   let archivePopoverFrame = null;
+  /** @type {{anchor: HTMLElement, label: HTMLElement} | null} */
+  let archiveObjectLabel = null;
   /** @type {number | null} */
   let archiveCrosshairFrame = null;
-  /** @type {{timeline: HTMLElement, scroller: HTMLElement, scrollLeft: number, plotLeft: number, plotWidth: number, plotStartDay: number, spanDays: number, readoutWidth: number, clientX: number, line: HTMLElement, readout: HTMLElement} | null} */
+  /** @type {{timeline: HTMLElement, scroller: HTMLElement, scrollLeft: number, plotLeft: number, plotWidth: number, plotStartDay: number, spanDays: number, readoutWidth: number, minorWidth: number, day: number | null, clientX: number, line: SVGPathElement, readout: HTMLElement, readoutText: Text} | null} */
   let archiveCrosshairState = null;
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   const clipboardIndicatorTemplate = /** @type {HTMLTemplateElement} */ (document.getElementById("clipboardIndicatorTemplate"));
@@ -540,6 +542,7 @@ window.MDManager = window.MDManager || {};
   function setView(view) {
     if (!project) return;
     hideArchiveCrosshair();
+    hideArchiveObjectLabel();
     const archiveActive = view === "archive";
     const content = document.getElementById("content");
     const archive = document.getElementById("archive");
@@ -574,6 +577,7 @@ window.MDManager = window.MDManager || {};
 
   function positionArchivePopover() {
     archivePopoverFrame = null;
+    positionArchiveObjectLabel();
     const archiveContent = /** @type {HTMLElement | null} */ (document.querySelector("#archive > .archive-content"));
     if (archiveContent?.querySelector(".archive-date-timeline")) {
       const maximum = Math.max(0, archiveContent.scrollWidth - archiveContent.offsetWidth);
@@ -581,24 +585,27 @@ window.MDManager = window.MDManager || {};
     }
     const popover = /** @type {HTMLElement | null} */ (document.getElementById("archiveFeaturePopover"));
     if (!popover || popover.hidden || !archivePopoverAnchor?.isConnected) return;
-    const anchorBounds = archivePopoverAnchor.getBoundingClientRect();
-    const popoverBounds = popover.getBoundingClientRect();
     const headerBottom = document.querySelector(".header")?.getBoundingClientRect().bottom || 0;
     const axisBottom = document.querySelector("#archive .archive-date-axis")?.getBoundingClientRect().bottom || 0;
+    const anchorBounds = archivePopoverAnchor.getBoundingClientRect();
+    const viewport = archiveContent?.getBoundingClientRect();
+    const visibleTop = Math.max(headerBottom, axisBottom, viewport?.top || 0);
+    const visibleBottom = Math.min(window.innerHeight, (viewport?.top || 0) + (archiveContent?.clientHeight || window.innerHeight));
+    if (anchorBounds.bottom <= visibleTop || anchorBounds.top >= visibleBottom) {
+      closeArchiveFeaturePopover();
+      return;
+    }
+    const popoverBounds = popover.getBoundingClientRect();
     const margin = 12;
     const gap = 10;
     let left = anchorBounds.right + gap;
     if (left + popoverBounds.width > window.innerWidth - margin) left = anchorBounds.left - popoverBounds.width - gap;
     left = Math.max(margin, Math.min(left, window.innerWidth - popoverBounds.width - margin));
-    const minimumTop = Math.max(headerBottom, axisBottom) + margin;
-    const maximumHeight = Math.max(0, window.innerHeight - minimumTop - margin);
-    const effectiveHeight = Math.min(popoverBounds.height, maximumHeight);
-    let top = Math.max(minimumTop, anchorBounds.top);
-    if (top + effectiveHeight > window.innerHeight - margin) top = window.innerHeight - effectiveHeight - margin;
-    top = Math.max(minimumTop, top);
+    const top = Math.max(visibleTop, anchorBounds.top);
+    const maximumHeight = Math.max(0, visibleBottom - top - margin);
     popover.style.setProperty("--archive-popover-left", `${Math.round(left)}px`);
-    popover.style.setProperty("--archive-popover-top", `${Math.round(top)}px`);
-    popover.style.setProperty("--archive-popover-max-height", `${Math.round(maximumHeight)}px`);
+    popover.style.setProperty("--archive-popover-top", `${top}px`);
+    popover.style.setProperty("--archive-popover-max-height", `${maximumHeight}px`);
   }
 
   function scheduleArchivePopoverPosition() {
@@ -606,10 +613,55 @@ window.MDManager = window.MDManager || {};
     archivePopoverFrame = requestAnimationFrame(positionArchivePopover);
   }
 
-  /** @param {number} day */
-  function archiveCrosshairDate(day) {
-    const date = new Date(day * 24 * 60 * 60 * 1000);
-    return `${String(date.getUTCDate()).padStart(2, "0")}.${String(date.getUTCMonth() + 1).padStart(2, "0")}.${String(date.getUTCFullYear()).padStart(4, "0")}`;
+  function hideArchiveObjectLabel() {
+    if (archiveObjectLabel) {
+      const label = archiveObjectLabel.label;
+      label.classList.remove("is-positioned");
+      label.style.removeProperty("--archive-object-left");
+      label.style.removeProperty("--archive-object-top");
+      label.style.removeProperty("--archive-object-width");
+      label.style.removeProperty("--archive-object-height");
+    }
+    archiveObjectLabel = null;
+  }
+
+  function positionArchiveObjectLabel() {
+    const current = archiveObjectLabel;
+    if (!current) return;
+    if (!current.anchor.isConnected || !current.anchor.matches(":hover")) { hideArchiveObjectLabel(); return; }
+    const anchor = current.anchor.getBoundingClientRect();
+    const plot = current.anchor.closest(".archive-swimlane-plot").getBoundingClientRect();
+    const frozen = current.anchor.closest(".archive-swimlane-row").querySelector(".archive-swimlane-label").getBoundingClientRect();
+    const axisBottom = document.querySelector("#archive .archive-date-axis").getBoundingClientRect().bottom;
+    const grouped = current.anchor.classList.contains("archive-collision-group");
+    const left = Math.max(plot.left, frozen.right + 4);
+    const right = Math.min(plot.right + 8, window.innerWidth - 12);
+    if (right <= left || anchor.bottom <= axisBottom || anchor.top >= window.innerHeight - 12) { hideArchiveObjectLabel(); return; }
+    const available = right - left;
+    const label = current.label.getBoundingClientRect();
+    const width = Math.min(label.width, available);
+    const center = Math.max(left + width / 2, Math.min(right - width / 2, anchor.left + anchor.width / 2));
+    const height = Math.min(label.height, window.innerHeight - axisBottom - 24);
+    let top = anchor.top - height - 8;
+    if (frozen.top <= axisBottom + .01 || top < axisBottom + 6) top = anchor.bottom + 8;
+    if (grouped) top = Math.max(axisBottom + 6, Math.min(top, window.innerHeight - height - 12));
+    current.label.style.setProperty("--archive-object-left", `${grouped ? center : center - anchor.left}px`);
+    current.label.style.setProperty("--archive-object-top", `${grouped ? top : top - anchor.top}px`);
+    current.label.style.setProperty("--archive-object-width", `${available}px`);
+    current.label.style.setProperty("--archive-object-height", `${Math.max(0, window.innerHeight - top - 12)}px`);
+    current.label.classList.add("is-positioned");
+  }
+
+  /** @param {PointerEvent} event */
+  function moveArchiveObjectLabel(event) {
+    const anchor = /** @type {HTMLElement | null} */ (eventElement(event).closest(".archive-active-segment,.archive-pause-segment,.archive-date-point"));
+    if (archiveObjectLabel?.anchor === anchor) return;
+    hideArchiveObjectLabel();
+    if (anchor?.matches(".archive-date-point:not(.archive-collision-group)")) return;
+    const label = /** @type {HTMLElement | null} */ (anchor?.querySelector(".archive-object-label"));
+    if (!anchor || !label) return;
+    archiveObjectLabel = { anchor, label };
+    scheduleArchivePopoverPosition();
   }
 
   function hideArchiveCrosshair() {
@@ -629,13 +681,19 @@ window.MDManager = window.MDManager || {};
     const position = Math.max(0, Math.min(state.plotWidth, state.clientX - state.plotLeft));
     const lastDay = state.plotStartDay + state.spanDays - 1;
     const day = Math.max(state.plotStartDay, Math.min(lastDay, Math.round(state.plotStartDay + position / state.plotWidth * state.spanDays)));
-    const lineX = (day - state.plotStartDay) / state.spanDays * state.plotWidth;
+    if (state.day === day) return;
+    state.day = day;
+    const gridLine = app.layout.archiveGridLine(state.timeline, day);
+    const lineX = gridLine?.x ?? (day - state.plotStartDay) / state.spanDays * state.plotWidth;
+    const lineWidth = gridLine?.width ?? state.minorWidth;
     const badgeInset = state.readoutWidth / 2 + 4;
     const badgeX = Math.max(badgeInset, Math.min(lineX, state.plotWidth - badgeInset));
-    state.line.style.transform = `translate3d(${lineX}px,0,0) translateX(-50%)`;
+    state.line.setAttribute("d", `M${lineX} 0V100`);
+    const strokeWidth = `${lineWidth}px`;
+    if (state.line.style.strokeWidth !== strokeWidth) state.line.style.strokeWidth = strokeWidth;
     state.readout.style.transform = `translate3d(${badgeX}px,0,0) translateX(-50%)`;
-    state.readout.textContent = archiveCrosshairDate(day);
-    state.timeline.classList.add("archive-crosshair-active");
+    state.readoutText.data = app.archive.dayLabel(day);
+    if (!state.timeline.classList.contains("archive-crosshair-active")) state.timeline.classList.add("archive-crosshair-active");
   }
 
   /** @param {PointerEvent} event */
@@ -654,7 +712,7 @@ window.MDManager = window.MDManager || {};
     }
     if (archiveCrosshairState?.timeline !== timeline) {
       const axis = /** @type {HTMLElement | null} */ (timeline.querySelector(".archive-date-axis"));
-      const line = /** @type {HTMLElement | null} */ (rows.querySelector(".archive-crosshair-line"));
+      const line = /** @type {SVGPathElement | null} */ (rows.querySelector(".archive-crosshair-line"));
       const readout = /** @type {HTMLElement | null} */ (axis?.querySelector(".archive-crosshair-readout"));
       const plotStartDay = Number(axis?.dataset.archivePlotStart);
       const spanDays = Number(axis?.dataset.archivePlotSpan);
@@ -663,6 +721,10 @@ window.MDManager = window.MDManager || {};
         hideArchiveCrosshair();
         return;
       }
+      // Replacing the badge's child nodes invalidates relational styles throughout the archive.
+      // Keep one text node and update its data when the selected day changes.
+      const readoutText = readout.firstChild instanceof Text ? readout.firstChild : document.createTextNode("");
+      if (!readoutText.parentNode) readout.append(readoutText);
       archiveCrosshairState = {
         timeline,
         scroller,
@@ -672,9 +734,12 @@ window.MDManager = window.MDManager || {};
         plotStartDay,
         spanDays,
         readoutWidth: readout.offsetWidth,
+        minorWidth: parseFloat(getComputedStyle(timeline).getPropertyValue("--archive-grid-minor-width")),
+        day: null,
         clientX: event.clientX,
         line,
-        readout
+        readout,
+        readoutText
       };
     } else archiveCrosshairState.clientX = event.clientX;
     if (archiveCrosshairFrame === null) archiveCrosshairFrame = requestAnimationFrame(updateArchiveCrosshair);
@@ -710,6 +775,7 @@ window.MDManager = window.MDManager || {};
     anchor.setAttribute("aria-expanded", "true");
     anchor.classList.add("is-popover-anchor");
     positionArchivePopover();
+    app.layout.fitTitles([popover.querySelector(".archive-popover-title")]);
     if (focus) popover.focus({ preventScroll: true });
   }
 
@@ -899,10 +965,16 @@ window.MDManager = window.MDManager || {};
       onEnd(event) {
         clearFeatureHold();
         if (!project) return;
+        if (event.oldIndex === event.newIndex) { dragViewState = null; return; }
+        const fromIndex = Number(event.item.dataset.feature);
+        const next = event.item.nextElementSibling;
+        const previous = event.item.previousElementSibling;
+        const insertionIndex = next ? Number(next.dataset.feature) : previous ? Number(previous.dataset.feature) + 1 : fromIndex;
+        const toIndex = insertionIndex - (fromIndex < insertionIndex ? 1 : 0);
         const beforeViewState = dragViewState || captureViewState();
         const afterViewState = captureViewState();
         dragViewState = null;
-        perform("Feature moved", () => app.domain.moveFeature(project, event.oldIndex, event.newIndex), () => { app.domain.moveFeature(project, event.newIndex, event.oldIndex); }, beforeViewState, afterViewState);
+        perform("Feature moved", () => app.domain.moveFeature(project, fromIndex, toIndex), () => { app.domain.moveFeature(project, toIndex, fromIndex); }, beforeViewState, afterViewState);
       }
     }));
 
@@ -931,10 +1003,16 @@ window.MDManager = window.MDManager || {};
             app.notifications.show("warning", "Task not archived", "Individual tasks cannot be moved to the archive. Archive the complete feature instead.");
             return;
           }
+          if (fromFeature === toFeature && event.oldIndex === event.newIndex) { dragViewState = null; return; }
+          const fromIndex = Number(event.item.dataset.task);
+          const next = event.item.nextElementSibling;
+          const previous = event.item.previousElementSibling;
+          const insertionIndex = next ? Number(next.dataset.task) : previous ? Number(previous.dataset.task) + 1 : project.features[toFeature].tasks.length;
+          const toIndex = insertionIndex - (fromFeature === toFeature && fromIndex < insertionIndex ? 1 : 0);
           const beforeViewState = dragViewState || captureViewState();
           const afterViewState = captureViewState();
           dragViewState = null;
-          perform("Task moved", () => app.domain.moveTask(project, fromFeature, event.oldIndex, toFeature, event.newIndex), () => { app.domain.moveTask(project, toFeature, event.newIndex, fromFeature, event.oldIndex); }, beforeViewState, afterViewState);
+          perform("Task moved", () => app.domain.moveTask(project, fromFeature, fromIndex, toFeature, toIndex), () => { app.domain.moveTask(project, toFeature, toIndex, fromFeature, fromIndex); }, beforeViewState, afterViewState);
         }
       }));
     });
@@ -1012,8 +1090,10 @@ window.MDManager = window.MDManager || {};
 
   /** @param {MDProject} nextProject @param {(action: MDUndoAction, options?: {render?: boolean}) => boolean} onChanged */
   function setProject(nextProject, onChanged) {
+    if (project !== nextProject) app.editor.close();
     hoveredElement = null;
     hideArchiveCrosshair();
+    hideArchiveObjectLabel();
     closeArchiveFeaturePopover();
     closeWorkspaceZoom();
     stopWorkspaceZoomAnchor();
@@ -1132,6 +1212,7 @@ window.MDManager = window.MDManager || {};
       const beforeViewState = captureViewState();
       const seed = app.templates.task();
       app.editor.open(seed, { project: activeProject.title, feature: feature.title }, (/** @type {{title: string, lines: string[]}} */ draft) => {
+        if (project !== activeProject) return;
         const task = { title: draft.title, lines: draft.lines.slice() };
         const taskIndex = feature.tasks.length;
         const afterViewState = copyViewState(beforeViewState);
@@ -1148,15 +1229,17 @@ window.MDManager = window.MDManager || {};
     if (editButton) {
       event.stopPropagation();
       closeFeatureMenus();
+      const activeProject = project;
       if (editButton.dataset.edit === "feature") {
         const featureElement = requiredClosest(editButton, ".release");
         const featureIndex = Number(featureElement.dataset.feature);
         const viewState = captureViewState();
         const feature = project.features[featureIndex];
         const before = app.domain.copyFeature(feature);
-        app.editor.openFeature(project, feature, (/** @type {{title: string, metadata: string, info: string, warn: string}} */ draft) => {
+        app.editor.openFeature(activeProject, feature, (/** @type {{title: string, metadata: string, info: string, warn: string}} */ draft) => {
+          if (project !== activeProject || activeProject.features[featureIndex] !== feature) return;
           const after = app.markdown.composeFeatureMetadata(draft);
-          perform("Feature edited", () => app.domain.updateFeature(project, featureIndex, draft.title, after), () => { app.domain.updateFeature(project, featureIndex, before.title, before); }, viewState, viewState, undefined, before.headerLines.join("\n").length + draft.metadata.length);
+          perform("Feature edited", () => app.domain.updateFeature(activeProject, featureIndex, draft.title, after), () => { app.domain.updateFeature(activeProject, featureIndex, before.title, before); }, viewState, viewState, undefined, before.headerLines.join("\n").length + draft.metadata.length);
         });
       } else {
         const taskElement = requiredClosest(editButton, ".card");
@@ -1167,8 +1250,9 @@ window.MDManager = window.MDManager || {};
         const task = project.features[featureIndex].tasks[taskIndex];
         const before = { title: task.title, lines: task.lines.slice() };
         app.editor.open(project.features[featureIndex].tasks[taskIndex], { project: project.title, feature: project.features[featureIndex].title }, (/** @type {{title: string, lines: string[]}} */ draft) => {
+          if (project !== activeProject || activeProject.features[featureIndex]?.tasks[taskIndex] !== task) return;
           const after = { title: draft.title, lines: draft.lines.slice() };
-          perform("Task edited", () => app.domain.updateTask(project, featureIndex, taskIndex, after), () => { app.domain.updateTask(project, featureIndex, taskIndex, before); }, viewState, viewState, undefined, before.title.length + before.lines.join("\n").length + after.title.length + after.lines.join("\n").length);
+          perform("Task edited", () => app.domain.updateTask(activeProject, featureIndex, taskIndex, after), () => { app.domain.updateTask(activeProject, featureIndex, taskIndex, before); }, viewState, viewState, undefined, before.title.length + before.lines.join("\n").length + after.title.length + after.lines.join("\n").length);
         });
       }
       return;
@@ -1281,18 +1365,18 @@ window.MDManager = window.MDManager || {};
 
   /** @param {MouseEvent} event */
   function handleTitleEnter(event) {
-    const header = eventElement(event).closest(".card-header, .release-heading, .backlog-header, .archive-feature-toggle");
+    const header = eventElement(event).closest(".card-header, .release-heading, .backlog-header, .archive-feature-toggle, .archive-feature-popover-header");
     if (!header || header.contains(/** @type {Node | null} */ (event.relatedTarget))) return;
-    const title = header.querySelector(".card-title, .release-title, .backlog-title, .archive-feature-title");
+    const title = header.querySelector(".card-title, .release-title, .backlog-title, .archive-feature-title, .archive-popover-title");
     if (title?.classList.contains("is-editing")) return;
     if (title) app.layout.startTitleScroll(title);
   }
 
   /** @param {MouseEvent} event */
   function handleTitleLeave(event) {
-    const header = eventElement(event).closest(".card-header, .release-heading, .backlog-header, .archive-feature-toggle");
+    const header = eventElement(event).closest(".card-header, .release-heading, .backlog-header, .archive-feature-toggle, .archive-feature-popover-header");
     if (!header || header.contains(/** @type {Node | null} */ (event.relatedTarget))) return;
-    const title = header.querySelector(".card-title, .release-title, .backlog-title, .archive-feature-title");
+    const title = header.querySelector(".card-title, .release-title, .backlog-title, .archive-feature-title, .archive-popover-title");
     if (title?.classList.contains("is-editing")) return;
     if (title) app.layout.stopTitleScroll(title);
   }
@@ -1335,18 +1419,22 @@ window.MDManager = window.MDManager || {};
   const archive = document.getElementById("archive");
   archive.addEventListener("mouseover", handleTitleEnter);
   archive.addEventListener("mouseout", handleTitleLeave);
+  archive.addEventListener("pointerover", moveArchiveObjectLabel);
   archive.addEventListener("pointerenter", () => archive.classList.remove("archive-pointer-outside"));
   archive.addEventListener("pointermove", event => {
-    archive.classList.remove("archive-pointer-outside");
+    if (archive.classList.contains("archive-pointer-outside")) archive.classList.remove("archive-pointer-outside");
+    moveArchiveObjectLabel(event);
     moveArchiveCrosshair(event);
   });
   archive.addEventListener("pointerleave", () => {
     archive.classList.add("archive-pointer-outside");
     hideArchiveCrosshair();
+    hideArchiveObjectLabel();
   });
   window.addEventListener("blur", () => {
     archive.classList.add("archive-pointer-outside");
     hideArchiveCrosshair();
+    hideArchiveObjectLabel();
   });
   window.addEventListener("focus", () => archive.classList.remove("archive-pointer-outside"));
   archive.addEventListener("click", event => {
@@ -1385,11 +1473,16 @@ window.MDManager = window.MDManager || {};
     if (!target.closest(".archive-feature-popover,.archive-feature-toggle")) closeArchiveFeaturePopover();
   });
   archive.addEventListener("scroll", event => {
+    if (event.target instanceof Element && event.target.matches(".archive-object-label")) return;
     if (archiveCrosshairState && event.target === archiveCrosshairState.scroller && archiveCrosshairState.scroller.scrollLeft !== archiveCrosshairState.scrollLeft) hideArchiveCrosshair();
     scheduleArchivePopoverPosition();
   }, true);
   window.addEventListener("resize", () => {
     hideArchiveCrosshair();
+    if (archiveObjectLabel) {
+      archiveObjectLabel.label.style.removeProperty("--archive-object-width");
+      archiveObjectLabel.label.style.removeProperty("--archive-object-height");
+    }
     scheduleArchivePopoverPosition();
   });
   document.getElementById("toggleBacklog").addEventListener("click", toggleBacklog);
@@ -1400,6 +1493,7 @@ window.MDManager = window.MDManager || {};
     const beforeViewState = captureViewState();
     const seed = app.templates.feature();
     app.editor.openFeature(activeProject, seed, (/** @type {{title: string, metadata: string, info: string, warn: string}} */ draft) => {
+      if (project !== activeProject) return;
       const metadata = app.markdown.composeFeatureMetadata(draft);
       const tasks = seed.tasks.map((/** @type {MDTask} */ task) => app.domain.copyTask(task));
       const feature = { ...metadata, title: draft.title, tasks, isBacklog: false };
@@ -1487,6 +1581,17 @@ window.MDManager = window.MDManager || {};
     app.layout.layout();
   });
   document.addEventListener("keydown", event => {
+    if (!document.body.classList.contains("archive-view-active") || document.querySelector("dialog[open]")) return;
+    const key = event.key.toLowerCase();
+    const applicationKey = ["tab", "enter", " ", "escape", "arrowup", "arrowdown", "arrowleft", "arrowright", "home", "end", "pageup", "pagedown"].includes(key);
+    const shortcut = (event.ctrlKey || event.metaKey) && !event.altKey && ["s", "o", "c", "v", "z", "y"].includes(key);
+    const letter = !event.ctrlKey && !event.metaKey && !event.altKey && ["a", "w", "b", "p", "s", "f"].includes(key);
+    if (applicationKey || shortcut || letter) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }
+  }, true);
+  document.addEventListener("keydown", event => {
     const shortcut = (event.ctrlKey || event.metaKey) && !event.altKey;
     const target = eventElement(event);
     // Focus can linger on a control inside a dialog that has already closed. Such a
@@ -1509,7 +1614,7 @@ window.MDManager = window.MDManager || {};
     }
     if (shortcut && !event.shiftKey && key === "o") {
       event.preventDefault();
-      void openFile?.();
+      if (!document.querySelector("#taskEditor[open],#featureEditor[open]")) void openFile?.();
     }
     if (shortcut && !editsText && !event.shiftKey && key === "c" && window.getSelection()?.isCollapsed !== false) {
       if (copyHovered()) event.preventDefault();

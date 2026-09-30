@@ -107,7 +107,13 @@ window.MDManager = window.MDManager || {};
   let featureWidth = 380;
   /** @type {{markdown: string, stamp: string} | null} */
   let externalChange = null;
-  let checkingExternal = false;
+  let fileSession = 0;
+  let fileOperationRevision = 0;
+  /** @type {{session: number, revision: number} | null} */
+  let checkingExternal = null;
+  /** @typedef {{session: number, handle: MDFileHandle, promise: Promise<void>, again: boolean, force: boolean}} SaveRequest */
+  /** @type {SaveRequest | null} */
+  let pendingSave = null;
   let lastExternalContentCheck = 0;
   let lastExternalCheckError = "";
 
@@ -192,31 +198,114 @@ window.MDManager = window.MDManager || {};
     return true;
   }
 
-  /** @param {boolean} [force] */
-  async function save(force = false) {
-    if (!project || !fileHandle || !undoSystem) return;
+  /** @param {{markdown: string, stamp: string}} inspected */
+  function applyExternalInspection(inspected) {
+    if (!fileHandle) return;
+    if (inspected.markdown === diskMarkdown) {
+      diskStamp = inspected.stamp;
+      if (externalChange) {
+        externalChange = null;
+        updateUndoSystemControls();
+      }
+      return;
+    }
+    if (externalChange?.markdown === inspected.markdown) return;
+    externalChange = inspected;
+    updateUndoSystemControls();
+    app.notifications.show("warning", "File changed externally", [{ value: fileHandle.name }, " changed on disk. Choose Reload or Overwrite."]);
+  }
+
+  /** @param {unknown} error @param {MDFileHandle} handle */
+  function reportFileCheckError(error, handle) {
+    if (isMissingFile(error)) {
+      const errorKey = `deleted:${handle.name}`;
+      if (errorKey !== lastExternalCheckError) {
+        lastExternalCheckError = errorKey;
+        externalChange = null;
+        updateUndoSystemControls();
+        app.notifications.show("error", "File deleted", [{ value: handle.name }, " was deleted from disk. Your work remains open."], undefined, [{ value: handle.name }, " was deleted from disk. Your work remains open."], "MDM-102");
+      }
+    } else if (error instanceof Error && error.message !== lastExternalCheckError) {
+      lastExternalCheckError = error.message;
+      app.notifications.show("error", "File check", "External file changes could not be checked.", undefined, `External changes could not be checked: ${error.message}`, "MDM-103");
+    }
+  }
+
+  /** @param {SaveRequest} request @param {boolean} force */
+  async function saveRevision(request, force) {
+    if (request.session !== fileSession) return;
     if (externalChange && !force) {
       app.notifications.show("warning", "File changed externally", "Choose Reload or Overwrite before saving.");
       return;
     }
     if (!force && serializedMarkdown === savedMarkdown) return;
     const markdown = serializedMarkdown;
-    await app.files.save(fileHandle, markdown);
+    const handle = request.handle;
+    fileOperationRevision++;
+    try {
+      await app.files.save(handle, markdown, !force && typeof handle.getFile === "function" ? diskMarkdown : undefined);
+    } catch (error) {
+      if (request.session !== fileSession) return;
+      if (error instanceof Error && error.name === "FileConflictError") {
+        applyExternalInspection(/** @type {Error & {markdown: string, stamp: string}} */ (error));
+        return;
+      }
+      throw error;
+    }
+    if (request.session !== fileSession) return;
+    fileOperationRevision++;
     diskMarkdown = markdown;
-    if (typeof fileHandle.getFile === "function") {
-      const inspected = await app.files.inspect(fileHandle);
-      diskStamp = inspected.markdown === markdown ? inspected.stamp : "";
-    } else diskStamp = "";
+    diskStamp = "";
     externalChange = null;
     savedMarkdown = markdown;
+    if (typeof handle.getFile === "function") {
+      try {
+        const inspected = await app.files.inspect(handle);
+        if (request.session !== fileSession) return;
+        lastExternalContentCheck = Date.now();
+        lastExternalCheckError = "";
+        applyExternalInspection(inspected);
+      } catch (error) {
+        if (request.session !== fileSession) return;
+        reportFileCheckError(error, handle);
+      }
+    }
     updateUndoSystemControls();
-    app.notifications.show("info", "File saved", [{ value: fileHandle.name }, " saved."]);
+    app.notifications.show("info", "File saved", [{ value: handle.name }, " saved."]);
+  }
+
+  /** @param {boolean} [force] @returns {Promise<void>} */
+  function save(force = false) {
+    if (!project || !fileHandle || !undoSystem) return Promise.resolve();
+    if (pendingSave?.session === fileSession) {
+      pendingSave.again = true;
+      pendingSave.force ||= force;
+      return pendingSave.promise;
+    }
+    const request = { session: fileSession, handle: fileHandle, promise: Promise.resolve(), again: false, force };
+    pendingSave = request;
+    request.promise = (async () => {
+      do {
+        request.again = false;
+        const overwrite = request.force;
+        request.force = false;
+        await saveRevision(request, overwrite);
+      } while (request.again && request.session === fileSession);
+    })().finally(() => {
+      if (pendingSave === request) pendingSave = null;
+    });
+    return request.promise;
   }
 
   /** @param {MDOpenedFile | null} opened @param {number} [rememberedWidth] */
   async function useOpenedFile(opened, rememberedWidth = 380) {
     if (!opened) return;
     const openedProject = app.markdown.parse(opened.markdown);
+    fileSession++;
+    fileOperationRevision++;
+    checkingExternal = null;
+    lastExternalContentCheck = 0;
+    lastExternalCheckError = "";
     fileHandle = opened.handle;
     project = openedProject;
     serializedMarkdown = app.markdown.serialize(openedProject);
@@ -234,44 +323,25 @@ window.MDManager = window.MDManager || {};
   }
 
   async function checkExternalChange() {
-    if (!fileHandle || typeof fileHandle.getFile !== "function" || checkingExternal) return;
-    checkingExternal = true;
+    if (!fileHandle || typeof fileHandle.getFile !== "function" || checkingExternal?.session === fileSession || pendingSave?.session === fileSession) return;
+    const handle = fileHandle;
+    const check = { session: fileSession, revision: fileOperationRevision };
+    checkingExternal = check;
+    const current = () => check.session === fileSession && check.revision === fileOperationRevision;
     try {
-      const stamp = await app.files.stat(fileHandle);
+      const stamp = await app.files.stat(handle);
+      if (!current()) return;
       lastExternalCheckError = "";
       const now = Date.now();
       if (diskStamp && stamp !== "0:0" && stamp === diskStamp && now - lastExternalContentCheck < 30000) return;
-      const inspected = await app.files.inspect(fileHandle);
+      const inspected = await app.files.inspect(handle);
+      if (!current()) return;
       lastExternalContentCheck = now;
-      if (inspected.markdown === diskMarkdown) {
-        diskStamp = inspected.stamp;
-        if (externalChange) {
-          externalChange = null;
-          updateUndoSystemControls();
-        }
-        return;
-      }
-      if (externalChange?.markdown === inspected.markdown) return;
-      externalChange = inspected;
-      updateUndoSystemControls();
-      app.notifications.show("warning", "File changed externally", [{ value: fileHandle.name }, " changed on disk. Choose Reload or Overwrite."]);
+      applyExternalInspection(inspected);
     } catch (error) {
-      if (isMissingFile(error)) {
-        const errorKey = `deleted:${fileHandle.name}`;
-        if (errorKey !== lastExternalCheckError) {
-          lastExternalCheckError = errorKey;
-          externalChange = null;
-          updateUndoSystemControls();
-          app.notifications.show("error", "File deleted", [{ value: fileHandle.name }, " was deleted from disk. Your work remains open."], undefined, [{ value: fileHandle.name }, " was deleted from disk. Your work remains open."], "MDM-102");
-        }
-        return;
-      }
-      if (error instanceof Error && error.message !== lastExternalCheckError) {
-        lastExternalCheckError = error.message;
-        app.notifications.show("error", "File check", "External file changes could not be checked.", undefined, `External changes could not be checked: ${error.message}`, "MDM-103");
-      }
+      if (current()) reportFileCheckError(error, handle);
     } finally {
-      checkingExternal = false;
+      if (checkingExternal === check) checkingExternal = null;
     }
   }
 
@@ -280,6 +350,10 @@ window.MDManager = window.MDManager || {};
     try {
       const viewState = app.interactions.getViewState();
       const reloadedProject = app.markdown.parse(externalChange.markdown);
+      fileSession++;
+      fileOperationRevision++;
+      checkingExternal = null;
+      lastExternalCheckError = "";
       project = reloadedProject;
       serializedMarkdown = app.markdown.serialize(reloadedProject);
       savedMarkdown = serializedMarkdown;

@@ -774,5 +774,12 @@ window.MDManager = window.MDManager || {};
     if (event.target === featureDialog) closeFeature();
   });
 
-  app.editor = { open, openFeature };
+  app.editor = {
+    open,
+    openFeature,
+    close() {
+      if (dialog.open) close();
+      if (featureDialog.open) closeFeature();
+    }
+  };
 })(window.MDManager);

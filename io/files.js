@@ -125,10 +125,16 @@ window.MDManager = window.MDManager || {};
     return { handle, markdown, stamp: fileStamp(file) };
   }
 
-  /** @param {MDFileHandle | null} handle @param {string} markdown */
-  function save(handle, markdown) {
+  /** @param {MDFileHandle | null} handle @param {string} markdown @param {string} [expectedMarkdown] */
+  function save(handle, markdown, expectedMarkdown) {
     if (!handle) return Promise.resolve();
     const operation = writeQueue.catch(() => {}).then(async () => {
+      if (expectedMarkdown !== undefined) {
+        const inspected = await inspect(handle);
+        if (inspected.markdown !== expectedMarkdown) {
+          throw Object.assign(new Error("The file changed before it could be saved."), { name: "FileConflictError", ...inspected });
+        }
+      }
       const writable = await handle.createWritable();
       await writable.write(markdown);
       await writable.close();

@@ -46,7 +46,7 @@ window.MDManager = window.MDManager || {};
 
   /** @param {HTMLElement} title */
   function titleStyle(title) {
-    const type = title.classList.contains("release-title") ? "feature" : title.classList.contains("backlog-title") ? "backlog" : title.classList.contains("archive-feature-title") ? "archive" : "task";
+    const type = title.classList.contains("release-title") ? "feature" : title.classList.contains("backlog-title") ? "backlog" : title.classList.contains("archive-feature-title") ? "archive" : title.classList.contains("archive-popover-title") ? "archive-popover" : "task";
     const key = `${layoutKey()}|${type}`;
     if (!titleStyleCache.has(key)) {
       const style = getComputedStyle(title);
@@ -98,14 +98,17 @@ window.MDManager = window.MDManager || {};
 
   /** @param {Iterable<HTMLElement>} [targets] */
   function fitTitles(targets) {
-    const titles = targets ? [...targets] : /** @type {HTMLElement[]} */ ([...document.querySelectorAll(".release-title, .card-title, .backlog-title, .archive-feature-title")]);
+    const titles = targets ? [...targets] : /** @type {HTMLElement[]} */ ([...document.querySelectorAll(".release-title, .card-title, .backlog-title, .archive-feature-title, .archive-popover-title")]);
     const values = titles.map(title => {
-      if (title.closest("[hidden]")) return title.dataset.fullTitle;
+      if (title.closest("[hidden]") || title.classList.contains("title-hover")) return title.dataset.fullTitle;
       const style = titleStyle(title);
       const available = title.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
       return fittedTitle(title.dataset.fullTitle || "", available, style);
     });
-    titles.forEach((title, index) => title.querySelector(".title-text").textContent = values[index]);
+    titles.forEach((title, index) => {
+      const text = title.querySelector(".title-text");
+      if (text.textContent !== values[index]) text.textContent = values[index];
+    });
   }
 
   /** @param {HTMLElement} title */
@@ -114,6 +117,7 @@ window.MDManager = window.MDManager || {};
     text.textContent = title.dataset.fullTitle || "";
     title.classList.add("title-hover");
     requestAnimationFrame(() => {
+      if (!title.isConnected || !title.classList.contains("title-hover")) return;
       const style = getComputedStyle(title);
       const availableWidth = title.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
       const overflow = Math.ceil(text.scrollWidth - availableWidth);
@@ -156,13 +160,74 @@ window.MDManager = window.MDManager || {};
 
   const archiveGridStrides = [1, 2, 3, 4, 5, 7, 10, 14, 20, 28, 40, 60];
   const archiveGridTickCache = new WeakMap();
+  /** @type {WeakMap<HTMLElement, Map<number, {x: number, width: number}>>} */
+  const archiveGridLineCache = new WeakMap();
+
+  /** @param {HTMLElement} timeline @param {number} day */
+  function archiveGridLine(timeline, day) {
+    return archiveGridLineCache.get(timeline)?.get(day);
+  }
+
+  /** @param {HTMLElement} timeline @param {number} plotWidth */
+  function applyArchiveCollisions(timeline, plotWidth) {
+    // Use the shared percentage geometry, including the short-range mouse hit area. No DOM
+    // measurement is needed here; this pass only runs when the plot width/DPR changed.
+    for (const lane of timeline.querySelectorAll(".archive-date-scale")) {
+      const marks = /** @type {HTMLElement[]} */ ([...lane.querySelectorAll(".archive-active-segment,.archive-date-point")]);
+      const intervals = marks.map(mark => {
+        const point = mark.classList.contains("archive-date-point");
+        const width = point ? 12.8 : parseFloat(mark.style.getPropertyValue("--archive-width")) / 100 * plotWidth;
+        const center = parseFloat(mark.style.getPropertyValue("--archive-position")) / 100 * plotWidth + (point ? 0 : width / 2);
+        return { mark, width, center, start: center - (point ? 6.4 : 12), end: center + (point ? 6.4 : 12), point };
+      }).filter(item => item.point || item.width < 12).sort((a, b) => a.start - b.start || a.end - b.end);
+      /** @type {Array<{start: number, end: number, items: typeof intervals}>} */
+      const groups = [];
+      for (const item of intervals) {
+        const group = groups.at(-1);
+        if (group && item.start <= group.end) {
+          group.end = Math.max(group.end, item.end);
+          group.items.push(item);
+        } else groups.push({ start: item.start, end: item.end, items: [item] });
+      }
+      for (const mark of marks) {
+        mark.classList.remove("archive-collision-member", "archive-collision-group");
+        mark.querySelector(".archive-collision-hit")?.remove();
+        mark.querySelector(".archive-mark-count")?.remove();
+        const label = /** @type {HTMLElement} */ (mark.querySelector(".archive-object-label"));
+        label.dataset.originalLabel ??= label.textContent || "";
+        if (label.textContent !== label.dataset.originalLabel) label.textContent = label.dataset.originalLabel;
+      }
+      for (const group of groups) {
+        if (group.items.length < 2) continue;
+        const representative = group.items[0];
+        const origin = representative.center - representative.width / 2;
+        const hitStart = Math.max(-8, group.start);
+        const hitEnd = Math.min(plotWidth + 8, group.end);
+        const mark = representative.mark;
+        mark.classList.add("archive-collision-group");
+        mark.style.setProperty("--archive-collision-left", `${hitStart - origin}px`);
+        mark.style.setProperty("--archive-collision-width", `${hitEnd - hitStart}px`);
+        mark.style.setProperty("--archive-collision-center", `${Math.max(8, Math.min(plotWidth - 8, (group.start + group.end) / 2)) - origin}px`);
+        const hit = document.createElement("span");
+        hit.className = "archive-collision-hit";
+        const count = document.createElement("span");
+        count.className = "archive-mark-count";
+        count.textContent = String(group.items.length);
+        mark.append(hit, count);
+        const label = /** @type {HTMLElement} */ (mark.querySelector(".archive-object-label"));
+        label.textContent = group.items.map(item => item.mark.dataset.archiveDateLabel || item.mark.querySelector(".archive-object-label").textContent).join("\n");
+        for (const item of group.items.slice(1)) item.mark.classList.add("archive-collision-member");
+      }
+    }
+  }
 
   /** @param {HTMLElement} timeline */
   function applyArchiveDateGrid(timeline) {
     const axis = /** @type {HTMLElement | null} */ (timeline.querySelector(".archive-date-axis"));
     const plot = /** @type {HTMLElement | null} */ (axis?.querySelector(".archive-axis-plot"));
     if (!axis || !plot) return;
-    const plotWidth = plot.getBoundingClientRect().width;
+    const plotBounds = plot.getBoundingClientRect();
+    const plotWidth = plotBounds.width;
     const pixelRatio = window.devicePixelRatio || 1;
     if (!plotWidth) return;
     const content = /** @type {HTMLElement | null} */ (timeline.closest(".archive-content"));
@@ -171,7 +236,8 @@ window.MDManager = window.MDManager || {};
     const horizontalScrollMaximum = content ? Math.max(0, content.scrollWidth - content.offsetWidth) : 0;
     const hasHorizontalOverflow = horizontalScrollMaximum > 1;
     const horizontalScrollLeft = content?.scrollLeft || 0;
-    const signature = `${Math.round(plotWidth * pixelRatio)}:${pixelRatio}`;
+    const paintPhase = plotBounds.left - Math.floor(plotBounds.left);
+    const signature = `${plotWidth}:${paintPhase}:${pixelRatio}`;
     content?.classList.toggle("archive-horizontal-overflow", hasHorizontalOverflow);
     content?.classList.toggle("archive-can-scroll-right", horizontalScrollLeft < horizontalScrollMaximum - 1);
     if (timeline.dataset.archiveDateLayout === signature) return;
@@ -185,12 +251,15 @@ window.MDManager = window.MDManager || {};
       }
       archiveGridTickCache.set(axis, ticks);
     }
-    const snap = (/** @type {number} */ value) => snapToDevicePixel(value, pixelRatio);
+    const snap = (/** @type {number} */ value) => snapToDevicePixel(value + plotBounds.left, pixelRatio) - plotBounds.left;
+    const minorStroke = Math.max(1, Math.round(pixelRatio)) / pixelRatio;
+    const majorStroke = Math.max(1, Math.round(2 * pixelRatio)) / pixelRatio;
+    const snapStroke = (/** @type {number} */ value, /** @type {number} */ width) => snap(value - width / 2) + width / 2;
     const positioned = /** @type {Array<{position: number, level: string, labelPosition: number, x: number}>} */ (ticks.map((/** @type {[number, string, number]} */ tick) => ({
       position: tick[0],
       level: tick[1],
       labelPosition: tick[2],
-      x: snap(tick[0] / 100 * plotWidth)
+      x: snapStroke(tick[0] / 100 * plotWidth, tick[1] === "major" ? majorStroke : minorStroke)
     })));
     const majors = positioned.filter(tick => tick.level === "major").sort((left, right) => left.x - right.x);
     const minors = positioned.filter(tick => tick.level === "minor").sort((left, right) => left.x - right.x);
@@ -211,8 +280,6 @@ window.MDManager = window.MDManager || {};
     // boundaries; a date-anchored one needs more room before another arbitrary date earns a line.
     const minimumPitch = perCell > 1 ? 52 : 96;
     const stride = strides.find(value => basePitch * value >= minimumPitch) || strides.at(-1) || 1;
-    const minorStroke = Math.max(1, Math.round(pixelRatio)) / pixelRatio;
-    const majorStroke = Math.max(1, Math.round(2 * pixelRatio)) / pixelRatio;
     const selectedPitch = basePitch * stride;
     const clearance = selectedPitch / 2;
     const visibleMajors = majors.filter(tick => tick.x >= clearance && tick.x <= plotWidth - clearance);
@@ -224,12 +291,32 @@ window.MDManager = window.MDManager || {};
       // A subdivision sits inside its cell by construction and can never coincide with a cell
       // boundary, so it does not need the clearance a free-running date line does.
       && (perCell > 1 || visibleMajors.every(major => Math.abs(major.x - tick.x) >= clearance)));
-    const endpointInset = majorStroke / 2;
-    const segmentMeasurements = [...timeline.querySelectorAll(".archive-active-segment")].map(segment => ({ segment, width: segment.getBoundingClientRect().width }));
+    const endpointInset = snapStroke(majorStroke / 2, majorStroke);
+    const segments = /** @type {HTMLElement[]} */ ([...timeline.querySelectorAll(".archive-active-segment,.archive-pause-segment")]);
+    // Chromium snaps rounded CSS boxes before device scaling. Whole CSS-pixel boundaries keep
+    // both caps on the same paint phase at DPR 1 and 2, including fractional plot origins.
+    const snapBand = (/** @type {number} */ value) => Math.round(value + plotBounds.left) - plotBounds.left;
+    const segmentGeometry = segments.map(segment => {
+      const left = parseFloat(segment.style.getPropertyValue("--archive-position")) / 100 * plotWidth;
+      const width = parseFloat(segment.style.getPropertyValue("--archive-width")) / 100 * plotWidth;
+      const shortLeft = Math.max(0, Math.min(plotWidth - 10, left + width / 2 - 5));
+      return { segment, left: snapBand(left), width: snapBand(left + width) - snapBand(left), shortLeft: snapBand(shortLeft) - snapBand(left) };
+    });
+
+    const startDay = Number(axis.dataset.archivePlotStart);
+    const spanDays = Number(axis.dataset.archivePlotSpan);
+    /** @type {Map<number, {x: number, width: number}>} */
+    const gridLines = new Map();
+    for (const tick of [...visibleMinors, ...visibleMajors]) {
+      const day = startDay + tick.position / 100 * spanDays;
+      if (Math.abs(day - Math.round(day)) < .000001) gridLines.set(Math.round(day), { x: tick.x, width: tick.level === "major" ? majorStroke : minorStroke });
+    }
+    gridLines.set(startDay, { x: endpointInset, width: majorStroke });
+    archiveGridLineCache.set(timeline, gridLines);
 
     timeline.style.setProperty("--archive-grid-minor-width", `${minorStroke}px`);
     timeline.style.setProperty("--archive-grid-major-width", `${majorStroke}px`);
-    for (const svg of timeline.querySelectorAll(".archive-axis-grid,.archive-date-grid")) svg.setAttribute("viewBox", `0 0 ${plotWidth} 100`);
+    for (const svg of timeline.querySelectorAll(".archive-axis-grid,.archive-date-grid,.archive-crosshair-track")) svg.setAttribute("viewBox", `0 0 ${plotWidth} 100`);
     const pathData = (/** @type {Array<{x: number}>} */ values, /** @type {number} */ fromY, /** @type {number} */ toY) => values.map(tick => `M${tick.x} ${fromY}V${toY}`).join("");
     const endpointData = (/** @type {number} */ fromY, /** @type {number} */ toY) => `M${endpointInset} ${fromY}V${toY}`;
     // The rule sits at y 52 and is drawn last, so a vertical that starts at 51 has its end tucked
@@ -265,17 +352,32 @@ window.MDManager = window.MDManager || {};
     // A label belongs to a ruler line, so it appears exactly where one was kept. Deriving both from
     // the same selection stops labels from outnumbering the lines they name.
     const ruledX = new Set([...visibleMinors, ...visibleMajors].map(tick => tick.x));
+    const ruledPositions = new Map([...visibleMinors, ...visibleMajors].map(tick => [tick.position, tick.x]));
     // A label always sits on a line, but a line does not always carry a label: a daily ruler is
     // wanted while a date every day is not, so labels keep their own spacing on top of that.
     let previousLabelX = Number.NEGATIVE_INFINITY;
     for (const label of /** @type {HTMLElement[]} */ ([...timeline.querySelectorAll(".archive-grid-label")])) {
-      const x = snap(Number(label.dataset.archiveLabelPosition) / 100 * plotWidth);
-      const visible = ruledX.has(x) && x >= 30 && x <= plotWidth - 30 && x - previousLabelX >= 56;
+      const position = Number(label.dataset.archiveLabelPosition);
+      const x = ruledPositions.get(position) ?? snap(position / 100 * plotWidth);
+      const visible = ruledX.has(x) && x >= 38 && x <= plotWidth - 38 && x - previousLabelX >= 78;
       label.hidden = !visible;
       label.style.left = `${x}px`;
       if (visible) previousLabelX = x;
     }
-    segmentMeasurements.forEach(({ segment, width }) => segment.classList.toggle("archive-short-segment", width < 12));
+    for (const { segment, left, width, shortLeft } of segmentGeometry) {
+      segment.style.setProperty("--archive-render-left", `${left}px`);
+      segment.style.setProperty("--archive-render-width", `${width}px`);
+      if (segment.classList.contains("archive-active-segment")) {
+        segment.classList.toggle("archive-short-segment", width < 12);
+        segment.style.setProperty("--archive-short-left", `${shortLeft}px`);
+      }
+    }
+    for (const point of /** @type {HTMLElement[]} */ ([...timeline.querySelectorAll(".archive-date-point")])) {
+      const position = parseFloat(point.style.getPropertyValue("--archive-position")) / 100;
+      const day = Math.round(startDay + position * spanDays);
+      point.style.setProperty("--archive-point-center", `${gridLines.get(day)?.x ?? position * plotWidth}px`);
+    }
+    applyArchiveCollisions(timeline, plotWidth);
     timeline.dataset.archiveDateLayout = signature;
   }
 
@@ -358,5 +460,5 @@ window.MDManager = window.MDManager || {};
     layout();
   });
 
-  app.layout = { reset, statusChanged, equalizeReleaseHeaders, layout, contentOverflowChanged, fitTitles, startTitleScroll, stopTitleScroll };
+  app.layout = { reset, statusChanged, equalizeReleaseHeaders, layout, contentOverflowChanged, fitTitles, startTitleScroll, stopTitleScroll, archiveGridLine };
 })(window.MDManager);
