@@ -69,6 +69,166 @@ window.MDManager = window.MDManager || {};
   const clipboardResizeObserver = new ResizeObserver(scheduleClipboardPosition);
   const clipboardMutationObserver = new MutationObserver(scheduleClipboardPosition);
   let clipboardTracking = false;
+  const statisticsDialog = /** @type {HTMLDialogElement} */ (document.getElementById("statisticsDialog"));
+  const chartDetails = document.getElementById("chartDetails");
+  /** @type {MDStatisticsCharts | null} */
+  let statisticsData = null;
+  /** @type {Array<{element: Element, kind: "scatter" | "histogram", width: number, height: number}>} */
+  let statisticsPlots = [];
+  /** @type {Element | null} */
+  let chartMark = null;
+  /** @type {number | null} */
+  let statisticsFrame = null;
+  /** @type {number | null} */
+  let chartHideTimer = null;
+  const statisticsObserver = new ResizeObserver(scheduleStatisticsLayout);
+
+  function hideChartDetails() {
+    if (chartHideTimer !== null) window.clearTimeout(chartHideTimer);
+    chartHideTimer = null;
+    chartMark?.setAttribute("aria-expanded", "false");
+    chartMark?.removeAttribute("aria-describedby");
+    chartMark = null;
+    chartDetails.hidden = true;
+  }
+
+  function layoutStatistics() {
+    statisticsFrame = null;
+    if (!statisticsDialog.open || !statisticsData) return;
+    // Read both plots together, then render only the geometries that actually changed.
+    const sizes = statisticsPlots.map(plot => ({ plot, width: Math.floor(plot.element.clientWidth), height: Math.floor(plot.element.clientHeight) }));
+    const resized = sizes.filter(size => size.width !== size.plot.width || size.height !== size.plot.height);
+    if (resized.length) {
+      hideChartDetails();
+      for (const { plot, width, height } of resized) {
+        plot.width = width;
+        plot.height = height;
+        app.render.statisticsPlot(statisticsData, plot.kind, width, height, plot.element);
+      }
+      return;
+    }
+    if (!chartMark || chartDetails.hidden) return;
+    const anchor = chartMark.getBoundingClientRect();
+    const popup = chartDetails.getBoundingClientRect();
+    const bounds = statisticsDialog.getBoundingClientRect();
+    const margin = 12;
+    const left = Math.max(bounds.left + margin, Math.min(anchor.right + 10, bounds.right - popup.width - margin));
+    const top = Math.max(bounds.top + margin, Math.min(anchor.top, bounds.bottom - popup.height - margin));
+    chartDetails.style.left = `${Math.round(left)}px`;
+    chartDetails.style.top = `${Math.round(top)}px`;
+    chartDetails.classList.add("is-positioned");
+  }
+
+  function scheduleStatisticsLayout() {
+    if (statisticsDialog.open && statisticsFrame === null) statisticsFrame = requestAnimationFrame(layoutStatistics);
+  }
+
+  /** @param {Element} mark */
+  function showChartDetails(mark) {
+    if (!statisticsData || !statisticsDialog.open) return;
+    if (chartHideTimer !== null) window.clearTimeout(chartHideTimer);
+    chartHideTimer = null;
+    if (chartMark === mark) return;
+    hideChartDetails();
+    chartMark = mark;
+    app.render.chartDetails(statisticsData, mark);
+    mark.setAttribute("aria-expanded", "true");
+    mark.setAttribute("aria-describedby", "chartDetails");
+    chartDetails.classList.remove("is-positioned");
+    chartDetails.hidden = false;
+    scheduleStatisticsLayout();
+  }
+
+  function scheduleChartHide() {
+    if (chartHideTimer !== null) window.clearTimeout(chartHideTimer);
+    chartHideTimer = window.setTimeout(() => {
+      chartHideTimer = null;
+      if (chartDetails.matches(":hover") || chartDetails.contains(document.activeElement)) return;
+      const focused = document.activeElement?.closest(".chart-mark");
+      if (focused) showChartDetails(focused);
+      else hideChartDetails();
+    }, 120);
+  }
+
+  function openStatistics() {
+    if (!project || document.body.classList.contains("start-view") || document.body.classList.contains("archive-view-active") || document.querySelector("dialog[open]")) return;
+    closeHelp();
+    closeViewMenu();
+    closeSaveMenu();
+    closeWorkspaceZoom();
+    hoveredElement = null;
+    if (!statisticsData) {
+      statisticsData = app.status.charts(project.features, (/** @type {MDTask} */ task) => app.render.taskContent(task).todos);
+      app.render.statistics(project, statisticsData);
+      statisticsPlots = Array.from(document.querySelectorAll("#statisticsContent .statistics-plot"), element => ({ element, kind: /** @type {"scatter" | "histogram"} */ (element.dataset.chart), width: 0, height: 0 }));
+    }
+    statisticsDialog.showModal();
+    statisticsDialog.focus({ preventScroll: true });
+    for (const plot of statisticsPlots) statisticsObserver.observe(plot.element);
+    scheduleStatisticsLayout();
+  }
+
+  function invalidateStatistics() {
+    if (statisticsDialog.open) statisticsDialog.close();
+    hideChartDetails();
+    statisticsObserver.disconnect();
+    if (statisticsFrame !== null) cancelAnimationFrame(statisticsFrame);
+    statisticsFrame = null;
+    statisticsData = null;
+    statisticsPlots = [];
+    document.getElementById("statisticsContent").replaceChildren();
+    chartDetails.replaceChildren();
+  }
+
+  statisticsDialog.addEventListener("close", () => {
+    hideChartDetails();
+    statisticsObserver.disconnect();
+    if (statisticsFrame !== null) cancelAnimationFrame(statisticsFrame);
+    statisticsFrame = null;
+    if (!document.body.classList.contains("start-view")) document.querySelector("#projectStats .stats-expand")?.focus({ preventScroll: true });
+  });
+  document.getElementById("closeStatistics").addEventListener("click", () => statisticsDialog.close());
+  statisticsDialog.addEventListener("click", event => {
+    if (event.target === statisticsDialog) statisticsDialog.close();
+  });
+  statisticsDialog.addEventListener("pointerover", event => {
+    const mark = eventElement(event).closest(".chart-mark");
+    if (mark) showChartDetails(mark);
+    else if (chartDetails.contains(event.target instanceof Node ? event.target : null) && chartHideTimer !== null) {
+      window.clearTimeout(chartHideTimer);
+      chartHideTimer = null;
+    }
+  });
+  statisticsDialog.addEventListener("pointerout", event => {
+    if (eventElement(event).closest(".chart-mark,.chart-details")) scheduleChartHide();
+  });
+  statisticsDialog.addEventListener("focusin", event => {
+    const mark = eventElement(event).closest(".chart-mark");
+    if (mark) showChartDetails(mark);
+    else if (!chartDetails.contains(event.target instanceof Node ? event.target : null)) hideChartDetails();
+  });
+  statisticsDialog.addEventListener("keydown", event => {
+    if (event.key === "Tab") {
+      const first = document.getElementById("closeStatistics");
+      const last = !chartDetails.hidden ? chartDetails : statisticsDialog.querySelector(`[data-chart-bin="${(statisticsData?.bins.length || 0) - 1}"]`) || first;
+      if ((event.shiftKey && (document.activeElement === first || document.activeElement === statisticsDialog)) || (!event.shiftKey && document.activeElement === last)) {
+        event.preventDefault();
+        (/** @type {HTMLElement | SVGElement} */ (event.shiftKey ? last : first)).focus({ preventScroll: true });
+        return;
+      }
+    }
+    const mark = eventElement(event).closest(".chart-mark");
+    if (mark && (event.key === "Enter" || event.key === " ")) {
+      event.preventDefault();
+      showChartDetails(mark);
+    }
+  });
+  statisticsDialog.addEventListener("scroll", event => {
+    if (chartDetails.contains(event.target instanceof Node ? event.target : null)) return;
+    const focused = document.activeElement?.closest(".chart-mark");
+    if (focused) { showChartDetails(focused); scheduleStatisticsLayout(); }
+    else hideChartDetails();
+  }, true);
 
   /** @param {MDViewState} viewState @returns {MDViewState} */
   function copyViewState(viewState) {
@@ -1091,6 +1251,7 @@ window.MDManager = window.MDManager || {};
   /** @param {MDProject} nextProject @param {(action: MDUndoAction, options?: {render?: boolean}) => boolean} onChanged */
   function setProject(nextProject, onChanged) {
     if (project !== nextProject) app.editor.close();
+    invalidateStatistics();
     hoveredElement = null;
     hideArchiveCrosshair();
     hideArchiveObjectLabel();
@@ -1593,6 +1754,10 @@ window.MDManager = window.MDManager || {};
   }, true);
   document.addEventListener("keydown", event => {
     const shortcut = (event.ctrlKey || event.metaKey) && !event.altKey;
+    if (statisticsDialog.open) {
+      if (shortcut && ["s", "o", "v", "z", "y"].includes(event.key.toLowerCase())) event.preventDefault();
+      return;
+    }
     const target = eventElement(event);
     // Focus can linger on a control inside a dialog that has already closed. Such a
     // control is not an active text field, and treating it as one would swallow every
@@ -1671,6 +1836,7 @@ window.MDManager = window.MDManager || {};
     (/** @type {HTMLElement} */ (event.currentTarget)).setAttribute("aria-pressed", String(active));
   });
   document.getElementById("projectStats").addEventListener("click", event => {
+    if (eventElement(event).closest(".stats-expand")) { event.stopPropagation(); openStatistics(); return; }
     if (!eventElement(event).closest(".stats-close")) return;
     document.body.classList.add("hide-stats");
     document.getElementById("toggleStats").setAttribute("aria-pressed", "false");
@@ -1701,7 +1867,7 @@ window.MDManager = window.MDManager || {};
     if (!target.closest(".save-menu")) closeSaveMenu();
     if (!target.closest(".help-menu")) closeHelp();
     if (!target.closest(".workspace-zoom")) closeWorkspaceZoom();
-    if (!target.closest(".release,.card,.archive-feature,.archive-feature-popover,.task-editor-dialog,.feature-editor-dialog")) {
+    if (!target.closest(".release,.card,.archive-feature,.archive-feature-popover,.task-editor-dialog,.feature-editor-dialog,.statistics-dialog")) {
       hoveredElement = null;
       if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     }
@@ -1722,6 +1888,7 @@ window.MDManager = window.MDManager || {};
       reducedMotion: () => reducedMotion.matches
     },
     setProject,
+    invalidateStatistics,
     clearClipboard() { setClipboard([]); },
     startClock,
     getViewState: captureViewState,

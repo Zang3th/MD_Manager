@@ -100,6 +100,32 @@ window.MDManager = window.MDManager || {};
     return { value: source, time, year, month, day };
   }
 
+  /** @param {Array<{startDay: number, endExclusive: number}>} activity */
+  function mergedActivity(activity) {
+    activity.sort((left, right) => left.startDay - right.startDay || left.endExclusive - right.endExclusive);
+    /** @type {Array<{startDay: number, endExclusive: number}>} */
+    const unions = [];
+    for (const item of activity) {
+      const current = unions.at(-1);
+      if (current && item.startDay <= current.endExclusive) current.endExclusive = Math.max(current.endExclusive, item.endExclusive);
+      else unions.push({ ...item });
+    }
+    return unions;
+  }
+
+  /** @param {MDFeature} feature @returns {number | null} */
+  function recordedFeatureDays(feature) {
+    if (!feature.dates.length) return null;
+    const activity = [];
+    for (const range of feature.dates) {
+      const from = parsedArchiveDate(range.from);
+      const to = range.to.trim() ? parsedArchiveDate(range.to) : from;
+      if (!from || !to || to.time < from.time) return null;
+      activity.push({ startDay: from.time / dayMs, endExclusive: to.time / dayMs + 1 });
+    }
+    return mergedActivity(activity).reduce((total, range) => total + range.endExclusive - range.startDay, 0);
+  }
+
   /** @param {string} value @returns {number[]} */
   function versionParts(value) {
     const match = value.trim().match(/^v?(\d+(?:\.\d+)*)(?:[-+].*)?$/i);
@@ -432,20 +458,10 @@ window.MDManager = window.MDManager || {};
       // that instant, so anchoring a single day to it as well puts both on the ruler line that
       // carries the same date, and stops one calendar date from rendering in two places.
       for (const point of lane.points) point.position = position(point.day);
-      const activity = [
+      const activeUnions = mergedActivity([
         ...lane.ranges.map(range => ({ startDay: range.startDay, endExclusive: range.endExclusive })),
         ...lane.points.map(point => ({ startDay: point.day, endExclusive: point.day + 1 }))
-      ].sort((left, right) => left.startDay - right.startDay || left.endExclusive - right.endExclusive);
-      /** @type {Array<{startDay: number, endExclusive: number}>} */
-      const activeUnions = [];
-      for (const item of activity) {
-        const current = activeUnions.at(-1);
-        if (current && item.startDay <= current.endExclusive) {
-          if (item.endExclusive > current.endExclusive) {
-            current.endExclusive = item.endExclusive;
-          }
-        } else activeUnions.push({ ...item });
-      }
+      ]);
       for (let index = 0; index < activeUnions.length - 1; index += 1) {
         const previous = activeUnions[index];
         const next = activeUnions[index + 1];
@@ -483,7 +499,7 @@ window.MDManager = window.MDManager || {};
     return boundary < 0 ? project.features.length : boundary;
   }
 
-  app.archive = { timeline: archiveTimeline, displayDate: archiveDisplayDate, dayLabel: archiveDayLabel };
+  app.archive = { timeline: archiveTimeline, displayDate: archiveDisplayDate, dayLabel: archiveDayLabel, recordedDays: recordedFeatureDays };
   app.domain = {
     featureComplete,
     canArchiveFeature,

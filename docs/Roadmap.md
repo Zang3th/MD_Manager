@@ -93,7 +93,7 @@ Stats und Backlog bleiben davon unberührt.
 #Date
 - 17.08.26 - 20.08.26
 - 29.08.26 - 02.09.26
-- 30.09.26 - TBD
+- 30.09.26 - 05.10.26
 
 ### Bugs und Verbesserungen
 
@@ -119,11 +119,11 @@ Stats und Backlog bleiben davon unberührt.
 
 ### Diagramme
 
-- [ ] Separater Button öffnet Fullscreen-Anzeige der Statistiken
-- [ ] Zeigt übersichtlich alle Infos des Stats-Fensters an
-- [ ] Zusätzlich darunter zwei nebeneinanderstehende Diagramme
-- [ ] "Umfang gegen Dauer" als Streudiagramm
-- [ ] "Dauerverteilung" als Histogramm
+- [x] ~Separater Button öffnet Fullscreen-Anzeige der Statistiken~
+- [x] ~Zeigt übersichtlich alle Infos des Stats-Fensters an~
+- [x] ~Zusätzlich darunter zwei nebeneinanderstehende Diagramme~
+- [x] ~"Umfang gegen Dauer" als Streudiagramm~
+- [x] ~"Dauerverteilung" als Histogramm~
 
 ### Release
 

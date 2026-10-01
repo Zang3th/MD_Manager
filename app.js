@@ -192,6 +192,7 @@ window.MDManager = window.MDManager || {};
       updateUndoSystemControls();
       return false;
     }
+    app.interactions.invalidateStatistics();
     serializedMarkdown = currentMarkdown();
     if (options.render === false) updateUndoSystemControls();
     else render(action.afterViewState);

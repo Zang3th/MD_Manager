@@ -457,6 +457,16 @@
   <template id="clipboardIndicatorTemplate"><span class="clipboard-indicator" role="status" aria-label="Copied to clipboard"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-clipboard"></use></svg></span></template>
   <section class="notifications" id="notifications" aria-label="Notifications" aria-live="polite"></section>
   <div class="app-tooltip" id="appTooltip" role="tooltip" hidden></div>
+  <dialog class="statistics-dialog" id="statisticsDialog" aria-labelledby="statisticsTitle" tabindex="-1">
+    <div class="statistics-panel">
+      <header class="task-editor-header statistics-dialog-header">
+        <div class="statistics-heading"><h2 id="statisticsTitle">Statistics</h2><span id="statisticsProject"></span></div>
+        <button class="task-editor-close" id="closeStatistics" type="button" aria-label="Close expanded statistics" data-tooltip="Close statistics"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-close"></use></svg></button>
+      </header>
+      <div class="statistics-content" id="statisticsContent"></div>
+      <section class="chart-details" id="chartDetails" aria-label="Chart details" tabindex="0" hidden></section>
+    </div>
+  </dialog>
   <dialog class="task-editor-dialog" id="taskEditor" aria-labelledby="taskEditorLocation" tabindex="-1">
     <form class="task-editor" id="taskEditorForm" method="dialog" spellcheck="false">
       <header class="task-editor-header">

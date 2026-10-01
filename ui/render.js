@@ -11,6 +11,7 @@ window.MDManager = window.MDManager || {};
   const pinIcon = '<svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-pin"></use></svg>';
   const featureWidths = [380, 460, 540];
   let taskContentCache = new WeakMap();
+  let statisticsTable = "";
   /** @type {WeakMap<MDFeature, MDArchiveTimelineLane>} */
   let archiveLaneByFeature = new WeakMap();
 
@@ -358,7 +359,80 @@ window.MDManager = window.MDManager || {};
     const counts = app.status.statistics(project.features, todos);
     /** @param {string} label @param {{done: number, active: number, open: number, backlog: number, archive: number}} counts */
     const row = (label, counts) => `<tr><th scope="row">${label}</th><td class="archive-stat">${counts.archive}</td><td class="done">${counts.done}</td><td class="active">${counts.active}</td><td class="open">${counts.open}</td><td class="backlog-stat">${counts.backlog}</td></tr>`;
-    return `<div class="stats-header"><span class="stats-title">Statistics</span><button class="stats-close" type="button" aria-label="Close statistics" data-tooltip="Close statistics">${deleteIcon}</button></div><table><thead><tr><th></th><th class="archive-stat" scope="col">Archive</th><th class="done" scope="col">Done</th><th class="active" scope="col">Active</th><th class="open" scope="col">Open</th><th class="backlog-stat" scope="col">Backlog</th></tr></thead><tbody>${row("Features", counts.features)}${row("Tasks", counts.tasks)}${row("Todos", counts.entries)}</tbody></table>`;
+    statisticsTable = `<table><thead><tr><th></th><th class="archive-stat" scope="col">Archive</th><th class="done" scope="col">Done</th><th class="active" scope="col">Active</th><th class="open" scope="col">Open</th><th class="backlog-stat" scope="col">Backlog</th></tr></thead><tbody>${row("Features", counts.features)}${row("Tasks", counts.tasks)}${row("Todos", counts.entries)}</tbody></table>`;
+    return `<div class="stats-header"><span class="stats-title">Statistics</span><div class="stats-actions"><button class="stats-expand" type="button" aria-label="Expand statistics" aria-haspopup="dialog" aria-controls="statisticsDialog" data-tooltip="Expand statistics"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-zoom"></use></svg></button><button class="stats-close" type="button" aria-label="Close statistics" data-tooltip="Close statistics">${deleteIcon}</button></div></div>${statisticsTable}`;
+  }
+
+  /** @param {MDProject} project @param {MDStatisticsCharts} data */
+  function renderStatistics(project, data) {
+    document.getElementById("statisticsProject").textContent = project.title;
+    const sample = `${data.count} ${data.count === 1 ? "feature" : "features"} analyzed`;
+    const excluded = data.excluded ? `<span class="statistics-excluded">${data.excluded} excluded: missing or invalid dates</span>` : "";
+    const empty = '<div class="statistics-chart-empty"><span>No duration data yet</span><p>Complete a feature with valid dates to see it here.</p></div>';
+    document.getElementById("statisticsContent").innerHTML = `<section class="statistics-overview" aria-labelledby="statisticsOverviewTitle"><div class="statistics-section-heading"><h3 id="statisticsOverviewTitle">Project overview</h3></div><div class="statistics-table">${statisticsTable}</div></section>
+      <div class="statistics-sample"><span class="statistics-sample-count">${sample}</span>${excluded}</div>
+      <div class="statistics-chart-scroll"><div class="statistics-charts">
+        <section class="statistics-chart statistics-scatter" aria-labelledby="scatterTitle"><header><h3 id="scatterTitle">Todo Count vs. Recorded Days</h3></header>${data.count ? '<div class="statistics-plot" data-chart="scatter"></div>' : empty}</section>
+        <section class="statistics-chart statistics-histogram" aria-labelledby="histogramTitle"><header><h3 id="histogramTitle">Number of features by duration</h3></header>${data.count ? '<div class="statistics-plot" data-chart="histogram"></div>' : empty}</section>
+      </div></div>`;
+  }
+
+  /** @param {MDStatisticsCharts} data @param {"scatter" | "histogram"} kind @param {number} width @param {number} height @param {Element} container */
+  function renderStatisticsPlot(data, kind, width, height, container) {
+    const scatter = kind === "scatter";
+    const scale = scatter ? data.sizeScale : data.frequencyScale;
+    const left = Math.max(58, String(scale.max).length * 7.5 + 22);
+    const right = width - Math.max(30, String(scatter ? data.durationScale.max : data.bins.at(-1)?.to).length * 4);
+    const top = 24;
+    const bottom = height - 58;
+    const plotWidth = right - left;
+    const plotHeight = bottom - top;
+    const y = (/** @type {number} */ value) => bottom - value / scale.max * plotHeight;
+    let markup = scale.ticks.map(tick => `<g aria-hidden="true"><line class="chart-grid" x1="${left}" y1="${y(tick)}" x2="${right}" y2="${y(tick)}"/><text class="chart-tick" x="${left - 12}" y="${y(tick)}" text-anchor="end" dominant-baseline="central">${tick}</text></g>`).join("");
+    if (scatter) {
+      const x = (/** @type {number} */ value) => left + value / data.durationScale.max * plotWidth;
+      markup += data.durationScale.ticks.map(tick => `<g aria-hidden="true"><line class="chart-grid chart-grid-vertical" x1="${x(tick)}" y1="${top}" x2="${x(tick)}" y2="${bottom}"/><text class="chart-tick" x="${x(tick)}" y="${bottom + 24}" text-anchor="middle">${tick}</text></g>`).join("");
+      markup += data.points.map((point, index) => {
+        const count = point.titles.length;
+        const radius = count > 1 ? Math.max(9, String(count).length * 3.5 + 3) : 6;
+        const label = `${count === 1 ? point.titles[0] : `${count} features`}: ${point.size} ${point.size === 1 ? "todo" : "todos"}, ${point.days} ${point.days === 1 ? "day" : "days"}`;
+        return `<g class="chart-mark chart-point${count > 1 ? " chart-point-group" : ""}" role="button" tabindex="0" aria-label="${escapeHtml(label)}" aria-controls="chartDetails" aria-expanded="false" data-chart-point="${index}" transform="translate(${x(point.days)} ${y(point.size)})"><circle class="chart-hit" r="${Math.max(18, radius + 4)}"/><circle class="chart-point-halo" r="${radius + 4}"/><circle class="chart-point-dot" r="${radius}"/>${count > 1 ? `<text class="chart-point-count" text-anchor="middle" dominant-baseline="central">${count}</text>` : ""}</g>`;
+      }).join("");
+    } else {
+      const column = plotWidth / data.bins.length;
+      const labelLength = data.bins.reduce((length, bin) => Math.max(length, String(bin.from).length + (bin.from === bin.to ? 0 : String(bin.to).length + 1)), 0);
+      const labelStride = Math.max(1, Math.ceil((labelLength * 7.5 + 12) / column));
+      markup += data.bins.map((bin, index) => {
+        const start = left + index * column;
+        const label = bin.from === bin.to ? String(bin.from) : `${bin.from}–${bin.to}`;
+        return `<g class="chart-mark chart-bar" role="button" tabindex="0" aria-label="${label} ${bin.to === 1 ? "day" : "days"}: ${bin.count} ${bin.count === 1 ? "feature" : "features"}" aria-controls="chartDetails" aria-expanded="false" data-chart-bin="${index}"><rect class="chart-hit" x="${start}" y="${top}" width="${column}" height="${plotHeight}"/><rect class="chart-bar-fill" x="${start + 2}" y="${y(bin.count)}" width="${Math.max(1, column - 4)}" height="${bottom - y(bin.count)}" rx="3"/>${bin.count && String(bin.count).length * 7.5 < column - 4 ? `<text class="chart-bar-count" x="${start + column / 2}" y="${y(bin.count) - 9}" text-anchor="middle">${bin.count}</text>` : ""}${index % labelStride === 0 ? `<text class="chart-tick chart-bin-label" x="${start + column / 2}" y="${bottom + 24}" text-anchor="middle">${label}</text>` : ""}</g>`;
+      }).join("");
+    }
+    markup += `<g aria-hidden="true"><path class="chart-axis" d="M${left} ${top}V${bottom}H${right}"/><text class="chart-axis-label" x="${left + plotWidth / 2}" y="${height - 10}" text-anchor="middle">${scatter ? "Recorded Days" : "Duration (days)"}</text><text class="chart-axis-label" text-anchor="middle" transform="translate(16 ${top + plotHeight / 2}) rotate(-90)">${scatter ? "Todo Count" : "Features"}</text></g>`;
+    const focused = container.contains(document.activeElement) ? document.activeElement : null;
+    const point = focused?.getAttribute("data-chart-point");
+    const bin = focused?.getAttribute("data-chart-bin");
+    container.innerHTML = `<svg class="statistics-chart-svg" viewBox="0 0 ${width} ${height}" aria-label="${scatter ? "Todo Count vs. Recorded Days" : "Number of features by duration"}">${markup}</svg>`;
+    if (focused) {
+      const replacement = /** @type {SVGElement | null} */ (container.querySelector(point !== null ? `[data-chart-point="${point}"]` : `[data-chart-bin="${bin}"]`));
+      replacement?.focus({ preventScroll: true });
+    }
+  }
+
+  /** @param {MDStatisticsCharts} data @param {Element} mark */
+  function renderChartDetails(data, mark) {
+    const point = mark.getAttribute("data-chart-point");
+    const details = document.getElementById("chartDetails");
+    if (point !== null) {
+      const group = data.points[Number(point)];
+      const count = group.titles.length;
+      const titles = `<ul>${group.titles.map(title => `<li>${escapeHtml(title)}</li>`).join("")}</ul>`;
+      const header = count === 1 ? `<header>${titles}</header>` : `<header class="chart-group-header"><span class="chart-group-count">${count} features</span></header>`;
+      details.innerHTML = `${header}<dl><div><dt>Count</dt><dd>${group.size} ${group.size === 1 ? "todo" : "todos"}</dd></div><div><dt>Duration</dt><dd>${group.days} ${group.days === 1 ? "day" : "days"}</dd></div></dl>${count > 1 ? titles : ""}`;
+    } else {
+      const bin = data.bins[Number(mark.getAttribute("data-chart-bin"))];
+      details.innerHTML = `<dl><div><dt>Duration</dt><dd>${bin.from === bin.to ? bin.from : `${bin.from}–${bin.to}`} ${bin.to === 1 ? "day" : "days"}</dd></div><div><dt>Features</dt><dd>${bin.count}</dd></div></dl>`;
+    }
   }
 
   /** @param {MDProject} project @param {MDViewState | undefined} viewState @param {string} fileName @param {number} [featureWidth] */
@@ -523,6 +597,9 @@ window.MDManager = window.MDManager || {};
     saveError: showSaveError,
     featureWidth: setFeatureWidth,
     updateTodo,
+    statistics: renderStatistics,
+    statisticsPlot: renderStatisticsPlot,
+    chartDetails: renderChartDetails,
     // Rendering and the statistics panel already parse every non-ignored task, so this
     // memoised accessor lets the search index reuse that work instead of parsing the
     // whole project a second time. Its cache is reset with every render and dropped per
