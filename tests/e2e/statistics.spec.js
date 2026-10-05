@@ -146,7 +146,7 @@ test("statistics expands beside its close control, preserves the matrix and foll
   expect(editBounds?.height).toBe(geometry.height);
 });
 
-test("bundled points and histogram bins expose exact details by hover and keyboard", async ({ page }) => {
+test("bundled points expose exact details while histogram bins keep their values without popovers", async ({ page }) => {
   await openFixture(page);
   await openStatistics(page);
   const bundle = page.locator(".chart-point-group");
@@ -167,11 +167,13 @@ test("bundled points and histogram bins expose exact details by hover and keyboa
   await expect(page.locator('[data-chart-point="1"]')).toBeFocused();
   await expect(details.locator("li")).toHaveText(["Archived feature"]);
   await page.locator('[data-chart-bin="0"]').focus();
-  await expect(details.locator("dd")).toHaveText(["3–10 days", "3"]);
+  await expect(details).toBeHidden();
+  await expect(page.locator('[data-chart-bin="0"]')).toHaveAttribute("aria-label", "3-10 days: 3 features");
   await page.keyboard.press("Enter");
-  await expect(details).toBeVisible();
+  await expect(details).toBeHidden();
   await page.locator('[data-chart-bin="1"]').focus();
-  await expect(details.locator("dd")).toHaveText(["11–18 days", "1"]);
+  await expect(details).toBeHidden();
+  await expect(page.locator('[data-chart-bin="1"]')).toHaveAttribute("aria-label", "11-18 days: 1 feature");
   await closeStatistics(page);
   await expect(details).toBeHidden();
 });
@@ -195,7 +197,7 @@ test("chart headings and feature detail headers are concise and match their valu
   await expect(details.locator("dd")).toHaveText(["2 todos", "3 days"]);
 });
 
-test("shared counts stay blue and left aligned while histogram details contain only values", async ({ page }) => {
+test("shared counts stay blue and left aligned while histogram values stay accessible without details", async ({ page }) => {
   await openFixture(page);
   await openStatistics(page);
   const details = page.locator("#chartDetails");
@@ -214,15 +216,12 @@ test("shared counts stay blue and left aligned while histogram details contain o
     await expect(details.locator("li")).toHaveText(["First feature", "Second feature"]);
     await expect(details.locator("dd")).toHaveText(["2 todos", "3 days"]);
     await page.locator('[data-chart-bin="0"]').hover();
-    await expect(details.locator("header")).toHaveCount(0);
-    await expect(details.locator(":scope>*")).toHaveCount(1);
-    await expect(details.locator("dt")).toHaveText(["Duration", "Features"]);
-    await expect(details.locator("dd")).toHaveText(["3\u201310 days", "3"]);
+    await expect(details).toBeHidden();
+    await expect(page.locator('[data-chart-bin="0"]')).toHaveAttribute("aria-label", "3-10 days: 3 features");
     await page.locator("#closeStatistics").focus();
     await page.locator('[data-chart-bin="1"]').focus();
-    await expect(details.locator("header")).toHaveCount(0);
-    await expect(details.locator("dt")).toHaveText(["Duration", "Features"]);
-    await expect(details.locator("dd")).toHaveText(["11\u201318 days", "1"]);
+    await expect(details).toBeHidden();
+    await expect(page.locator('[data-chart-bin="1"]')).toHaveAttribute("aria-label", "11-18 days: 1 feature");
   }
 });
 
@@ -260,8 +259,8 @@ test("chart details start at half width, grow with their current content and sta
   await expect(details.locator("header")).toHaveText("A");
   await expect.poll(() => details.evaluate(popup => popup.getBoundingClientRect().width)).toBe(140);
   await page.locator('[data-chart-bin="0"]').focus();
-  await expect(details.locator("dd")).toHaveText(["1 day", "4"]);
-  await expect.poll(() => details.evaluate(popup => popup.getBoundingClientRect().width)).toBe(140);
+  await expect(details).toBeHidden();
+  await expect(page.locator('[data-chart-bin="0"]')).toHaveAttribute("aria-label", "1 day: 4 features");
   expect(await page.evaluate(() => (/** @type {any} */ (window)).statisticsProbe.calls)).toBe(1);
 });
 
@@ -396,12 +395,25 @@ test("reduced motion disables modal animation and narrow keyboard navigation kee
   await expect(page.locator("#statisticsDialog")).toHaveCSS("animation-name", "none");
   expect(await page.locator("#statisticsDialog").evaluate(dialog => getComputedStyle(dialog, "::backdrop").animationName)).toBe("none");
   await page.locator('[data-chart-bin="1"]').focus();
+  await expect(page.locator("#chartDetails")).toBeHidden();
+  await expect(page.locator('[data-chart-bin="1"]')).toHaveAttribute("aria-label", "11-18 days: 1 feature");
+  await page.locator('[data-chart-point="2"]').focus();
   await expect(page.locator("#chartDetails")).toBeVisible();
-  await expect(page.locator("#chartDetails dd")).toHaveText(["11–18 days", "1"]);
+  await expect(page.locator("#chartDetails dd")).toHaveText(["1 todo", "17 days"]);
   const popup = await page.locator("#chartDetails").boundingBox();
   expect(popup?.x).toBeGreaterThanOrEqual(16);
   expect((popup?.x || 0) + (popup?.width || 0)).toBeLessThanOrEqual(374);
   await page.keyboard.press("Tab");
+  await expect(page.locator('[data-chart-bin="0"]')).toBeFocused();
+  await expect(page.locator("#chartDetails")).toBeHidden();
+  await page.keyboard.press("Tab");
+  await expect(page.locator('[data-chart-bin="1"]')).toBeFocused();
+  await expect(page.locator("#chartDetails")).toBeHidden();
+  await page.keyboard.press("Tab");
+  await expect(page.locator("#closeStatistics")).toBeFocused();
+  await page.locator('[data-chart-point="2"]').focus();
+  await expect(page.locator("#chartDetails")).toBeVisible();
+  await page.locator("#chartDetails").focus();
   await expect(page.locator("#chartDetails")).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(page.locator("#closeStatistics")).toBeFocused();
@@ -430,12 +442,31 @@ test("histogram hover has no bottom outline, including an empty duration interva
   await openStatistics(page);
   const filled = page.locator('[data-chart-bin="0"]');
   await filled.hover();
+  await expect(page.locator("#chartDetails")).toBeHidden();
   await expect(filled.locator(".chart-bar-fill")).toHaveCSS("stroke", "none");
   const empty = page.locator('[data-chart-bin="1"]');
   await empty.hover();
-  await expect(page.locator("#chartDetails dd")).toHaveText(["8–14 days", "0"]);
+  await expect(page.locator("#chartDetails")).toBeHidden();
+  await expect(empty).toHaveAttribute("aria-label", "8-14 days: 0 features");
   await expect(empty.locator(".chart-bar-fill")).toHaveCSS("stroke", "none");
   expect(await empty.locator(".chart-bar-fill").evaluate(rect => (/** @type {SVGRectElement} */ (rect)).getBBox().height)).toBe(0);
+  for (const bar of [filled, empty]) {
+    await page.locator(".chart-point").first().focus();
+    await expect(page.locator("#chartDetails")).toBeVisible();
+    await bar.hover();
+    await expect(page.locator("#chartDetails")).toBeHidden();
+    await bar.focus();
+    await expect(bar).toBeFocused();
+    await expect(bar).toHaveAttribute("role", "img");
+    for (const attribute of ["aria-controls", "aria-expanded", "aria-describedby"]) expect(await bar.getAttribute(attribute)).toBeNull();
+    await expect(page.locator("#chartDetails")).toBeHidden();
+    for (const key of ["Enter", "Space"]) {
+      await page.keyboard.press(key);
+      await expect(page.locator("#chartDetails")).toBeHidden();
+    }
+    await page.locator("#statisticsContent").dispatchEvent("scroll");
+    await expect(page.locator("#chartDetails")).toBeHidden();
+  }
 });
 
 test("1080p portrait statistics fits both charts and the table without unnecessary scrollbars", async ({ page }) => {
@@ -489,7 +520,11 @@ test("1080p portrait statistics fits both charts and the table without unnecessa
   await expect(page.locator("#chartDetails")).toBeVisible();
   await expect(page.locator("#chartDetails li")).toHaveText(["First feature", "Second feature"]);
   await page.locator('[data-chart-bin="0"]').focus();
-  await expect(page.locator("#chartDetails dd")).toHaveText(["3\u201310 days", "3"]);
+  await expect(page.locator("#chartDetails")).toBeHidden();
+  await expect(page.locator('[data-chart-bin="0"]')).toHaveAttribute("aria-label", "3-10 days: 3 features");
+  await page.locator(".chart-point-group").focus();
+  await expect(page.locator("#chartDetails")).toBeVisible();
+  await expect(page.locator("#chartDetails li")).toHaveText(["First feature", "Second feature"]);
   const bounds = await page.locator("#statisticsDialog").boundingBox();
   const popup = await page.locator("#chartDetails").boundingBox();
   expect(popup?.x).toBeGreaterThanOrEqual(bounds?.x || 0);
