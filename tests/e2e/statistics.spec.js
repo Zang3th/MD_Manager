@@ -168,12 +168,12 @@ test("bundled points expose exact details while histogram bins keep their values
   await expect(details.locator("li")).toHaveText(["Archived feature"]);
   await page.locator('[data-chart-bin="0"]').focus();
   await expect(details).toBeHidden();
-  await expect(page.locator('[data-chart-bin="0"]')).toHaveAttribute("aria-label", "3-10 days: 3 features");
+  await expect(page.locator('[data-chart-bin="0"]')).toHaveAttribute("aria-label", "3\u201310 days: 3 features");
   await page.keyboard.press("Enter");
   await expect(details).toBeHidden();
   await page.locator('[data-chart-bin="1"]').focus();
   await expect(details).toBeHidden();
-  await expect(page.locator('[data-chart-bin="1"]')).toHaveAttribute("aria-label", "11-18 days: 1 feature");
+  await expect(page.locator('[data-chart-bin="1"]')).toHaveAttribute("aria-label", "11\u201318 days: 1 feature");
   await closeStatistics(page);
   await expect(details).toBeHidden();
 });
@@ -217,11 +217,11 @@ test("shared counts stay blue and left aligned while histogram values stay acces
     await expect(details.locator("dd")).toHaveText(["2 todos", "3 days"]);
     await page.locator('[data-chart-bin="0"]').hover();
     await expect(details).toBeHidden();
-    await expect(page.locator('[data-chart-bin="0"]')).toHaveAttribute("aria-label", "3-10 days: 3 features");
+    await expect(page.locator('[data-chart-bin="0"]')).toHaveAttribute("aria-label", "3\u201310 days: 3 features");
     await page.locator("#closeStatistics").focus();
     await page.locator('[data-chart-bin="1"]').focus();
     await expect(details).toBeHidden();
-    await expect(page.locator('[data-chart-bin="1"]')).toHaveAttribute("aria-label", "11-18 days: 1 feature");
+    await expect(page.locator('[data-chart-bin="1"]')).toHaveAttribute("aria-label", "11\u201318 days: 1 feature");
   }
 });
 
@@ -396,7 +396,7 @@ test("reduced motion disables modal animation and narrow keyboard navigation kee
   expect(await page.locator("#statisticsDialog").evaluate(dialog => getComputedStyle(dialog, "::backdrop").animationName)).toBe("none");
   await page.locator('[data-chart-bin="1"]').focus();
   await expect(page.locator("#chartDetails")).toBeHidden();
-  await expect(page.locator('[data-chart-bin="1"]')).toHaveAttribute("aria-label", "11-18 days: 1 feature");
+  await expect(page.locator('[data-chart-bin="1"]')).toHaveAttribute("aria-label", "11\u201318 days: 1 feature");
   await page.locator('[data-chart-point="2"]').focus();
   await expect(page.locator("#chartDetails")).toBeVisible();
   await expect(page.locator("#chartDetails dd")).toHaveText(["1 todo", "17 days"]);
@@ -447,7 +447,7 @@ test("histogram hover has no bottom outline, including an empty duration interva
   const empty = page.locator('[data-chart-bin="1"]');
   await empty.hover();
   await expect(page.locator("#chartDetails")).toBeHidden();
-  await expect(empty).toHaveAttribute("aria-label", "8-14 days: 0 features");
+  await expect(empty).toHaveAttribute("aria-label", "8\u201314 days: 0 features");
   await expect(empty.locator(".chart-bar-fill")).toHaveCSS("stroke", "none");
   expect(await empty.locator(".chart-bar-fill").evaluate(rect => (/** @type {SVGRectElement} */ (rect)).getBBox().height)).toBe(0);
   for (const bar of [filled, empty]) {
@@ -521,7 +521,7 @@ test("1080p portrait statistics fits both charts and the table without unnecessa
   await expect(page.locator("#chartDetails li")).toHaveText(["First feature", "Second feature"]);
   await page.locator('[data-chart-bin="0"]').focus();
   await expect(page.locator("#chartDetails")).toBeHidden();
-  await expect(page.locator('[data-chart-bin="0"]')).toHaveAttribute("aria-label", "3-10 days: 3 features");
+  await expect(page.locator('[data-chart-bin="0"]')).toHaveAttribute("aria-label", "3\u201310 days: 3 features");
   await page.locator(".chart-point-group").focus();
   await expect(page.locator("#chartDetails")).toBeVisible();
   await expect(page.locator("#chartDetails li")).toHaveText(["First feature", "Second feature"]);
