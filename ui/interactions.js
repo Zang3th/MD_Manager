@@ -126,6 +126,10 @@ window.MDManager = window.MDManager || {};
   /** @param {Element} mark */
   function showChartDetails(mark) {
     if (!statisticsData || !statisticsDialog.open) return;
+    if (mark.hasAttribute("data-chart-bin")) {
+      hideChartDetails();
+      return;
+    }
     if (chartHideTimer !== null) window.clearTimeout(chartHideTimer);
     chartHideTimer = null;
     if (chartMark === mark) return;
