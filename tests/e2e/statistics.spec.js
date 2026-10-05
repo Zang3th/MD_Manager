@@ -432,7 +432,7 @@ test("dense shared positions keep every feature title accessible in a bounded sc
   await expect(details.locator("li")).toHaveCount(120);
   await details.focus();
   expect(await details.evaluate(element => element.scrollHeight > element.clientHeight && element.getBoundingClientRect().height <= 360)).toBe(true);
-  await page.keyboard.press("Control+End");
+  await page.keyboard.press("End");
   await expect(details.locator("li").last()).toBeInViewport();
 });
 

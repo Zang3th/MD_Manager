@@ -60,7 +60,8 @@ for (const theme of ["dark", "light"]) {
           await expect(marks).toHaveCount(6);
           for (let index = 0; index < 6; index++) {
             const mark = marks.nth(index);
-            await mark.hover();
+            const band = mark.locator(".archive-short-band");
+            await (await band.isVisible() ? band : mark).hover();
             const value = await durationGeometry(mark);
             expect(value.whiteSpace).toBe("nowrap");
             expect(value.label.height).toBeLessThanOrEqual(value.lineHeight + .05);
