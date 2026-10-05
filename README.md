@@ -6,24 +6,25 @@
 MD_Manager is an interactive, fully local Markdown project workspace for Git, automation, and AI agents.<br>
 Plan visually while keeping your project data open, portable, and human-readable.
 
-![MD_Manager workspace in Gruvbox Dark and Light](res/screenshots/modified/project1-workspace.png)
+![MD_Manager workspace in Gruvbox Dark and Light](res/screenshots/modified/project1-workspace_v090.png)
 
 ## Key features
 
 - Visual planning in a focused workspace. Optimized for both landscape and portrait monitors.
-- Releases, tasks, todos, backlog, metadata, and progress tracking.
+- Releases, tasks, todos and a backlog.
+- Archive timeline with swimlane visualization, including ranges and paused periods.
+- Progress tracking and statistics via metadata.
 - Drag and drop, copy and paste, and keyboard controls.
 - Undo and redo with view-state restoration.
 - Project-wide fuzzy search with keyboard navigation to matching content.
 - External-change detection, reload or overwrite resolution, and retryable saves.
 - Markdown editing with tags, templates, and inline formatting.
-- Archive timeline ordered by date or version, including ranges and paused periods.
 - Fully local and offline, with no cloud services, installation, build step, or web server.
 
 <table>
   <tr>
-    <td width="50%"><img src="res/screenshots/source/project2-task-editor-light.png" alt="Task editor in Gruvbox Light"></td>
-    <td width="50%"><img src="res/screenshots/source/project2-archive-dark.png" alt="Archive timeline in Gruvbox Dark"></td>
+    <td width="50%"><img src="res/screenshots/source/project2-task-editor-light_v090.png" alt="Task editor in Gruvbox Light"></td>
+    <td width="50%"><img src="res/screenshots/source/project2-archive-dark_v090.png" alt="Archive timeline in Gruvbox Dark"></td>
   </tr>
   <tr>
     <td align="center">Editing dialog</td>
@@ -143,6 +144,7 @@ CI executes the complete pipeline on Windows, Linux, and macOS.
     </tr>
   </thead>
   <tbody>
+    <tr><td><a href="https://github.com/Zang3th/MD_Manager/releases/tag/v0.9.0">v0.9.0</a></td><td>05.10.2026</td><td>609</td><td>707</td><td>5,947</td><td>289</td><td>Archive swimlanes, statistics charts</td></tr>
     <tr><td><a href="https://github.com/Zang3th/MD_Manager/releases/tag/v0.8.0">v0.8.0</a></td><td>15.08.2026</td><td>600</td><td>557</td><td>5,332</td><td>234</td><td>Timeline improvements, workspace search</td></tr>
     <tr><td><a href="https://github.com/Zang3th/MD_Manager/releases/tag/v0.7.1">v0.7.1</a></td><td>12.08.2026</td><td>557</td><td>474</td><td>4,322</td><td>166</td><td>Feature pinning, archive timeline</td></tr>
     <tr><td><a href="https://github.com/Zang3th/MD_Manager/releases/tag/v0.6.0">v0.6.0</a></td><td>07.08.2026</td><td>538</td><td>385</td><td>3,351</td><td>107</td><td>UI polish, README, release workflow</td></tr>

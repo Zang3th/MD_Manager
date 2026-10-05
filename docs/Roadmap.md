@@ -84,7 +84,6 @@ Stats und Backlog bleiben davon unberührt.
 - [x] ~Release-Notes schreiben~
 - [x] ~Release fertig machen (via Actions)~
 
-#Pin
 ## Swimlanes und Diagramme
 
 #Version
@@ -127,13 +126,14 @@ Stats und Backlog bleiben davon unberührt.
 
 ### Release
 
-- [ ] u.U. Docs umspeichern
-- [ ] Version-Bump + Snapshots aktualisieren
-- [ ] Screenshots aktualisieren (via Skill)
-- [ ] README.md anpassen (Änderungen + Stats)
-- [ ] Release-Notes schreiben
-- [ ] Release fertig machen (via Actions)
+- [x] ~u.U. Docs umspeichern~
+- [x] ~Version-Bump + Snapshots aktualisieren~
+- [x] ~Screenshots aktualisieren (via Skill)~
+- [x] ~README.md anpassen (Änderungen + Stats)~
+- [x] ~Release-Notes schreiben~
+- [x] ~Release fertig machen (via Actions)~
 
+#Pin
 ## Filtern und Controls
 
 #Version
