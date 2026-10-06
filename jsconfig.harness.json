@@ -12,7 +12,6 @@
   "include": [
     "tests/**/*.js",
     "tools/**/*.js",
-    ".codex/skills/**/*.js",
     "types/harness.d.ts",
     "playwright.config.js",
     "eslint.config.js"

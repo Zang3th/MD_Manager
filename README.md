@@ -88,7 +88,6 @@ Localized state changes use targeted DOM updates where possible. Repeated layout
 
 ```text
 MD_Manager/
-├── .codex/                  # Project-local Codex skills
 ├── .github/                 # Verification and release workflows
 ├── data/
 │   ├── parsing/             # Canonical Markdown parsing fixture
