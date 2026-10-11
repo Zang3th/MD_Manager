@@ -77,6 +77,18 @@ window.MDManager = window.MDManager || {};
     return a.value - b.value;
   }
 
+  /** @param {MDProject} project @param {boolean} showArchived */
+  function workspaceFeatures(project, showArchived) {
+    const regular = project.features.filter(feature => !feature.isBacklog && !feature.isArchived && !feature.ignored);
+    if (!showArchived) return regular;
+    return [...project.features.filter(feature => feature.isArchived && !feature.ignored).sort(compareArchivedFeatures), ...regular];
+  }
+
+  /** @param {MDProject} project @param {boolean} showDone */
+  function archiveTimelineFeatures(project, showDone) {
+    return project.features.filter(feature => !feature.ignored && (feature.isArchived || showDone && canArchiveFeature(feature)));
+  }
+
   /** @param {MDProject} project */
   function sortArchivedFeatures(project) {
     const archived = project.features.filter(feature => feature.isArchived).sort(compareArchivedFeatures);
@@ -503,6 +515,8 @@ window.MDManager = window.MDManager || {};
   app.domain = {
     featureComplete,
     canArchiveFeature,
+    workspaceFeatures,
+    archiveTimelineFeatures,
     copyTask,
     /** @param {MDFeature} feature @returns {MDFeature} */
     copyFeature(feature) {

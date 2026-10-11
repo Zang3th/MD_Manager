@@ -168,8 +168,8 @@ window.MDManager = window.MDManager || {};
     return archiveGridLineCache.get(timeline)?.get(day);
   }
 
-  /** @param {HTMLElement} timeline @param {number} plotWidth */
-  function applyArchiveCollisions(timeline, plotWidth) {
+  /** @param {HTMLElement} timeline @param {number} plotWidth @param {number} shortWidth */
+  function applyArchiveCollisions(timeline, plotWidth, shortWidth) {
     // Use the shared percentage geometry, including the short-range mouse hit area. No DOM
     // measurement is needed here; this pass only runs when the plot width/DPR changed.
     for (const lane of timeline.querySelectorAll(".archive-date-scale")) {
@@ -179,7 +179,7 @@ window.MDManager = window.MDManager || {};
         const width = point ? 12.8 : parseFloat(mark.style.getPropertyValue("--archive-width")) / 100 * plotWidth;
         const center = parseFloat(mark.style.getPropertyValue("--archive-position")) / 100 * plotWidth + (point ? 0 : width / 2);
         return { mark, width, center, start: center - (point ? 6.4 : 12), end: center + (point ? 6.4 : 12), point };
-      }).filter(item => item.point || item.width < 12).sort((a, b) => a.start - b.start || a.end - b.end);
+      }).filter(item => item.point || item.width < shortWidth).sort((a, b) => a.start - b.start || a.end - b.end);
       /** @type {Array<{start: number, end: number, items: typeof intervals}>} */
       const groups = [];
       for (const item of intervals) {
@@ -293,13 +293,25 @@ window.MDManager = window.MDManager || {};
       && (perCell > 1 || visibleMajors.every(major => Math.abs(major.x - tick.x) >= clearance)));
     const endpointInset = snapStroke(majorStroke / 2, majorStroke);
     const segments = /** @type {HTMLElement[]} */ ([...timeline.querySelectorAll(".archive-active-segment,.archive-pause-segment")]);
-    // Chromium snaps rounded CSS boxes before device scaling. Whole CSS-pixel boundaries keep
-    // both caps on the same paint phase at DPR 1 and 2, including fractional plot origins.
-    const snapBand = (/** @type {number} */ value) => Math.round(value + plotBounds.left) - plotBounds.left;
+    // Both caps must rasterise identically at every device pixel ratio. Chromium snaps rounded CSS
+    // boxes before device scaling when the ratio is emulated, so whole CSS-pixel boundaries keep both
+    // caps on the same paint phase at integer ratios. At the fractional ratios of scaled Windows
+    // displays layout runs in device pixels, so band edges sit on device pixels instead. Cap and
+    // short-band widths are whole device pixels either way, so neither cap straddles a pixel.
+    const snapBand = Number.isInteger(pixelRatio)
+      ? (/** @type {number} */ value) => Math.round(value + plotBounds.left) - plotBounds.left
+      : (/** @type {number} */ value) => snapToDevicePixel(value + plotBounds.left, pixelRatio) - plotBounds.left;
+    const capWidth = Math.max(1, Math.round(3 * pixelRatio)) / pixelRatio;
+    // A range is never drawn narrower than the single-day diamond, so a range of several days can
+    // never look shorter than one day. The diamond is a .68rem square turned by 45 degrees.
+    const diamondWidth = .68 * (parseFloat(getComputedStyle(document.documentElement).fontSize) || 16) * Math.SQRT2;
+    const shortWidth = Number.isInteger(pixelRatio) ? Math.ceil(diamondWidth) : Math.ceil(diamondWidth * pixelRatio) / pixelRatio;
+    timeline.style.setProperty("--archive-cap-width", `${capWidth}px`);
+    timeline.style.setProperty("--archive-short-width", `${shortWidth}px`);
     const segmentGeometry = segments.map(segment => {
       const left = parseFloat(segment.style.getPropertyValue("--archive-position")) / 100 * plotWidth;
       const width = parseFloat(segment.style.getPropertyValue("--archive-width")) / 100 * plotWidth;
-      const shortLeft = Math.max(0, Math.min(plotWidth - 10, left + width / 2 - 5));
+      const shortLeft = Math.max(0, Math.min(plotWidth - shortWidth, left + width / 2 - shortWidth / 2));
       return { segment, left: snapBand(left), width: snapBand(left + width) - snapBand(left), shortLeft: snapBand(shortLeft) - snapBand(left) };
     });
 
@@ -368,7 +380,7 @@ window.MDManager = window.MDManager || {};
       segment.style.setProperty("--archive-render-left", `${left}px`);
       segment.style.setProperty("--archive-render-width", `${width}px`);
       if (segment.classList.contains("archive-active-segment")) {
-        segment.classList.toggle("archive-short-segment", width < 12);
+        segment.classList.toggle("archive-short-segment", width < shortWidth);
         segment.style.setProperty("--archive-short-left", `${shortLeft}px`);
       }
     }
@@ -377,7 +389,7 @@ window.MDManager = window.MDManager || {};
       const day = Math.round(startDay + position * spanDays);
       point.style.setProperty("--archive-point-center", `${gridLines.get(day)?.x ?? position * plotWidth}px`);
     }
-    applyArchiveCollisions(timeline, plotWidth);
+    applyArchiveCollisions(timeline, plotWidth, shortWidth);
     timeline.dataset.archiveDateLayout = signature;
   }
 

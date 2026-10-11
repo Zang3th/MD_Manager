@@ -149,3 +149,32 @@ test("todos move into the requested group without crossing boundaries", () => {
   domain.moveTodo(value, 1, 0, 0, 0, 0, 1, 0);
   assert.deepEqual(value.features[0].tasks[0].lines, ["- [ ] one", "#### Next", "- [ ] three", "- [ ] two"]);
 });
+
+test("workspace order puts visible archived features first in archive order only when enabled", () => {
+  const done = [{ title: "T", lines: ["- [x] ~done~"] }];
+  const value = { features: [
+    { title: "Regular", tasks: [{ title: "R", lines: ["- [ ] open"] }] },
+    { title: "Hidden", ignored: true, tasks: done },
+    { title: "Backlog", isBacklog: true, tasks: [] },
+    { title: "Undated", isArchived: true, tasks: done },
+    { title: "Later", version: "1.2.0", isArchived: true, tasks: done },
+    { title: "Ignored archive", version: "0.1.0", isArchived: true, ignored: true, tasks: done },
+    { title: "Earlier", version: "1.0.0", isArchived: true, tasks: done }
+  ] };
+  assert.deepEqual(Array.from(domain.workspaceFeatures(value, false), feature => feature.title), ["Regular"]);
+  assert.deepEqual(Array.from(domain.workspaceFeatures(value, true), feature => feature.title), ["Earlier", "Later", "Undated", "Regular"]);
+  assert.deepEqual(value.features.map(feature => feature.title), ["Regular", "Hidden", "Backlog", "Undated", "Later", "Ignored archive", "Earlier"]);
+});
+
+test("timeline features add complete, unarchived workspace features only when done lanes are enabled", () => {
+  const done = [{ title: "T", lines: ["- [x] ~done~"] }];
+  const value = { features: [
+    { title: "Open", tasks: [{ title: "O", lines: ["- [ ] open"] }] },
+    { title: "Ready", tasks: done },
+    { title: "Ignored done", ignored: true, tasks: done },
+    { title: "Backlog", isBacklog: true, tasks: done },
+    { title: "Archived", isArchived: true, tasks: done }
+  ] };
+  assert.deepEqual(Array.from(domain.archiveTimelineFeatures(value, false), feature => feature.title), ["Archived"]);
+  assert.deepEqual(Array.from(domain.archiveTimelineFeatures(value, true), feature => feature.title), ["Ready", "Archived"]);
+});

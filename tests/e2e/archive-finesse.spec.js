@@ -232,7 +232,11 @@ for (const theme of ["dark", "light"]) {
     for (const index of [0, 3, 8]) {
       await labels.nth(index).click();
       const [anchor, bounds] = await Promise.all([labels.nth(index).boundingBox(), popover.boundingBox()]);
-      expect(bounds.y).toBeCloseTo(anchor.y, 5);
+      // The popover starts level with its lane while its complete content fits below. A lower lane
+      // moves it up just far enough instead of squeezing the content into a scroll area.
+      if (anchor.y + bounds.height <= 588.02) expect(bounds.y).toBeCloseTo(anchor.y, 5);
+      else expect(bounds.y + bounds.height).toBeCloseTo(588, 1);
+      expect(await popover.locator(".archive-feature-popover-content").evaluate(node => node.scrollHeight - node.clientHeight)).toBeLessThanOrEqual(0);
       expect(bounds.y + bounds.height).toBeLessThanOrEqual(588.02);
       expect(await popover.evaluate(node => document.getAnimations().filter(animation => animation.effect instanceof KeyframeEffect && animation.effect.target === node).every(animation => /** @type {KeyframeEffect} */ (animation.effect).getKeyframes().every(frame => frame.transform === undefined)))).toBe(true);
       await popover.locator(".archive-feature-popover-close").click();

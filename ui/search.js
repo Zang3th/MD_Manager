@@ -193,12 +193,18 @@ window.MDManager = window.MDManager || {};
     renderResults();
   }
 
+  // An archived feature that is also shown in the Workspace is revealed there, like any other card.
+  /** @param {MDSearchItem} item @returns {MDSearchLocation} */
+  function revealLocation(item) {
+    return item.location === "archive" && document.querySelector(`#content > .release.archived[data-feature="${item.featureIndex}"]`) ? "workspace" : item.location;
+  }
+
   // Resolution uses only the classes `ui/render.js` already emits, so the search feature
   // adds no markup of its own. The activation browser tests are what keep this contract
   // honest if that markup ever changes.
   /** @param {MDSearchItem} item */
   function featureRoot(item) {
-    if (item.location === "archive") return document.querySelector(`#archive .archive-feature[data-feature="${item.featureIndex}"]`);
+    if (revealLocation(item) === "archive") return document.querySelector(`#archive .archive-feature[data-feature="${item.featureIndex}"]`);
     if (item.location === "backlog") {
       const backlog = document.getElementById("backlog");
       return backlog.dataset.feature === String(item.featureIndex) ? backlog : null;
@@ -280,8 +286,9 @@ window.MDManager = window.MDManager || {};
     const root = featureRoot(item);
     if (!root) return;
     const behavior = app.interactions.navigation.reducedMotion() ? "auto" : "smooth";
+    const location = revealLocation(item);
 
-    if (item.location === "archive") {
+    if (location === "archive") {
       root.scrollIntoView({ behavior, block: "center" });
       const details = revealArchived(root);
       const target = item.kind === "feature"
@@ -293,7 +300,7 @@ window.MDManager = window.MDManager || {};
 
     expandFor(root, item);
     app.layout.contentOverflowChanged();
-    if (item.location === "workspace") app.interactions.navigation.centerFeature(root);
+    if (location === "workspace") app.interactions.navigation.centerFeature(root);
     const target = workspaceTarget(root, item);
     // An unresolved target still scrolls its feature into view, but must not be painted:
     // framing the whole column instead of the item is worse than showing no frame.
@@ -308,7 +315,7 @@ window.MDManager = window.MDManager || {};
     const item = result.item;
     close();
     const navigation = app.interactions.navigation;
-    if (item.location === "archive") navigation.setView("archive");
+    if (revealLocation(item) === "archive") navigation.setView("archive");
     else {
       navigation.setView("workspace");
       if (item.location === "backlog") navigation.openBacklog();

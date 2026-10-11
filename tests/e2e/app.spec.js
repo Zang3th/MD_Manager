@@ -200,7 +200,7 @@ async function expectSvgInkCentered(button, svg) {
 test("start screen exposes the application identity and open action", async ({ page }) => {
   await page.goto(appUrl);
   await expect(page).toHaveTitle("MD_Manager");
-  await expect(page.locator("#appVersion")).toHaveText("v0.9.0");
+  await expect(page.locator("#appVersion")).toHaveText("v0.9.1-dev");
   await expect(page.locator("#appVersion")).toHaveCSS("font-family", '"JetBrains Mono", monospace');
   expect(await page.locator("#appVersion").evaluate(element => getComputedStyle(element, "::before").content)).toBe("none");
   const versionClockStyles = await page.locator("#appVersion, #appClock").evaluateAll(elements => elements.map(element => {
@@ -232,7 +232,7 @@ test("start screen exposes the application identity and open action", async ({ p
   await expect(createFile).toHaveCSS("box-shadow", restingActionShadow);
   await expect(page.locator(".header").getByRole("button", { name: /Open/ })).toHaveCount(0);
   await expect(page.locator("#watermark")).toBeVisible();
-  await expect(page.locator("#watermark")).toContainText("MD_Manager v0.9.0");
+  await expect(page.locator("#watermark")).toContainText("MD_Manager v0.9.1-dev");
   const help = page.getByRole("button", { name: "Help", exact: true });
   const sound = page.locator("#toggleSounds");
   const theme = page.locator("#toggleTheme");
@@ -631,11 +631,11 @@ test("View uses an overflow button to the right of the theme control", async ({ 
   await openFixture(page);
   const theme = page.locator("#toggleTheme");
   const view = page.locator("#toggleViewMenu");
-  await expect(view).toHaveAttribute("aria-label", "View");
+  await expect(view).toHaveAttribute("aria-label", "View options");
   await expect(view.locator('.dots-icon use')).toHaveAttribute("href", "#icon-dots");
   expect(await theme.evaluate(node => node.getBoundingClientRect().x)).toBeLessThan(await view.evaluate(node => node.getBoundingClientRect().x));
   await view.click();
-  await expect(page.locator("#viewOptions")).toHaveCSS("width", "128px");
+  await expect(page.locator("#viewOptions")).toHaveCSS("width", "208px");
 });
 
 test("feature actions use a consistent overflow menu", async ({ page }) => {
@@ -3397,7 +3397,7 @@ test("view menu, keyboard shortcut, and accessibility states stay synchronized",
   await openFixture(page);
   await page.locator("#toggleViewMenu").click();
   await expect(page.locator("#toggleViewMenu")).toHaveAttribute("aria-expanded", "true");
-  await expect(page.locator("#viewOptions > button")).toHaveText(["Backlog", "Clock", "Metadata", "Statistics"]);
+  await expect(page.locator("#viewOptions > button")).toHaveText(["Show archived features", "Show backlog", "Show clock", "Include done features", "Show feature metadata", "Show statistics"]);
   await expect(page.locator("#toggleBacklog")).toHaveCSS("color", "rgb(235, 219, 178)");
   await expect(page.locator("#toggleBacklog")).toHaveAttribute("aria-pressed", "false");
   await page.keyboard.press("Escape");

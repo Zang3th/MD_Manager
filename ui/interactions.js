@@ -20,6 +20,8 @@ window.MDManager = window.MDManager || {};
   let save = null;
   /** @type {((width: number) => void) | null} */
   let featureWidthCommitted = null;
+  /** @type {((changes: MDViewOptions, viewState: MDViewState) => void) | null} */
+  let viewOptionsChanged = null;
   /** @type {(() => void) | null} */
   let undo = null;
   /** @type {(() => void) | null} */
@@ -240,8 +242,83 @@ window.MDManager = window.MDManager || {};
       ...viewState,
       tasks: viewState.tasks.slice(),
       featureNotes: viewState.featureNotes.slice(),
-      featureScrolls: viewState.featureScrolls.map(scroll => ({ ...scroll }))
+      featureScrolls: viewState.featureScrolls.map(scroll => ({ ...scroll })),
+      archivedTasks: (viewState.archivedTasks || []).slice(),
+      archivedNotes: (viewState.archivedNotes || []).slice(),
+      archivedScrolls: (viewState.archivedScrolls || []).map(scroll => ({ ...scroll }))
     };
+  }
+
+  const viewSelectors = app.render.viewSelectors;
+
+  function archivedShown() {
+    return document.getElementById("toggleArchived").getAttribute("aria-pressed") === "true";
+  }
+
+  /** @param {Element} element */
+  function isArchivedCard(element) {
+    return Boolean(element.closest(".release.archived"));
+  }
+
+  /**
+   * Rendered card and note counts of the features before `feature` in a rendered order, which is
+   * where the view state of that feature starts.
+   * @param {MDFeature[]} features @param {MDFeature} feature
+   */
+  function viewOffsets(features, feature) {
+    let tasks = 0;
+    let notes = 0;
+    const position = features.indexOf(feature);
+    for (const item of features.slice(0, Math.max(0, position))) {
+      tasks += item.tasks.filter(task => !task.ignored).length;
+      notes += item.notes.length;
+    }
+    return { tasks, notes, position };
+  }
+
+  /** @param {Element | null} featureElement */
+  function featureViewEntries(featureElement) {
+    return {
+      tasks: featureElement ? [...featureElement.querySelectorAll(".card")].map(task => task.getAttribute("aria-expanded") === "true") : [],
+      notes: featureElement ? [...featureElement.querySelectorAll(".feature-note")].map(note => note.getAttribute("aria-expanded") === "true") : []
+    };
+  }
+
+  /**
+   * Removes the view state of a rendered feature from the index space it is rendered in.
+   * @param {MDViewState} viewState @param {HTMLElement} featureElement
+   */
+  function removeFeatureViewState(viewState, featureElement) {
+    const archived = featureElement.classList.contains("archived");
+    const tasks = /** @type {boolean[]} */ (archived ? viewState.archivedTasks : viewState.tasks);
+    const notes = /** @type {boolean[]} */ (archived ? viewState.archivedNotes : viewState.featureNotes);
+    const scrolls = /** @type {Array<{left: number, top: number}>} */ (archived ? viewState.archivedScrolls : viewState.featureScrolls);
+    const firstTask = [...document.querySelectorAll(archived ? viewSelectors.archivedTasks : viewSelectors.tasks)].indexOf(/** @type {Element} */ (featureElement.querySelector(".card")));
+    if (firstTask >= 0) tasks.splice(firstTask, featureElement.querySelectorAll(".card").length);
+    const firstNote = [...document.querySelectorAll(archived ? viewSelectors.archivedNotes : viewSelectors.notes)].indexOf(/** @type {Element} */ (featureElement.querySelector(".feature-note")));
+    if (firstNote >= 0) notes.splice(firstNote, featureElement.querySelectorAll(".feature-note").length);
+    const renderedFeatureIndex = [...document.querySelectorAll(archived ? viewSelectors.archivedReleases : viewSelectors.releases)].indexOf(featureElement);
+    if (renderedFeatureIndex >= 0) scrolls.splice(renderedFeatureIndex, 1);
+  }
+
+  /**
+   * Inserts the view state of a feature at its rendered position after an archive or unarchive.
+   * @param {MDViewState} viewState @param {MDProject} activeProject @param {MDFeature} feature @param {{tasks: boolean[], notes: boolean[]}} entries
+   */
+  function insertFeatureViewState(viewState, activeProject, feature, entries) {
+    const archived = Boolean(feature.isArchived);
+    if (archived && !archivedShown()) return;
+    /** @type {MDFeature[]} */
+    const rendered = app.domain.workspaceFeatures(activeProject, archived);
+    const features = archived ? rendered.filter(item => item.isArchived) : rendered;
+    const offsets = viewOffsets(features, feature);
+    if (offsets.position < 0) return;
+    const taskCount = feature.tasks.filter(task => !task.ignored).length;
+    const tasks = entries.tasks.length === taskCount ? entries.tasks : Array.from({ length: taskCount }, () => false);
+    const notes = entries.notes.length === feature.notes.length ? entries.notes : feature.notes.map(() => false);
+    /** @type {boolean[]} */ (archived ? viewState.archivedTasks : viewState.tasks).splice(offsets.tasks, 0, ...tasks);
+    /** @type {boolean[]} */ (archived ? viewState.archivedNotes : viewState.featureNotes).splice(offsets.notes, 0, ...notes);
+    /** @type {Array<{left: number, top: number}>} */ (archived ? viewState.archivedScrolls : viewState.featureScrolls).splice(offsets.position, 0, { left: 0, top: 0 });
   }
 
   /** @param {string} label @param {() => boolean | void} redo @param {() => void} undo @param {MDViewState} beforeViewState @param {MDViewState} afterViewState @param {{render?: boolean}} [options] @param {number} [size] */
@@ -488,10 +565,10 @@ window.MDManager = window.MDManager || {};
 
   /** @param {{x: number, y: number}} position */
   function featureInsertionIndex(position) {
-    const features = [...document.querySelectorAll("#content > .release")];
+    const features = [...document.querySelectorAll(viewSelectors.releases)];
     if (!features.length) return 0;
     const pointed = document.elementFromPoint(position.x, position.y)?.closest(".release");
-    const direct = pointed?.parentElement?.id === "content" ? pointed : null;
+    const direct = pointed?.parentElement?.id === "content" && !pointed.classList.contains("archived") ? pointed : null;
     const target = direct || features.reduce((nearest, feature) => {
       const rect = feature.getBoundingClientRect();
       const dx = Math.max(rect.left - position.x, 0, position.x - rect.right);
@@ -505,11 +582,11 @@ window.MDManager = window.MDManager || {};
 
   /** @param {HTMLElement} featureElement @param {HTMLElement | null} beforeCard */
   function taskViewIndex(featureElement, beforeCard) {
-    const allCards = [...document.querySelectorAll(".card")];
+    const allCards = [...document.querySelectorAll(viewSelectors.tasks)];
     if (beforeCard) return allCards.indexOf(beforeCard);
     const featureCards = [...featureElement.querySelectorAll(".card")];
     if (featureCards.length) return allCards.indexOf(featureCards[featureCards.length - 1]) + 1;
-    const releases = [...document.querySelectorAll("#content > .release, #backlog.release")];
+    const releases = [...document.querySelectorAll(`${viewSelectors.releases}, #backlog.release`)];
     const featurePosition = releases.indexOf(featureElement);
     const nextCard = releases.slice(featurePosition + 1).map(release => release.querySelector(".card")).find(Boolean);
     return nextCard ? allCards.indexOf(nextCard) : allCards.length;
@@ -523,15 +600,15 @@ window.MDManager = window.MDManager || {};
     if (clipboard[0].kind === "feature") {
       const entries = /** @type {Array<Extract<ClipboardEntry, {kind: "feature"}>>} */ (clipboard);
       const index = featureInsertionIndex(position);
-      const taskIndex = document.querySelectorAll(`#content > .release[data-feature] .card`).length;
-      const targetFeature = [...document.querySelectorAll("#content > .release")].find(feature => Number(feature.dataset.feature) >= index);
+      const taskIndex = document.querySelectorAll(`${viewSelectors.releases} .card`).length;
+      const targetFeature = [...document.querySelectorAll(viewSelectors.releases)].find(feature => Number(feature.dataset.feature) >= index);
       const firstTargetTask = targetFeature?.querySelector(".card");
-      const viewIndex = firstTargetTask ? [...document.querySelectorAll(".card")].indexOf(firstTargetTask) : taskIndex;
+      const viewIndex = firstTargetTask ? [...document.querySelectorAll(viewSelectors.tasks)].indexOf(firstTargetTask) : taskIndex;
       viewState.tasks.splice(viewIndex, 0, ...entries.flatMap(entry => entry.taskExpanded));
-      const regularFeatures = [...document.querySelectorAll("#content > .release")];
+      const regularFeatures = [...document.querySelectorAll(viewSelectors.releases)];
       const targetPosition = targetFeature ? regularFeatures.indexOf(targetFeature) : regularFeatures.length;
       const firstTargetNote = regularFeatures.slice(targetPosition).map(feature => feature.querySelector(".feature-note")).find(Boolean);
-      const noteIndex = firstTargetNote ? [...document.querySelectorAll(".feature-note")].indexOf(firstTargetNote) : document.querySelectorAll("#content .feature-note").length;
+      const noteIndex = firstTargetNote ? [...document.querySelectorAll(viewSelectors.notes)].indexOf(firstTargetNote) : document.querySelectorAll(`${viewSelectors.releases} .feature-note`).length;
       viewState.featureNotes.splice(noteIndex, 0, ...entries.flatMap(entry => entry.noteExpanded));
       viewState.featureScrolls.splice(targetPosition, 0, ...entries.map(() => ({ left: 0, top: 0 })));
       const redo = () => {
@@ -557,7 +634,7 @@ window.MDManager = window.MDManager || {};
     const entries = /** @type {Array<Extract<ClipboardEntry, {kind: "task"}>>} */ (clipboard);
     const pointed = document.elementFromPoint(position.x, position.y);
     const featureElement = pointed?.closest(".release");
-    if (!featureElement) return false;
+    if (!featureElement || featureElement.classList.contains("archived")) return false;
     const featureIndex = Number(featureElement.dataset.feature);
     const board = featureElement.querySelector(".board");
     if (!board || !project.features[featureIndex]) return false;
@@ -723,6 +800,8 @@ window.MDManager = window.MDManager || {};
     backlogButton.hidden = archiveActive;
     metadataButton.hidden = archiveActive;
     statsButton.hidden = archiveActive;
+    document.getElementById("toggleArchived").hidden = archiveActive;
+    document.getElementById("toggleDone").hidden = !archiveActive;
     if (archiveActive) {
       closeWorkspaceZoom();
       const backlog = document.getElementById("backlog");
@@ -760,12 +839,17 @@ window.MDManager = window.MDManager || {};
       return;
     }
     const popoverBounds = popover.getBoundingClientRect();
+    const popoverContent = popover.querySelector(".archive-feature-popover-content");
+    const naturalHeight = popoverBounds.height + (popoverContent ? popoverContent.scrollHeight - popoverContent.clientHeight : 0);
     const margin = 12;
     const gap = 10;
     let left = anchorBounds.right + gap;
     if (left + popoverBounds.width > window.innerWidth - margin) left = anchorBounds.left - popoverBounds.width - gap;
     left = Math.max(margin, Math.min(left, window.innerWidth - popoverBounds.width - margin));
-    const top = Math.max(visibleTop, anchorBounds.top);
+    // A lane near the bottom has little room below it, so the popover moves up as far as its
+    // complete content needs instead of shrinking into a scroll area.
+    const fittedHeight = Math.min(naturalHeight, visibleBottom - visibleTop - margin);
+    const top = Math.max(visibleTop, Math.min(anchorBounds.top, visibleBottom - margin - fittedHeight));
     const maximumHeight = Math.max(0, visibleBottom - top - margin);
     popover.style.setProperty("--archive-popover-left", `${Math.round(left)}px`);
     popover.style.setProperty("--archive-popover-top", `${top}px`);
@@ -959,15 +1043,18 @@ window.MDManager = window.MDManager || {};
     const controlClass = active?.matches(".checkbox") ? ".checkbox" : active?.matches(".edit-btn") ? ".edit-btn" : active?.matches(".delete-btn") ? ".delete-btn" : active?.matches(".add-task-btn") ? ".add-task-btn" : "";
     const focusSelector = feature ? `.release[data-feature="${feature.dataset.feature}"]${task ? ` .card[data-task="${task.dataset.task}"]` : ""}${todo ? ` .todo-item[data-line="${todo.dataset.line}"]` : ""}${controlClass}` : undefined;
     return {
-      tasks: [...document.querySelectorAll(".card")].map(task => task.getAttribute("aria-expanded") === "true"),
-      featureNotes: [...document.querySelectorAll(".feature-note")].map(note => note.getAttribute("aria-expanded") === "true"),
+      tasks: [...document.querySelectorAll(viewSelectors.tasks)].map(task => task.getAttribute("aria-expanded") === "true"),
+      featureNotes: [...document.querySelectorAll(viewSelectors.notes)].map(note => note.getAttribute("aria-expanded") === "true"),
+      archivedTasks: [...document.querySelectorAll(viewSelectors.archivedTasks)].map(task => task.getAttribute("aria-expanded") === "true"),
+      archivedNotes: [...document.querySelectorAll(viewSelectors.archivedNotes)].map(note => note.getAttribute("aria-expanded") === "true"),
       view: document.body.classList.contains("archive-view-active") ? "archive" : "workspace",
       archiveOpenFeature: Number.isFinite(archiveOpenFeature) ? archiveOpenFeature : null,
       backlogOpen: document.getElementById("toggleBacklog").getAttribute("aria-pressed") === "true",
       statsOpen: document.getElementById("toggleStats").getAttribute("aria-pressed") === "true",
       contentScrollLeft: content.scrollLeft,
       contentScrollTop: content.scrollTop,
-      featureScrolls: [...content.querySelectorAll(":scope > .release > .release-content")].map(featureContent => ({ left: featureContent.scrollLeft, top: featureContent.scrollTop })),
+      featureScrolls: [...document.querySelectorAll(`${viewSelectors.releases} > .release-content`)].map(featureContent => ({ left: featureContent.scrollLeft, top: featureContent.scrollTop })),
+      archivedScrolls: [...document.querySelectorAll(`${viewSelectors.archivedReleases} > .release-content`)].map(featureContent => ({ left: featureContent.scrollLeft, top: featureContent.scrollTop })),
       archiveScrollLeft: archiveContent?.scrollLeft || 0,
       archiveScrollTop: archiveContent?.scrollTop || 0,
       backlogScrollLeft: backlogContent?.scrollLeft || 0,
@@ -984,9 +1071,13 @@ window.MDManager = window.MDManager || {};
     const backlogContent = backlog.querySelector(".backlog-content");
     content.scrollLeft = viewState.contentScrollLeft;
     content.scrollTop = viewState.contentScrollTop;
-    document.querySelectorAll("#content > .release > .release-content").forEach((featureContent, index) => {
+    document.querySelectorAll(`${viewSelectors.releases} > .release-content`).forEach((featureContent, index) => {
       featureContent.scrollLeft = viewState.featureScrolls[index]?.left || 0;
       featureContent.scrollTop = viewState.featureScrolls[index]?.top || 0;
+    });
+    document.querySelectorAll(`${viewSelectors.archivedReleases} > .release-content`).forEach((featureContent, index) => {
+      featureContent.scrollLeft = viewState.archivedScrolls?.[index]?.left || 0;
+      featureContent.scrollTop = viewState.archivedScrolls?.[index]?.top || 0;
     });
     if (archiveContent) {
       archiveContent.scrollLeft = viewState.archiveScrollLeft || 0;
@@ -1091,7 +1182,7 @@ window.MDManager = window.MDManager || {};
   function startFeatureHold(event) {
     if (event.button !== 0) return;
     const header = eventElement(event).closest(".release-header");
-    if (!(header instanceof HTMLElement)) return;
+    if (!(header instanceof HTMLElement) || isArchivedCard(header)) return;
     clearFeatureHold();
     featureHoldTimer = window.setTimeout(() => {
       featureHoldTimer = null;
@@ -1109,7 +1200,7 @@ window.MDManager = window.MDManager || {};
       group: "features",
       animation: reducedMotion.matches ? 0 : 150,
       easing: "cubic-bezier(.2,0,0,1)",
-      draggable: "> .release",
+      draggable: "> .release:not(.archived)",
       handle: ".release-header",
       filter: ".action-btn",
       preventOnFilter: false,
@@ -1118,6 +1209,10 @@ window.MDManager = window.MDManager || {};
       dragClass: "sortable-drag",
       forceFallback: true,
       fallbackOnBody: true,
+      /** @param {any} event */
+      onMove(event) {
+        return !event.related.classList.contains("archived");
+      },
       /** @param {any} event */
       onStart(event) {
         clearFeatureHold();
@@ -1142,7 +1237,7 @@ window.MDManager = window.MDManager || {};
       }
     }));
 
-    document.querySelectorAll(".board").forEach(board => {
+    document.querySelectorAll(`${viewSelectors.releases} .board, #backlog .board`).forEach(board => {
       sortables.push(Sortable.create(board, {
         group: "tasks",
         animation: reducedMotion.matches ? 0 : 150,
@@ -1181,7 +1276,7 @@ window.MDManager = window.MDManager || {};
       }));
     });
 
-    document.querySelectorAll(".todo-list").forEach(list => {
+    document.querySelectorAll(`${viewSelectors.releases} .todo-list, #backlog .todo-list`).forEach(list => {
       sortables.push(Sortable.create(list, {
         group: "todos",
         animation: reducedMotion.matches ? 0 : 150,
@@ -1241,7 +1336,7 @@ window.MDManager = window.MDManager || {};
           const beforeViewState = dragViewState || captureViewState();
           const afterViewState = captureViewState();
           if (toTask.classList.contains("bodyless-task") && toTask.getAttribute("aria-expanded") !== "true") {
-            const targetViewIndex = [...document.querySelectorAll(".card")].indexOf(toTask);
+            const targetViewIndex = [...document.querySelectorAll(viewSelectors.tasks)].indexOf(toTask);
             if (targetViewIndex >= 0) afterViewState.tasks[targetViewIndex] = true;
           }
           dragViewState = null;
@@ -1276,6 +1371,63 @@ window.MDManager = window.MDManager || {};
   /** @param {Element} element @param {string} selector @returns {HTMLElement} */
   function requiredClosest(element, selector) {
     return /** @type {HTMLElement} */ (element.closest(selector));
+  }
+
+  /** @param {MDProject} activeProject @param {number} featureIndex @param {boolean} animated */
+  async function archiveFeatureWithViewState(activeProject, featureIndex, animated) {
+    const feature = activeProject.features[featureIndex];
+    if (!app.domain.canArchiveFeature(feature)) {
+      app.notifications.show("warning", "Feature not archived", [{ value: feature.title }, " is not 100% complete."]);
+      return;
+    }
+    const pinned = Boolean(feature.isPinned);
+    const hadArchive = Boolean(activeProject.hasArchive);
+    const featureElement = /** @type {HTMLElement | null} */ (document.querySelector(`${viewSelectors.releases}[data-feature="${featureIndex}"]`));
+    const beforeViewState = captureViewState();
+    const afterViewState = copyViewState(beforeViewState);
+    const openArchiveFeature = beforeViewState.archiveOpenFeature === null ? null : activeProject.features[beforeViewState.archiveOpenFeature] || null;
+    const entries = featureViewEntries(featureElement);
+    if (featureElement) removeFeatureViewState(afterViewState, featureElement);
+    const base = copyViewState(afterViewState);
+    if (animated && featureElement) await animateRemoval(featureElement);
+    const archived = perform("Feature archived", () => {
+      const result = app.domain.archiveFeature(activeProject, activeProject.features.indexOf(feature));
+      const openFeatureIndex = openArchiveFeature ? activeProject.features.indexOf(openArchiveFeature) : -1;
+      afterViewState.archiveOpenFeature = openFeatureIndex >= 0 ? openFeatureIndex : null;
+      afterViewState.archivedTasks = (base.archivedTasks || []).slice();
+      afterViewState.archivedNotes = (base.archivedNotes || []).slice();
+      afterViewState.archivedScrolls = (base.archivedScrolls || []).map(scroll => ({ ...scroll }));
+      if (result) insertFeatureViewState(afterViewState, activeProject, feature, entries);
+      return result;
+    }, () => {
+      app.domain.restoreArchivedFeature(activeProject, feature, featureIndex, pinned, hadArchive);
+    }, beforeViewState, afterViewState, undefined, 1);
+    if (archived) app.notifications.show("info", "Feature archived", [{ value: feature.title }, " archived."]);
+  }
+
+  /** @param {MDProject} activeProject @param {number} featureIndex @param {boolean} animated */
+  async function unarchiveFeatureWithViewState(activeProject, featureIndex, animated) {
+    const feature = activeProject.features[featureIndex];
+    if (!feature?.isArchived) return;
+    const featureElement = /** @type {HTMLElement | null} */ (document.querySelector(`${viewSelectors.archivedReleases}[data-feature="${featureIndex}"]`));
+    const beforeViewState = captureViewState();
+    const afterViewState = copyViewState(beforeViewState);
+    afterViewState.archiveOpenFeature = null;
+    const entries = featureViewEntries(featureElement);
+    if (featureElement) removeFeatureViewState(afterViewState, featureElement);
+    const base = copyViewState(afterViewState);
+    if (animated && featureElement) await animateRemoval(featureElement);
+    const unarchived = perform("Feature unarchived", () => {
+      const result = app.domain.unarchiveFeature(activeProject, activeProject.features.indexOf(feature));
+      afterViewState.tasks = base.tasks.slice();
+      afterViewState.featureNotes = base.featureNotes.slice();
+      afterViewState.featureScrolls = base.featureScrolls.map(scroll => ({ ...scroll }));
+      if (result) insertFeatureViewState(afterViewState, activeProject, feature, entries);
+      return result;
+    }, () => {
+      app.domain.archiveFeature(activeProject, activeProject.features.indexOf(feature));
+    }, beforeViewState, afterViewState, undefined, 1);
+    if (unarchived) app.notifications.show("info", "Feature unarchived", [{ value: feature.title }, " moved to Workspace."]);
   }
 
   /** @param {MouseEvent} event */
@@ -1330,32 +1482,9 @@ window.MDManager = window.MDManager || {};
       const featureElement = requiredClosest(pendingFeatureAction, ".release");
       const featureIndex = Number(featureElement.dataset.feature);
       if (pendingFeatureAction.dataset.featureAction === "archive") {
-        const feature = activeProject.features[featureIndex];
-        if (!app.domain.canArchiveFeature(feature)) {
-          app.notifications.show("warning", "Feature not archived", [{ value: feature.title }, " is not 100% complete."]);
-          return;
-        }
-        const pinned = Boolean(feature.isPinned);
-        const hadArchive = Boolean(activeProject.hasArchive);
-        const beforeViewState = captureViewState();
-        const afterViewState = copyViewState(beforeViewState);
-        const openArchiveFeature = beforeViewState.archiveOpenFeature === null ? null : activeProject.features[beforeViewState.archiveOpenFeature] || null;
-        const firstTask = [...document.querySelectorAll(".card")].indexOf(featureElement.querySelector(".card"));
-        if (firstTask >= 0) afterViewState.tasks.splice(firstTask, featureElement.querySelectorAll(".card").length);
-        const firstNote = [...document.querySelectorAll(".feature-note")].indexOf(featureElement.querySelector(".feature-note"));
-        if (firstNote >= 0) afterViewState.featureNotes.splice(firstNote, featureElement.querySelectorAll(".feature-note").length);
-        const renderedFeatureIndex = [...document.querySelectorAll("#content > .release")].indexOf(featureElement);
-        if (renderedFeatureIndex >= 0) afterViewState.featureScrolls.splice(renderedFeatureIndex, 1);
-        await animateRemoval(featureElement);
-        const archived = perform("Feature archived", () => {
-          const result = app.domain.archiveFeature(activeProject, activeProject.features.indexOf(feature));
-          const openFeatureIndex = openArchiveFeature ? activeProject.features.indexOf(openArchiveFeature) : -1;
-          afterViewState.archiveOpenFeature = openFeatureIndex >= 0 ? openFeatureIndex : null;
-          return result;
-        }, () => {
-          app.domain.restoreArchivedFeature(activeProject, feature, featureIndex, pinned, hadArchive);
-        }, beforeViewState, afterViewState, undefined, 1);
-        if (archived) app.notifications.show("info", "Feature archived", [{ value: feature.title }, " archived."]);
+        await archiveFeatureWithViewState(activeProject, featureIndex, true);
+      } else if (pendingFeatureAction.dataset.featureAction === "unarchive") {
+        await unarchiveFeatureWithViewState(activeProject, featureIndex, true);
       } else if (pendingFeatureAction.dataset.featureAction === "pin") {
         const pinned = Boolean(activeProject.features[featureIndex].isPinned);
         const pinnedBefore = activeProject.features.map(feature => Boolean(feature.isPinned));
@@ -1382,7 +1511,7 @@ window.MDManager = window.MDManager || {};
         const taskIndex = feature.tasks.length;
         const afterViewState = copyViewState(beforeViewState);
         const featureCards = [...featureElement.querySelectorAll(".card")];
-        const viewIndex = featureCards.length ? [...document.querySelectorAll(".card")].indexOf(/** @type {Element} */ (featureCards.at(-1))) + 1 : taskViewIndex(featureElement, null);
+        const viewIndex = featureCards.length ? [...document.querySelectorAll(viewSelectors.tasks)].indexOf(/** @type {Element} */ (featureCards.at(-1))) + 1 : taskViewIndex(featureElement, null);
         afterViewState.tasks.splice(viewIndex, 0, false);
         perform("Task added", () => app.domain.insertTask(activeProject, featureIndex, taskIndex, task), () => { app.domain.deleteTask(activeProject, featureIndex, taskIndex); }, beforeViewState, afterViewState, undefined, task.title.length + task.lines.join("\n").length);
         app.notifications.show("info", "Task added", [{ value: draft.title }, " added to ", { value: feature.title }, "."]);
@@ -1443,18 +1572,13 @@ window.MDManager = window.MDManager || {};
       deleteButton.disabled = true;
       await animateRemoval(removedElement);
       if (deleteButton.dataset.delete === "feature") {
-        const firstTask = [...document.querySelectorAll(".card")].indexOf(featureElement.querySelector(".card"));
-        if (firstTask >= 0) viewState.tasks.splice(firstTask, featureElement.querySelectorAll(".card").length);
-        const firstNote = [...document.querySelectorAll(".feature-note")].indexOf(featureElement.querySelector(".feature-note"));
-        if (firstNote >= 0) viewState.featureNotes.splice(firstNote, featureElement.querySelectorAll(".feature-note").length);
-        const renderedFeatureIndex = [...document.querySelectorAll("#content > .release")].indexOf(featureElement);
-        if (renderedFeatureIndex >= 0) viewState.featureScrolls.splice(renderedFeatureIndex, 1);
+        removeFeatureViewState(viewState, featureElement);
         const feature = project.features[featureIndex];
         const deleted = perform("Feature deleted", () => app.domain.deleteFeature(project, featureIndex), () => { app.domain.insertFeature(project, featureIndex, feature); }, beforeViewState, viewState, undefined, feature.title.length + feature.headerLines.join("\n").length + feature.tasks.reduce((size, task) => size + task.title.length + task.lines.join("\n").length, 0));
         if (deleted) app.notifications.show("info", "Feature deleted", [{ value: feature.title }, " deleted."]);
       } else if (deleteButton.dataset.delete === "task") {
         const taskElement = requiredClosest(deleteButton, ".card");
-        viewState.tasks.splice([...document.querySelectorAll(".card")].indexOf(taskElement), 1);
+        viewState.tasks.splice([...document.querySelectorAll(viewSelectors.tasks)].indexOf(taskElement), 1);
         const taskIndex = Number(taskElement.dataset.task);
         const task = project.features[featureIndex].tasks[taskIndex];
         const deleted = perform("Task deleted", () => app.domain.deleteTask(project, featureIndex, taskIndex), () => { app.domain.insertTask(project, featureIndex, taskIndex, task); }, beforeViewState, viewState, undefined, task.title.length + task.lines.join("\n").length);
@@ -1472,6 +1596,7 @@ window.MDManager = window.MDManager || {};
     const checkbox = eventElement(event).closest(".checkbox");
     if (checkbox) {
       event.stopPropagation();
+      if (isArchivedCard(checkbox)) return;
       const todo = requiredClosest(checkbox, ".todo-item");
       const taskElement = requiredClosest(checkbox, ".card");
       const featureElement = requiredClosest(checkbox, ".release");
@@ -1610,20 +1735,12 @@ window.MDManager = window.MDManager || {};
     }
     const unarchiveButton = /** @type {HTMLElement | null} */ (target.closest("[data-unarchive-feature]"));
     if (unarchiveButton && project) {
-      const activeProject = project;
-      const featureIndex = Number(unarchiveButton.dataset.unarchiveFeature);
-      const feature = activeProject.features[featureIndex];
-      if (!feature?.isArchived) return;
-      const beforeViewState = captureViewState();
-      const afterViewState = copyViewState(beforeViewState);
-      afterViewState.archiveOpenFeature = null;
-      const unarchived = perform("Feature unarchived", () => {
-        const result = app.domain.unarchiveFeature(activeProject, activeProject.features.indexOf(feature));
-        return result;
-      }, () => {
-        app.domain.archiveFeature(activeProject, activeProject.features.indexOf(feature));
-      }, beforeViewState, afterViewState, undefined, 1);
-      if (unarchived) app.notifications.show("info", "Feature unarchived", [{ value: feature.title }, " moved to Workspace."]);
+      void unarchiveFeatureWithViewState(project, Number(unarchiveButton.dataset.unarchiveFeature), false);
+      return;
+    }
+    const archiveButton = /** @type {HTMLElement | null} */ (target.closest("[data-archive-feature]"));
+    if (archiveButton && project) {
+      void archiveFeatureWithViewState(project, Number(archiveButton.dataset.archiveFeature), false);
       return;
     }
     const button = /** @type {HTMLElement | null} */ (target.closest(".archive-feature-toggle"));
@@ -1665,9 +1782,9 @@ window.MDManager = window.MDManager || {};
       const boundaryIndex = activeProject.features.findIndex(item => item.isBacklog || item.isArchived);
       const featureIndex = boundaryIndex < 0 ? activeProject.features.length : boundaryIndex;
       const afterViewState = copyViewState(beforeViewState);
-      const taskIndex = document.querySelectorAll("#content .card").length;
+      const taskIndex = document.querySelectorAll(`${viewSelectors.releases} .card`).length;
       afterViewState.tasks.splice(taskIndex, 0, ...tasks.map(() => false));
-      const noteIndex = document.querySelectorAll("#content .feature-note").length;
+      const noteIndex = document.querySelectorAll(`${viewSelectors.releases} .feature-note`).length;
       afterViewState.featureNotes.splice(noteIndex, 0, ...feature.notes.map(() => false));
       afterViewState.featureScrolls.push({ left: 0, top: 0 });
       const size = feature.title.length + feature.headerLines.join("\n").length + tasks.reduce((/** @type {number} */ total, /** @type {MDTask} */ task) => total + task.title.length + task.lines.join("\n").length, 0);
@@ -1833,6 +1950,37 @@ window.MDManager = window.MDManager || {};
   });
 
   document.getElementById("toggleStats").addEventListener("click", toggleStats);
+
+  /** @param {MDViewOptions} changes */
+  function changeViewOptions(changes) {
+    if (!project || !viewOptionsChanged) return;
+    closeViewMenu();
+    const viewState = captureViewState();
+    // Archived cards are added or removed before the regular features. Correcting the scroll offset
+    // by how far a regular feature moved keeps the regular features where the user is looking.
+    const anchor = /** @type {HTMLElement | null} */ (document.querySelector(viewSelectors.releases));
+    const anchorLeft = anchor ? anchor.offsetLeft : 0;
+    viewOptionsChanged(changes, viewState);
+    const moved = anchor ? /** @type {HTMLElement | null} */ (document.querySelector(`${viewSelectors.releases}[data-feature="${anchor.dataset.feature}"]`)) : null;
+    if (moved) viewState.contentScrollLeft = Math.max(0, viewState.contentScrollLeft + moved.offsetLeft - anchorLeft);
+    // The divider marks that archived cards continue to the left. When the start of the regular
+    // features was in view, the divider would end up cut off at the edge, so the regular features
+    // move right by its width to show it completely. Further scrolled views stay untouched.
+    const divider = changes.showArchived ? /** @type {HTMLElement | null} */ (document.querySelector("#content > .archived-divider")) : null;
+    if (divider) {
+      const content = document.getElementById("content");
+      const style = getComputedStyle(content);
+      const dividerStyle = getComputedStyle(divider);
+      const dividerLeft = divider.getBoundingClientRect().left - content.getBoundingClientRect().left + content.scrollLeft - parseFloat(dividerStyle.marginLeft);
+      const regularStart = dividerLeft + parseFloat(dividerStyle.marginLeft) + divider.offsetWidth + parseFloat(dividerStyle.marginRight) + (parseFloat(style.columnGap) || 0);
+      if (viewState.contentScrollLeft <= regularStart + 1) viewState.contentScrollLeft = Math.max(0, dividerLeft - parseFloat(style.paddingLeft));
+    }
+  }
+
+  document.getElementById("toggleArchived").addEventListener("click", () => changeViewOptions({ showArchived: !archivedShown() }));
+  document.getElementById("toggleDone").addEventListener("click", event => {
+    changeViewOptions({ showDone: (/** @type {HTMLElement} */ (event.currentTarget)).getAttribute("aria-pressed") !== "true" });
+  });
   document.getElementById("toggleClock").addEventListener("click", event => {
     const clock = document.getElementById("appClock");
     const active = clock.hidden;
@@ -1907,6 +2055,8 @@ window.MDManager = window.MDManager || {};
     setCreateProject(callback) { createProject = callback; },
     /** @param {(width: number) => void} callback */
     setFeatureWidthCommitted(callback) { featureWidthCommitted = callback; },
+    /** @param {(changes: MDViewOptions, viewState: MDViewState) => void} callback */
+    setViewOptionsChanged(callback) { viewOptionsChanged = callback; },
     /** @param {{save: () => Promise<void>, undo: () => void, redo: () => void, reloadExternal: () => Promise<boolean>, overwriteExternal: () => Promise<boolean>}} actions */
     setUndoSystemActions(actions) {
       save = actions.save;

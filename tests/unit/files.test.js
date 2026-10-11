@@ -142,3 +142,22 @@ test("recent entries persist the last valid feature-card width per file", async 
   await files.remember(handle, "Project", 999);
   assert.equal((await files.recent())[0].featureWidth, 540);
 });
+
+test("recent entries persist archive view options per file and keep them when omitted", async () => {
+  const { files } = loadFiles();
+  const handle = { name: "Project.md", async isSameEntry(/** @type {{name: string}} */ other) { return other.name === this.name; } };
+
+  const initial = await files.remember(handle, "Project");
+  assert.equal(initial.showArchived, false);
+  assert.equal(initial.showDone, false);
+  await files.remember(handle, "Project", 460, { showArchived: true });
+  await files.remember(handle, "Project", 460, { showDone: true });
+  const kept = await files.remember(handle, "Project");
+  assert.equal(kept.showArchived, true);
+  assert.equal(kept.showDone, true);
+  await files.remember(handle, "Project", 460, { showArchived: false, showDone: false });
+  const [stored] = await files.recent();
+  assert.equal(stored.showArchived, false);
+  assert.equal(stored.showDone, false);
+  assert.equal(stored.featureWidth, 460);
+});

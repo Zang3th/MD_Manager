@@ -105,6 +105,8 @@ window.MDManager = window.MDManager || {};
   let serializedMarkdown = "";
   let savedMarkdown = "";
   let featureWidth = 380;
+  /** @type {Required<MDViewOptions>} */
+  let viewOptions = { showArchived: false, showDone: false };
   /** @type {{markdown: string, stamp: string} | null} */
   let externalChange = null;
   let fileSession = 0;
@@ -120,7 +122,7 @@ window.MDManager = window.MDManager || {};
   /** @param {MDViewState} [viewState] */
   function render(viewState) {
     if (!project || !fileHandle) return;
-    app.render.project(project, viewState, fileHandle.name, featureWidth);
+    app.render.project(project, viewState, fileHandle.name, featureWidth, viewOptions);
     app.interactions.setProject(project, executeAction);
     app.searchPalette.setProject(project);
     app.interactions.restoreViewState(viewState);
@@ -165,18 +167,18 @@ window.MDManager = window.MDManager || {};
     return [380, 460, 540].includes(width || 0) ? /** @type {380 | 460 | 540} */ (width) : 380;
   }
 
-  /** @param {MDFileHandle} handle */
-  async function rememberedFeatureWidth(handle) {
+  /** @param {MDFileHandle} handle @returns {Promise<MDRecentFile | undefined>} */
+  async function rememberedFile(handle) {
     for (const entry of recentFiles) {
-      if (await entry.handle.isSameEntry(handle)) return normalizedFeatureWidth(entry.featureWidth);
+      if (await entry.handle.isSameEntry(handle)) return entry;
     }
-    return 380;
+    return undefined;
   }
 
   function rememberOpenedFile() {
     if (!fileHandle || !project) return;
     const activeHandle = fileHandle;
-    app.files.remember(activeHandle, project.title, featureWidth).then((/** @type {MDRecentFile | undefined} */ record) => {
+    app.files.remember(activeHandle, project.title, featureWidth, viewOptions).then((/** @type {MDRecentFile | undefined} */ record) => {
       if (!record) return;
       recentFiles = recentFiles.filter(entry => entry.id !== record.id).concat(record).sort((left, right) => right.openedAt - left.openedAt).slice(0, 5);
     }).catch((/** @type {Error} */ error) => {
@@ -298,8 +300,8 @@ window.MDManager = window.MDManager || {};
     return request.promise;
   }
 
-  /** @param {MDOpenedFile | null} opened @param {number} [rememberedWidth] */
-  async function useOpenedFile(opened, rememberedWidth = 380) {
+  /** @param {MDOpenedFile | null} opened @param {MDRecentFile} [remembered] */
+  async function useOpenedFile(opened, remembered) {
     if (!opened) return;
     const openedProject = app.markdown.parse(opened.markdown);
     fileSession++;
@@ -315,7 +317,8 @@ window.MDManager = window.MDManager || {};
     diskStamp = opened.stamp || "";
     externalChange = null;
     undoSystem = app.undoSystem.create();
-    featureWidth = normalizedFeatureWidth(rememberedWidth);
+    featureWidth = normalizedFeatureWidth(remembered?.featureWidth);
+    viewOptions = { showArchived: Boolean(remembered?.showArchived), showDone: Boolean(remembered?.showDone) };
     render();
     app.interactions.startClock();
     app.notifications.show("info", "File loaded", [{ value: fileHandle.name }, " is ready."]);
@@ -385,7 +388,7 @@ window.MDManager = window.MDManager || {};
     let opened = null;
     try {
       opened = await app.files.open();
-      await useOpenedFile(opened, opened ? await rememberedFeatureWidth(opened.handle) : 380);
+      await useOpenedFile(opened, opened ? await rememberedFile(opened.handle) : undefined);
     } catch (error) {
       if (!(error instanceof Error)) throw error;
       if (error.name === "AbortError") return;
@@ -396,7 +399,7 @@ window.MDManager = window.MDManager || {};
 
   app.interactions.setOpenRecent(async (/** @type {number} */ index) => {
     try {
-      await useOpenedFile(await app.files.read(recentFiles[index].handle), recentFiles[index].featureWidth);
+      await useOpenedFile(await app.files.read(recentFiles[index].handle), recentFiles[index]);
     } catch (error) {
       if (!(error instanceof Error)) throw error;
       const formatError = error.name === "MarkdownFormatError";
@@ -453,6 +456,12 @@ window.MDManager = window.MDManager || {};
 
   app.interactions.setFeatureWidthCommitted((/** @type {number} */ width) => {
     featureWidth = normalizedFeatureWidth(width);
+    rememberOpenedFile();
+  });
+
+  app.interactions.setViewOptionsChanged((/** @type {MDViewOptions} */ changes, /** @type {MDViewState} */ viewState) => {
+    viewOptions = { ...viewOptions, ...changes };
+    render(viewState);
     rememberOpenedFile();
   });
 

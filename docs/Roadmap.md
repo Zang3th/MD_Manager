@@ -1,36 +1,5 @@
 # MD_Manager
 
-## Zeitstrahl
-
-#Version
-- 0.7.1
-
-#Date
-- 11.08.2026 - 12.08.2026
-
-### Bugs und Verbesserungen
-
-- [x] ~Board => Workspace~
-- [x] ~Grid => Wird abgeschafft und durchs Archiv ersetzt~
-- [x] ~Breite des Backlogs anpassen~
-- [x] ~Tabs im Help-Menü~
-- [x] ~Screenshots automatisieren~
-
-### Archiv
-
-- [x] ~Prototypischen Zeitstrahl zu einer vollwertigen Seite umbauen~
-- [x] ~"Pseudo"-3D + visuell ansprechend~
-- [x] ~README updaten~
-
-### Release
-
-- [x] ~u.U. Docs umspeichern~
-- [x] ~Version-Bump + Snapshots aktualisieren~
-- [x] ~Screenshots aktualisieren (via Skill)~
-- [x] ~README.md anpassen (Änderungen + Stats)~
-- [x] ~Release-Notes schreiben~
-- [x] ~Release fertig machen (via Actions)~
-
 ## Zoom und Suche
 
 #Version
@@ -134,6 +103,31 @@ Stats und Backlog bleiben davon unberührt.
 - [x] ~Release fertig machen (via Actions)~
 
 #Pin
+## Feintuning
+
+#Version
+- 0.9.1
+
+#Date
+- 11.10.2026 - TBD
+
+### Bugs und Verbesserungen
+
+- [x] ~Projektweiter Toggle: Archivierte Boards bleiben im Workspace sichtbar => spezielle Darstellung~
+- [x] ~Projektweiter Toggle: Fertiggestellte, nicht-archivierte Boards können in der Timeline sichtbar geschaltet werden => spezielle Darstellung~
+- [x] ~Timeline: Start- und Endkappen haben manchmal unterschiedliche Breiten~
+- [x] ~Timeline: Zeiträume vor und nach Pausen haben manchmal Glow und manchmal nicht~
+- [x] ~Texte und Beschreibungen der View-Buttons aktualisieren~
+
+### Release
+
+- [ ] u.U. Docs umspeichern
+- [ ] Version-Bump + Snapshots aktualisieren
+- [ ] Screenshots aktualisieren (via Skill)
+- [ ] README.md anpassen (Änderungen + Stats)
+- [ ] Release-Notes schreiben
+- [ ] Release fertig machen (via Actions)
+
 ## Filtern und Controls
 
 #Version
@@ -643,3 +637,34 @@ Kompatibilität mit anderen Tools? Enforcement bei uns?
 - [x] ~In Stats nachpflegen~
 - [x] ~Anzeige und Toggle ähnlich zum Backlog~
 - [x] ~README ergänzen~
+
+## Zeitstrahl
+
+#Version
+- 0.7.1
+
+#Date
+- 11.08.2026 - 12.08.2026
+
+### Bugs und Verbesserungen
+
+- [x] ~Board => Workspace~
+- [x] ~Grid => Wird abgeschafft und durchs Archiv ersetzt~
+- [x] ~Breite des Backlogs anpassen~
+- [x] ~Tabs im Help-Menü~
+- [x] ~Screenshots automatisieren~
+
+### Archiv
+
+- [x] ~Prototypischen Zeitstrahl zu einer vollwertigen Seite umbauen~
+- [x] ~"Pseudo"-3D + visuell ansprechend~
+- [x] ~README updaten~
+
+### Release
+
+- [x] ~u.U. Docs umspeichern~
+- [x] ~Version-Bump + Snapshots aktualisieren~
+- [x] ~Screenshots aktualisieren (via Skill)~
+- [x] ~README.md anpassen (Änderungen + Stats)~
+- [x] ~Release-Notes schreiben~
+- [x] ~Release fertig machen (via Actions)~
