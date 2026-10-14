@@ -10,7 +10,7 @@
 - SortableJS is the only permitted production dependency and must be stored locally under `vendor/`.
 - Test-only dependencies and package-manager tooling are permitted.
 - Do not add unrequested features, abstractions, fallbacks, documentation, configuration, or polish.
-- Regression tests for requested product behavior are part of that behavior and do not require a separate request. Add or update the smallest deterministic regression coverage needed for every behavior change.
+- Regression tests for requested product behavior are part of that behavior and do not require a separate request. Add or update the smallest deterministic regression coverage needed for every behavior change, following the Tests section.
 - Follow requirements literally; when ambiguous, choose the simplest interpretation.
 
 ## Architecture
@@ -53,8 +53,8 @@
 - Keep exactly one active work item. State the outcome, scope boundaries, affected contracts, observable acceptance criteria, planned regression coverage, and relevant performance impact before implementation.
 - Red-team the specification before changing code: check unhappy paths, missing contracts, scope creep, oversized steps, test gaps, cross-platform effects, accessibility, persistence, undo/redo, and repeated-work or layout costs.
 - Implement the specification in small ordered steps that each leave the project working. Update the specification before expanding scope; never improvise unrecorded product behavior.
-- Map every acceptance criterion to deterministic evidence. Use unit tests for DOM-independent rules, Playwright for browser behavior, visual baselines for stable layout contracts, and explicit measurements for material performance claims.
-- Finish with a review packet containing changed files and reasons, acceptance evidence, regression coverage, exact commands and results, manual verification when relevant, and remaining risks or skipped evidence.
+- Map every acceptance criterion to deterministic evidence at the cheapest layer that can prove it, as defined in the Tests section, and use explicit measurements for material performance claims.
+- Finish with a review packet containing changed files and reasons, acceptance evidence, regression coverage, removed or merged tests with the coverage that replaces them, exact commands and results, manual verification when relevant, and remaining risks or skipped evidence.
 - After completion, reset `docs/work/current.md` to its defined empty state. `docs/Roadmap.md` remains user-owned and changes only on explicit request.
 
 ## User Experience
@@ -75,17 +75,43 @@
 - The harness consists of strict TypeScript checking for production and harness JavaScript with JSDoc, ESLint with zero warnings, the workflow doctor, the architecture checker and its regression tests, `node:test`, and Playwright Test.
 - `npm run verify` runs all checks in that order, fails fast, and is the only Definition of Done for local development, agents, and CI.
 - Keep the harness deterministic, isolated, non-interactive, offline during verification, and independent of machine-specific paths or user state.
-- Treat `data/parsing/Layout.md` as the parsing golden file and preserve all existing tests, assertions, and architecture rules.
-- Extend checks and regression coverage with behavior changes; never weaken the harness to make a change pass.
+- Treat `data/parsing/Layout.md` as the parsing golden file and preserve the architecture rules.
+- Extend checks and regression coverage with behavior changes; never weaken the harness or remove coverage of intended behavior to make a change pass.
 - Keep production-file discovery recursive so new nested files cannot escape architecture checks or script-wiring validation.
-- Do not commit focused, skipped, fixme, or todo tests. Browser tests fail on unexpected console errors and uncaught page errors.
+- Keep production code directly runnable from the local filesystem without installing test dependencies or running a build step.
 
 ## Tests
 
-- Use `node:test` for DOM-independent unit tests of `domain/` and `io/markdown.js`.
-- Use Playwright Test for browser integration, end-to-end, layout, interaction, SortableJS, and persistence tests.
-- Keep production code directly runnable from the local filesystem without installing test dependencies or running a build step.
-- Do not modify, weaken, skip, replace, or remove existing tests unless the user explicitly requests changes to the tests.
-- Product changes may add new tests, but must preserve all existing test coverage and assertions.
+Tests are maintained code with a runtime cost on every local run, agent iteration, and CI job on three operating systems. Keep the suite proportionate to the product: every test must be able to catch a real defect that no cheaper test catches.
+
+### Choosing the layer
+
+- Use `node:test` for DOM-independent rules in `domain/` and `io/markdown.js`. Business rules, parsing, serialization, ranking, aggregation, and state transitions are tested there, including their edge cases.
+- Use Playwright Test only for behavior that needs a real browser: wiring between UI and domain, DOM events, keyboard and focus handling, dialogs, SortableJS, persistence and file-access flows, and layout that depends on measured geometry.
+- Use the platform visual baselines for appearance. Colors, borders, radii, shadows, fonts, icon choice, and fixed control sizes are covered by screenshots, not by assertions that restate stylesheet values such as `toHaveCSS` with literal colors, pixel sizes, or border widths. Computed values may be asserted where the value itself is the behavior, for example visibility, `cursor`, or `pointer-events`.
+- Express layout contracts relative to the page: alignment between elements, containment, absence of overflow, and absence of shifts between states. Use tolerances that survive platform rasterization, about half to one CSS pixel, unless the test is explicitly about device-pixel snapping.
+- A rule covered by a unit test needs at most one end-to-end path that proves its wiring, not a browser test per case.
+
+### Adding coverage
+
+- Give a behavior change the smallest coverage that fails without the change.
+- Before writing a test, search the existing tests for the flow, selector, action, or message. Extend an existing test of the same flow before adding a new one; a new end-to-end test needs a flow that no existing test exercises.
+- One test covers one flow, and its name states that flow. Do not combine unrelated concerns in one test.
+- Keep helpers shared by several spec files in `tests/e2e/fixtures.js` and reuse them instead of copying them into a spec file.
+- Parameterize over themes, device pixel ratios, or viewport sizes only where the behavior differs between them.
+
+### Determinism and cost
+
 - Test observable behavior with deterministic, isolated, order-independent tests.
-- Wait for observable states instead of arbitrary delays, and store generated artifacts only in ignored directories.
+- Wait for observable states, such as locator assertions, `expect.poll`, or finished animations, never for fixed delays. Drive application timers with the Playwright clock.
+- Make sure the element an action targets is not covered, for example by a notification, instead of letting Playwright retry until the cover disappears.
+- Write no artifacts that no assertion reads, such as debug screenshots, and store generated artifacts only in ignored directories.
+- A single end-to-end test that takes longer than about three seconds on a developer machine needs a reason in the work specification.
+- While iterating, run only the affected spec files or tests, for example `npx playwright test tests/e2e/search.spec.js -g "Enter reveals"`. Run `npm run verify` before finishing.
+
+### Maintaining the suite
+
+- Remove, merge, or rewrite tests that duplicate other coverage, restate stylesheet values, or no longer describe intended behavior. List each removed or merged test in the review packet together with the test or baseline that keeps the behavior covered.
+- Fix a test that fails without a product defect, for example because of platform rendering or timing, at its cause or delete it. Do not widen tolerances or add waits only to silence it.
+- When a change intentionally alters appearance, update the visual baselines for all platforms with the visual-baselines workflow.
+- Do not commit focused, skipped, fixme, or todo tests. Browser tests fail on unexpected console errors and uncaught page errors.

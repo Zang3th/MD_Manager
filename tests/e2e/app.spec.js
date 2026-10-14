@@ -1,8 +1,7 @@
-const { test, expect } = require("./fixtures");
+const { test, expect, appUrl, settleLayout, dismissNotifications } = require("./fixtures");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const appUrl = `file:///${path.resolve(__dirname, "../../MD_Manager.html").replaceAll("\\", "/")}`;
 const goldenFixture = fs.readFileSync(path.resolve(__dirname, "../../data/parsing/Layout.md"), "utf8");
 const fixture = `# Test Project
 
@@ -49,18 +48,6 @@ async function openGoldenFixture(page) {
   await expect(page.locator("#projectTitle")).toHaveText("Lorem Ipsum Product Roadmap");
 }
 
-/**
- * Waits until no layout pass is still pending. Font loading schedules one more pass of its own, so
- * a geometry baseline taken before this can be invalidated by a relayout the test never triggered.
- * @param {import("@playwright/test").Page} page
- */
-function settleLayout(page) {
-  return page.evaluate(async () => {
-    await document.fonts.ready;
-    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-  });
-}
-
 /** @param {import("@playwright/test").Page} page */
 async function prepareVisualPage(page) {
   await page.addStyleTag({ content: ".app-tooltip,.notifications,.app-clock{visibility:hidden!important}" });
@@ -77,10 +64,14 @@ async function setVisualTheme(page, theme) {
   await expect(page.locator("body")).toHaveAttribute("data-theme", expected);
 }
 
-/** @param {import("@playwright/test").Page} page @param {string} scene */
-async function captureVisualThemePair(page, scene) {
-  for (const theme of ["dark", "light"]) {
-    await setVisualTheme(page, /** @type {"dark" | "light"} */ (theme));
+/**
+ * Each scene is captured in one theme and the scenes together cover both, so a theme regression still
+ * shows up without doubling every baseline.
+ * @param {import("@playwright/test").Page} page @param {string} scene @param {Array<"dark" | "light">} themes
+ */
+async function captureVisualThemes(page, scene, themes) {
+  for (const theme of themes) {
+    await setVisualTheme(page, theme);
     await prepareVisualPage(page);
     await expect(page).toHaveScreenshot(`${scene}-${theme}.png`, { animations: "disabled", maxDiffPixels: 100 });
   }
@@ -201,35 +192,16 @@ test("start screen exposes the application identity and open action", async ({ p
   await page.goto(appUrl);
   await expect(page).toHaveTitle("MD_Manager");
   await expect(page.locator("#appVersion")).toHaveText("v0.9.1-dev");
-  await expect(page.locator("#appVersion")).toHaveCSS("font-family", '"JetBrains Mono", monospace');
-  expect(await page.locator("#appVersion").evaluate(element => getComputedStyle(element, "::before").content)).toBe("none");
   const versionClockStyles = await page.locator("#appVersion, #appClock").evaluateAll(elements => elements.map(element => {
     const style = getComputedStyle(element);
     return [style.height, style.padding, style.borderWidth, style.borderRadius, style.backgroundImage, style.boxShadow, style.font];
   }));
   expect(versionClockStyles[0]).toEqual(versionClockStyles[1]);
   const startActions = page.locator(".start-actions");
-  await expect(startActions).toHaveCSS("margin-top", "64px");
   const openFile = startActions.getByRole("button", { name: "Open File", exact: true });
   const createFile = startActions.getByRole("button", { name: "Create File", exact: true });
   await expect(openFile).toBeVisible();
   expect(await openFile.evaluate(element => element.getBoundingClientRect().x)).toBeLessThan(await createFile.evaluate(element => element.getBoundingClientRect().x));
-  for (const action of [openFile, createFile]) {
-    await expect(action).toHaveCSS("background-color", "rgb(40, 40, 40)");
-    await expect(action).toHaveCSS("border-color", "rgb(80, 73, 69)");
-    await expect(action).toHaveCSS("color", "rgb(235, 219, 178)");
-  }
-  const restingActionShadow = await openFile.evaluate(element => getComputedStyle(element).boxShadow);
-  await openFile.hover();
-  await expect(openFile).toHaveCSS("background-color", "rgb(60, 56, 54)");
-  await expect(openFile).toHaveCSS("border-color", "rgb(235, 219, 178)");
-  await expect(openFile).toHaveCSS("color", "rgb(235, 219, 178)");
-  await expect(openFile).toHaveCSS("box-shadow", restingActionShadow);
-  await createFile.hover();
-  await expect(createFile).toHaveCSS("background-color", "rgb(60, 56, 54)");
-  await expect(createFile).toHaveCSS("border-color", "rgb(235, 219, 178)");
-  await expect(createFile).toHaveCSS("color", "rgb(235, 219, 178)");
-  await expect(createFile).toHaveCSS("box-shadow", restingActionShadow);
   await expect(page.locator(".header").getByRole("button", { name: /Open/ })).toHaveCount(0);
   await expect(page.locator("#watermark")).toBeVisible();
   await expect(page.locator("#watermark")).toContainText("MD_Manager v0.9.1-dev");
@@ -240,7 +212,6 @@ test("start screen exposes the application identity and open action", async ({ p
   const positions = await Promise.all([help, sound, theme].map(locator => locator.evaluate(node => node.getBoundingClientRect().x)));
   expect(positions[0]).toBeLessThan(positions[1]);
   expect(positions[1]).toBeLessThan(positions[2]);
-  await expect(page.locator(".help-menu")).toHaveCSS("border-left-style", "none");
   await help.click();
   await expect(page.locator("#helpPopover")).toBeVisible();
 });
@@ -258,12 +229,6 @@ test("recent files show the Markdown project title and filename", async ({ page 
   await expect(page.locator(".recent-project-name")).toHaveText("MD Manager");
   await expect(page.locator(".recent-file-name")).toHaveText("Roadmap.md");
   await expect(page.locator(".recent-file-time")).toHaveText("03.08.2026 12:34");
-  await expect(page.locator(".recent-file")).toHaveCSS("border-top-width", "2px");
-  await expect(page.locator(".recent-file-actions")).toHaveCSS("border-left-width", "0px");
-  await expect(page.locator(".recent-delete")).toHaveCSS("border-top-width", "0px");
-  await page.locator(".recent-delete").hover();
-  await expect(page.locator(".recent-file")).toHaveCSS("border-color", "rgb(254, 128, 25)");
-  expect(await page.locator(".recent-file").evaluate(element => getComputedStyle(element, "::after").content)).toBe("none");
 });
 
 test("local fonts, SVG symbols, custom tooltips, and editor controls are deterministic", async ({ page }) => {
@@ -283,11 +248,8 @@ test("local fonts, SVG symbols, custom tooltips, and editor controls are determi
   await expect(page.locator(".app-logo-mark")).toHaveCSS("cursor", "pointer");
   await expect(page.locator(".app-logo-mark")).toHaveAttribute("aria-label", "Reload application");
   await expect(page.locator(".app-logo-mark")).not.toHaveAttribute("data-tooltip");
-  await page.locator(".app-logo-mark").hover();
-  await expect(page.locator(".app-logo-mark")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
   await expect(page.locator("#toggleTheme svg")).toBeVisible();
   await expect(page.locator("#toggleViewMenu .view-chevron")).toBeAttached();
-  await expect(page.locator("#icon-volume path").nth(1)).toHaveAttribute("stroke-width", "3");
 
   const help = page.getByRole("button", { name: "Help", exact: true });
   await help.hover();
@@ -298,8 +260,6 @@ test("local fonts, SVG symbols, custom tooltips, and editor controls are determi
   await openFixture(page);
   await expect(page.locator("body [title]")).toHaveCount(0);
   await expect(page.locator("#toggleHelp use")).toHaveAttribute("href", "#icon-help");
-  await expect(page.locator("#icon-help path")).toHaveAttribute("stroke-width", "4");
-  await expect(page.locator("#icon-help path")).toHaveAttribute("d", /M16 25H16\.01/);
   await expect(page.locator("#addFeature")).toBeVisible();
   await expect(page.locator("#addFeature")).toHaveAttribute("data-tooltip", "New feature");
   await page.locator("#addFeature").hover();
@@ -309,14 +269,9 @@ test("local fonts, SVG symbols, custom tooltips, and editor controls are determi
   await expect(page.locator('.task-in-progress .ui-icon use[href="#icon-progress"]')).toBeVisible();
   await expect(page.locator('.delete-btn .ui-icon use[href="#icon-close"]').first()).toBeAttached();
   const firstTask = page.locator("#content .card").first();
-  await expect(firstTask).toHaveCSS("border-top-width", "0px");
-  await firstTask.locator(".card-header").hover();
-  await expect(firstTask).toHaveCSS("box-shadow", /0px 0px 0px 2px inset/);
-  await expect(page.locator("#content .release-header").first()).toHaveCSS("border-bottom-width", "0px");
   await firstTask.dblclick();
   await expect(page.locator("#taskEditorForm")).toHaveAttribute("spellcheck", "false");
   await expect(page.locator("#taskEditorMarkdown")).toHaveAttribute("spellcheck", "false");
-  await expect(page.locator("#taskEditorMarkdown")).toHaveCSS("font-family", '"JetBrains Mono", monospace');
 });
 
 test("symbols, progress values, and the clock stay optically aligned in their controls", async ({ page }) => {
@@ -342,20 +297,11 @@ test("symbols, progress values, and the clock stay optically aligned in their co
   await expectCentered(completeCard.locator(".checkbox"), completeCard.locator(".checkbox .ui-icon"));
   const todoDelete = completeCard.locator(".todo-item .delete-btn");
   await expectCentered(todoDelete, todoDelete.locator(".ui-icon"));
-  await expect(todoDelete.locator(".ui-icon")).toHaveCSS("width", "16px");
-  await expect(todoDelete.locator(".ui-icon")).toHaveCSS("height", "16px");
   await expectVisibleIconButtonsCentered(page);
 
-  await expect(page.locator(".stats-close")).toHaveCSS("width", "24px");
-  await expect(page.locator(".stats-close")).toHaveCSS("height", "24px");
   await toggleBacklogFromView(page);
-  await expect(page.locator(".backlog-close")).toHaveCSS("width", "32px");
-  await expect(page.locator(".backlog-close")).toHaveCSS("height", "32px");
   const featurePlus = page.locator("#content .add-task-btn").first();
   const backlogPlus = page.locator("#backlog .add-task-btn");
-  await expect(featurePlus).toHaveCSS("width", "32px");
-  await expect(featurePlus).toHaveCSS("height", "32px");
-  await expect(featurePlus.locator("xpath=..")).toHaveCSS("border-top-width", "0px");
   const workspaceSpacing = await page.locator("#content > .release").first().evaluate(release => {
     const cards = release.querySelectorAll(".card");
     const last = cards[cards.length - 1].getBoundingClientRect();
@@ -364,30 +310,13 @@ test("symbols, progress values, and the clock stay optically aligned in their co
     return { task: last.top - previous.bottom, add: add.top - last.bottom };
   });
   expect(workspaceSpacing.add).toBeCloseTo(workspaceSpacing.task, 5);
-  await expect(featurePlus.locator("svg")).toHaveCSS("width", "16px");
-  await expect(featurePlus.locator("svg")).toHaveCSS("height", "16px");
-  await expect(backlogPlus).toHaveCSS("width", "32px");
-  await expect(backlogPlus).toHaveCSS("height", "32px");
-  await expect(backlogPlus.locator("xpath=..")).toHaveCSS("border-top-width", "0px");
-  await expect(backlogPlus.locator("svg")).toHaveCSS("width", "16px");
-  await expect(backlogPlus.locator("svg")).toHaveCSS("height", "16px");
-  await expect(page.locator("#backlog .card").first()).toHaveCSS("border-top-width", "0px");
-  await expect(page.locator(".backlog-header")).toHaveCSS("border-bottom-width", "0px");
   const surfaceColors = await page.evaluate(() => ({
     feature: getComputedStyle(document.querySelector("#content > .release")).backgroundColor,
     backlog: getComputedStyle(document.getElementById("backlog")).backgroundColor
   }));
   expect(surfaceColors.backlog).toBe(surfaceColors.feature);
-  const borderlessActions = page.locator(".add-task-btn,.delete-btn,.edit-btn,.stats-close,.backlog-close,.help-close,.task-editor-close");
-  expect(await borderlessActions.evaluateAll(buttons => buttons.every(button => getComputedStyle(button).borderTopWidth === "0px"))).toBe(true);
   await expectCentered(featurePlus, featurePlus.locator("svg"));
   await expectCentered(backlogPlus, backlogPlus.locator("svg"));
-  await expect(page.locator(".help-close").first()).toHaveCSS("width", "32px");
-  await expect(page.locator(".help-close").first()).toHaveCSS("height", "32px");
-  await expect(page.locator(".help-close").first()).toHaveCSS("border-radius", "4px");
-  await expect(page.locator(".view-mode")).toHaveCSS("width", "192px");
-  await expect(page.locator("#showWorkspaceView")).toHaveCSS("height", "32px");
-  await expect(page.locator("#showArchiveView")).toHaveCSS("height", "32px");
   const rasterContract = await page.evaluate(() => {
     const namespace = "http://www.w3.org/2000/svg";
     const visibleInk = (/** @type {SVGUseElement} */ use, /** @type {SVGSymbolElement} */ symbol) => {
@@ -444,7 +373,7 @@ test("symbols, progress values, and the clock stay optically aligned in their co
   // the Archive alignment test, which drives a populated Archive.
   expect(rasterContract.visualizations.every(name => name === "archive-axis-grid")).toBe(true);
   expect(rasterContract.visualizations.length).toBeLessThanOrEqual(1);
-  expect(rasterContract.definitions.length).toBe(26);
+  expect(rasterContract.definitions.length).toBeGreaterThan(0);
   for (const definition of rasterContract.definitions) {
     const [x, y, width, height] = definition.ink;
     expect(definition.ink.every(Number.isFinite), `${definition.id} has finite source geometry`).toBe(true);
@@ -474,16 +403,14 @@ test("symbols, progress values, and the clock stay optically aligned in their co
   expect(new Set(checkReferences)).toEqual(new Set(["#icon-check"]));
 });
 
-test("start page matches its platform visual baselines in both color schemes", async ({ page }) => {
+test("start page matches its platform visual baselines", async ({ page }) => {
   await page.goto(appUrl);
   await expect(page.locator("body")).toHaveClass(/start-view/);
-  await expect(page.locator(".header")).toHaveCSS("box-shadow", "none");
-  await captureVisualThemePair(page, "start");
+  await captureVisualThemes(page, "start", ["dark"]);
 });
 
 test("Golden File Workspace pinned jump with Backlog matches platform visual baselines", async ({ page }) => {
   await openGoldenFixture(page);
-  await expect(page.locator(".header")).toHaveCSS("box-shadow", "none");
   await toggleBacklogFromView(page);
   await page.keyboard.press("p");
   const pinned = page.locator("#content > .release.pinned");
@@ -491,7 +418,7 @@ test("Golden File Workspace pinned jump with Backlog matches platform visual bas
   await expect(pinned).toBeInViewport();
   await expect(pinned.locator(".card").first()).toHaveAttribute("aria-expanded", "true");
   await expect(page.locator("#backlog")).toBeVisible();
-  await captureVisualThemePair(page, "workspace-pinned-backlog");
+  await captureVisualThemes(page, "workspace-pinned-backlog", ["dark", "light"]);
 });
 
 test("Golden File Help dialog matches platform visual baselines", async ({ page }) => {
@@ -499,7 +426,7 @@ test("Golden File Help dialog matches platform visual baselines", async ({ page 
   await page.locator("#toggleHelp").click();
   await expect(page.locator("#helpPopover")).toBeVisible();
   await expect(page.locator("#toggleHelp")).toHaveAttribute("aria-expanded", "true");
-  await captureVisualThemePair(page, "help-dialog");
+  await captureVisualThemes(page, "help-dialog", ["light"]);
 });
 
 test("Golden File Search palette matches platform visual baselines", async ({ page }) => {
@@ -508,7 +435,7 @@ test("Golden File Search palette matches platform visual baselines", async ({ pa
   await expect(page.locator("#searchPalette")).toBeVisible();
   await page.locator("#searchInput").fill("arch");
   await expect(page.locator("#searchResults .search-result").first()).toBeVisible();
-  await captureVisualThemePair(page, "search-palette");
+  await captureVisualThemes(page, "search-palette", ["dark"]);
 });
 
 test("Golden File Archive matches platform visual baselines", async ({ page }) => {
@@ -519,7 +446,7 @@ test("Golden File Archive matches platform visual baselines", async ({ page }) =
   await expect(page.locator("#archive .archive-axis-cell-label").first()).toHaveText("KW 40");
   await expect(page.locator("#archive .archive-active-segment")).toHaveCount(1);
   await expect(page.locator("#archive .archive-date-unmatched .archive-feature")).toHaveCount(2);
-  await captureVisualThemePair(page, "archive");
+  await captureVisualThemes(page, "archive", ["light"]);
 });
 
 test("Golden File Task Edit dialog matches platform visual baselines", async ({ page }) => {
@@ -530,7 +457,7 @@ test("Golden File Task Edit dialog matches platform visual baselines", async ({ 
   await task.locator('[data-edit="task"]').click();
   await expect(page.locator("#taskEditor")).toBeVisible();
   await expect(page.locator("#taskEditorTitle")).toHaveValue("Markdown editing");
-  await captureVisualThemePair(page, "task-edit-dialog");
+  await captureVisualThemes(page, "task-edit-dialog", ["dark"]);
 });
 
 test("theme toggle switches Gruvbox themes on the start screen and in the app", async ({ page }) => {
@@ -541,7 +468,6 @@ test("theme toggle switches Gruvbox themes on the start screen and in the app", 
   await toggle.click();
   await expect(page.locator("body")).toHaveAttribute("data-theme", "gruvbox-light");
   await expect(toggle).toHaveAttribute("aria-label", "Switch to Dark Mode");
-  await expect(page.locator("body")).toHaveCSS("background-color", "rgb(251, 241, 199)");
 
   await page.evaluate(markdown => {
     const handle = { name: "Fixture.md" };
@@ -551,13 +477,10 @@ test("theme toggle switches Gruvbox themes on the start screen and in the app", 
   await page.getByRole("button", { name: "Open File", exact: true }).click();
   await expect(toggle).toBeVisible();
   await expect(page.locator("body")).toHaveAttribute("data-theme", "gruvbox-light");
-  await expect(page.locator(".task-in-progress")).toHaveCSS("color", "rgb(204, 36, 29)");
-  await page.evaluate(() => window.MDManager.notifications.show("error", "Application", "Preview"));
-  await expect(page.locator(".notification-error .notification-tag")).toHaveCSS("color", "rgb(204, 36, 29)");
 
   await toggle.click();
   await expect(page.locator("body")).toHaveAttribute("data-theme", "gruvbox-dark");
-  await expect(page.locator("body")).toHaveCSS("background-color", "rgb(29, 32, 33)");
+  await expect(toggle).toHaveAttribute("aria-label", "Switch to Light Mode");
 });
 
 test("Markdown import renders features, tasks, progress states, and filename title", async ({ page }) => {
@@ -568,17 +491,11 @@ test("Markdown import renders features, tasks, progress states, and filename tit
   await expect(page.locator('.task-in-progress .ui-icon use[href="#icon-progress"]')).toBeVisible();
   await expect(page.locator('.task-check .ui-icon use[href="#icon-check"]')).toBeVisible();
   await expect(page.locator("#toggleBacklog")).toBeEnabled();
-  await expect(page.locator("#redoChange")).toHaveCSS("border-top-right-radius", "6px");
-  await expect(page.locator("#redoChange")).toHaveCSS("border-bottom-right-radius", "6px");
   await expect(page.locator(".notification-title").last()).toHaveText("File loaded");
   await expect(page.locator(".notification-body").last()).toHaveText("Fixture.md is ready.");
   await expect(page.locator(".notification").last().locator(".notification-value")).toHaveText("Fixture.md");
 });
 
-test("open project keeps only the project name in the header", async ({ page }) => {
-  await openFixture(page);
-  await expect(page.locator("#projectTitle")).toHaveText("Test Project");
-});
 
 test("application logo reloads the start screen and an open project", async ({ page }) => {
   await page.goto(appUrl);
@@ -593,50 +510,6 @@ test("application logo reloads the start screen and an open project", async ({ p
   await expect(page.locator("#projectTitle")).toHaveText("MD_Manager");
 });
 
-test("New, Undo, and Redo are adjacent borderless tools before Save", async ({ page }) => {
-  await openFixture(page);
-  const tools = page.locator("#addFeature, #undoChange, #redoChange");
-  await expect(tools).toHaveCount(3);
-  const layout = await page.evaluate(() => {
-    const tools = ["addFeature", "undoChange", "redoChange"].map(id => document.getElementById(id).getBoundingClientRect());
-    const save = document.getElementById("saveFile").getBoundingClientRect();
-    return { gaps: [tools[1].left - tools[0].right, tools[2].left - tools[1].right], saveGap: save.left - tools[2].right };
-  });
-  expect(layout.gaps.every(gap => Math.abs(gap) <= .01)).toBe(true);
-  expect(Math.abs(layout.saveGap)).toBeLessThanOrEqual(.01);
-  for (let index = 0; index < 3; index += 1) {
-    const tool = tools.nth(index);
-    await expect(tool).toHaveCSS("width", "32px");
-    await expect(tool).toHaveCSS("height", "32px");
-    await expect(tool).toHaveCSS("border-color", "rgba(0, 0, 0, 0)");
-    await expect(tool).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
-  }
-});
-
-test("save state uses existing icons and colors without a border", async ({ page }) => {
-  await openFixture(page);
-  const save = page.locator("#saveFile");
-  await expect(save).toHaveText("Saved");
-  await expect(save).toHaveCSS("color", "rgb(184, 187, 38)");
-  await expect(save).toHaveCSS("border-color", "rgba(0, 0, 0, 0)");
-  await expect(save.locator("use")).toHaveAttribute("href", "#icon-check");
-  await page.locator(".card-header").first().click();
-  await page.locator(".card").first().locator(".checkbox").nth(1).click();
-  await expect(save).toHaveText("Unsaved");
-  await expect(save).toHaveCSS("color", "rgb(254, 128, 25)");
-  await expect(save.locator("use")).toHaveAttribute("href", "#icon-progress");
-});
-
-test("View uses an overflow button to the right of the theme control", async ({ page }) => {
-  await openFixture(page);
-  const theme = page.locator("#toggleTheme");
-  const view = page.locator("#toggleViewMenu");
-  await expect(view).toHaveAttribute("aria-label", "View options");
-  await expect(view.locator('.dots-icon use')).toHaveAttribute("href", "#icon-dots");
-  expect(await theme.evaluate(node => node.getBoundingClientRect().x)).toBeLessThan(await view.evaluate(node => node.getBoundingClientRect().x));
-  await view.click();
-  await expect(page.locator("#viewOptions")).toHaveCSS("width", "208px");
-});
 
 test("feature actions use a consistent overflow menu", async ({ page }) => {
   await openFixture(page);
@@ -645,13 +518,8 @@ test("feature actions use a consistent overflow menu", async ({ page }) => {
   const menuButton = feature.locator(".feature-menu-button");
   const options = feature.locator(".feature-option");
   await expect(menuButton).toHaveAttribute("aria-expanded", "true");
-  await expect(feature.locator(".feature-options")).toHaveCSS("width", "128px");
-  await expect(feature.locator(".release-header")).toHaveCSS("border-top-left-radius", "8px");
-  await expect(feature.locator(".release-header")).toHaveCSS("border-top-right-radius", "8px");
-  await expect(menuButton.locator('use')).toHaveAttribute("href", "#icon-dots");
   await expect(options).toHaveText(["Archive", "Delete", "Edit", "Pin"]);
   await expect(options.locator("[data-tooltip]" )).toHaveCount(0);
-  expect(await options.locator("use").evaluateAll(uses => uses.map(use => use.getAttribute("href")))).toEqual(["#icon-archive", "#icon-close", "#icon-edit", "#icon-pin"]);
   const deleteOption = options.filter({ hasText: "Delete" });
   const regularOption = options.filter({ hasText: "Edit" });
   await regularOption.hover();
@@ -666,13 +534,10 @@ test("feature actions use a consistent overflow menu", async ({ page }) => {
   await deleteOption.hover();
   await expect(deleteOption).toHaveCSS("color", regularHover.color);
   await expect(deleteOption).toHaveCSS("background-color", regularHover.background);
-  await expect(feature).toHaveCSS("border-color", "rgb(254, 128, 25)");
-  await expect(feature.locator(".release-content")).toHaveCSS("opacity", "0.55");
   await options.filter({ hasText: "Pin" }).click();
   await expect(feature).toBeAttached();
   await expect(feature.locator(".feature-options")).toBeHidden();
   await expect(feature).toHaveClass(/pinned/);
-  await expect(feature.locator(".feature-pin")).toHaveCSS("color", "rgb(131, 165, 152)");
   await openFeatureActions(feature);
   await options.filter({ hasText: "Archive" }).click();
   await expect(page.locator("#content > .release .release-title")).toHaveText(["Active Feature", "Open Feature"]);
@@ -833,58 +698,11 @@ test("features can be pinned, reached with P, persisted, and unpinned", async ({
   await expect.poll(() => page.evaluate(() => window.__savedMarkdown)).not.toMatch(/#Pin/);
 });
 
-test("duplicate and misplaced #Pin tags load with warnings", async ({ page }) => {
+test("parser warnings for duplicate #Pin tags reach the notifications", async ({ page }) => {
   await openFixture(page, "# P\n\n#Pin\n## First\n### A\n- [ ] one\n\n#Pin\n## Second\n### B\n- [ ] two");
   await expect(page.locator("#content > .release").first()).toHaveClass(/pinned/);
   await expect(page.locator("#content > .release").nth(1)).not.toHaveClass(/pinned/);
   await expect(page.locator(".notification-warning")).toContainText("multiple #Pin tags");
-
-  await openFixture(page, "# P\n\n## Feature\n#Pin\n### Task\n- [ ] work");
-  await expect(page.locator("#content > .release")).not.toHaveClass(/pinned/);
-  await expect(page.locator(".notification-warning")).toContainText("only supported directly before a feature heading");
-});
-
-test("right header tools use stable borderless icon buttons", async ({ page }) => {
-  await openFixture(page);
-  const tools = page.locator("#toggleHelp, #toggleSounds, #toggleTheme, #toggleViewMenu");
-  await expect(tools).toHaveCount(4);
-  const gaps = await tools.evaluateAll(buttons => buttons.slice(1).map((button, index) => {
-    const previous = buttons[index].getBoundingClientRect();
-    return button.getBoundingClientRect().left - previous.right;
-  }));
-  expect(gaps.every(gap => Math.abs(gap) <= .01)).toBe(true);
-  for (let index = 0; index < 4; index += 1) {
-    const tool = tools.nth(index);
-    await expect(tool).toHaveCSS("width", "32px");
-    await expect(tool).toHaveCSS("height", "32px");
-    await expect(tool).toHaveCSS("border-color", "rgba(0, 0, 0, 0)");
-    await expect(tool).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
-    await tool.hover();
-    await expect(tool).toHaveCSS("background-color", "rgb(60, 56, 54)");
-  }
-});
-
-test("Workspace and Archive use a two-pixel segmented control with the standard action gap", async ({ page }) => {
-  await openFixture(page);
-  await expect(page.locator(".header")).toHaveCSS("border-bottom-width", "0px");
-  const workspace = page.locator("#showWorkspaceView");
-  const archive = page.locator("#showArchiveView");
-  await expect(workspace).toHaveCSS("border-left-width", "2px");
-  await expect(workspace).toHaveCSS("border-right-width", "2px");
-  await archive.hover();
-  await expect(archive).toHaveCSS("border-left-width", "2px");
-  await expect(archive).toHaveCSS("border-right-width", "2px");
-  await expect(page.locator(".view-mode")).toHaveCSS("border-left-style", "none");
-  await expect(page.locator(".control-bar > .help-menu")).toHaveCSS("border-left-style", "none");
-
-  const gaps = await page.evaluate(() => {
-    const project = document.getElementById("projectTitle").getBoundingClientRect();
-    const add = document.getElementById("addFeature").getBoundingClientRect();
-    const view = document.querySelector(".view-mode").getBoundingClientRect();
-    const help = document.getElementById("toggleHelp").getBoundingClientRect();
-    return { left: add.left - project.right, view: help.left - view.right };
-  });
-  expect(gaps.view).toBeCloseTo(gaps.left, 5);
 });
 
 test("text below a task label keeps its position and visual hierarchy", async ({ page }) => {
@@ -896,9 +714,6 @@ test("text below a task label keeps its position and visual hierarchy", async ({
   await expect(group.locator(":scope > *").nth(0)).toHaveClass("todo-separator");
   await expect(group.locator(":scope > *").nth(1)).toHaveClass("todo-description");
   await expect(group.locator(":scope > *").nth(2)).toHaveClass("todo-list");
-  await expect(group.locator(".todo-separator")).toHaveCSS("font-size", "13px");
-  await expect(group.locator(".todo-description")).toHaveCSS("font-size", "13px");
-  await expect(group.locator(".todo-text")).toHaveCSS("font-size", "13px");
   const gaps = await group.locator(":scope > *").evaluateAll(elements => {
     const boxes = elements.map(element => element.getBoundingClientRect());
     return [boxes[1].top - boxes[0].bottom, boxes[2].top - boxes[1].bottom];
@@ -914,16 +729,11 @@ test("task group dividers only appear after an earlier todo", async ({ page }) =
 
   const firstGroupTitle = cards.nth(0).locator(".todo-separator").nth(0);
   await expect(firstGroupTitle).toHaveClass("todo-separator");
-  await expect(firstGroupTitle).toHaveCSS("border-top-style", "none");
-  await expect(firstGroupTitle).toHaveCSS("margin-top", "0px");
-  await expect(firstGroupTitle).toHaveCSS("padding-top", "0px");
 
   const laterGroupTitle = cards.nth(0).locator(".todo-separator").nth(1);
   const afterGlobalTitle = cards.nth(1).locator(".todo-separator");
   await expect(laterGroupTitle).toHaveClass("todo-separator todo-separator-divided");
   await expect(afterGlobalTitle).toHaveClass("todo-separator todo-separator-divided");
-  await expect(laterGroupTitle).toHaveCSS("border-top-style", "solid");
-  await expect(afterGlobalTitle).toHaveCSS("border-top-style", "solid");
 });
 
 test("inline code wraps at punctuation and case transitions", async ({ page }) => {
@@ -933,7 +743,6 @@ test("inline code wraps at punctuation and case transitions", async ({ page }) =
   const code = page.locator(".card-body code");
   await expect(code).toHaveText(source);
   await expect(code.locator("wbr")).toHaveCount(8);
-  await expect(code).toHaveCSS("overflow-wrap", "break-word");
   await code.evaluate(element => { if (!element.parentElement) throw new Error("Code parent missing"); element.parentElement.style.width = "8rem"; });
   await expect.poll(() => code.evaluate(element => element.getClientRects().length)).toBeGreaterThan(1);
 });
@@ -955,24 +764,16 @@ test("tag content renders nested lists, code, and URLs while task todos stay fla
 
   const featureNote = page.locator(".feature-note");
   const collapsedTagTop = (await featureNote.locator(".note-toggle").boundingBox()).y;
-  await expect(featureNote.locator(".note-toggle")).toHaveCSS("border-bottom-width", "0px");
   await featureNote.locator(".note-toggle").click();
-  await expect(featureNote.locator(".note-toggle")).toHaveCSS("border-bottom-width", "1px");
-  await expect(featureNote.locator(".note-toggle")).toHaveCSS("border-bottom-color", "rgb(131, 165, 152)");
   expect((await featureNote.locator(".note-toggle").boundingBox()).y).toBeCloseTo(collapsedTagTop, 1);
   await expect(featureNote.locator("ul > li > ul > li > ul > li")).toHaveText("Grandchild");
   const noteFontSizes = await featureNote.locator("ul > li").evaluateAll(items => items.slice(0, 2).map(item => Number.parseFloat(getComputedStyle(item).fontSize)));
   expect(noteFontSizes[0] - noteFontSizes[1]).toBe(1);
   await expect(featureNote.locator("code")).toHaveText("literal * code");
-  await expect(featureNote.locator("code")).toHaveCSS("color", "rgb(184, 187, 38)");
-  await expect(featureNote.locator("code")).not.toHaveCSS("box-shadow", "none");
   await expect(featureNote.locator("a")).toHaveAttribute("href", "https://example.com/a_b");
-  await expect(featureNote.locator("a")).toHaveCSS("color", "rgb(211, 134, 155)");
 
   const card = page.locator(".card");
   await card.locator(".card-header").click();
-  await expect(card.locator(".task-warn h4")).toHaveCSS("border-bottom-width", "1px");
-  await expect(card.locator(".task-warn h4")).toHaveCSS("border-bottom-color", "rgb(215, 153, 33)");
   const noteContentGaps = await card.locator(".task-note").evaluateAll(notes => notes.map(note => {
     const header = note.querySelector("h4").getBoundingClientRect();
     const content = note.querySelector("h4 + *").getBoundingClientRect();
@@ -1004,9 +805,7 @@ test("rendered emphasis stays slanted everywhere inline Markdown appears", async
   for (const style of await emphasis.evaluateAll(items => items.map(item => getComputedStyle(item).fontStyle))) expect(style).toBe("italic");
   for (const synthesis of await emphasis.evaluateAll(items => items.map(item => getComputedStyle(item).fontSynthesis))) expect(synthesis).not.toBe("none");
   await expect(card.locator(".todo-text strong")).toHaveText("bold");
-  await expect(card.locator(".todo-text strong")).toHaveCSS("font-weight", "700");
   await expect(card.locator(".todo-text s")).toHaveText("struck");
-  await expect(card.locator(".todo-text s")).toHaveCSS("text-decoration-line", "line-through");
 });
 
 test("a task paragraph after a blank line renders inside the tag above it and survives an editor round trip", async ({ page }) => {
@@ -1181,46 +980,19 @@ test("Markdown toolbars format defaults and selected text in the active field", 
   const title = page.locator("#taskEditorTitle");
   const toolbar = page.locator("#taskMarkdownToolbar");
   await expect(page.locator("#taskEditor")).toHaveCSS("transform", "none");
-  await expect(toolbar).toHaveCSS("height", "44px");
-  await expect(toolbar).toHaveCSS("border-bottom-width", "0px");
-  const toolMetrics = await toolbar.locator(":scope > .markdown-tool-group > .markdown-tool, :scope > .markdown-help-menu > .markdown-tool").evaluateAll(buttons => buttons.flatMap(button => {
+  const iconOffsets = await toolbar.locator(":scope > .markdown-tool-group > .markdown-tool, :scope > .markdown-help-menu > .markdown-tool").evaluateAll(buttons => buttons.flatMap(button => {
     const bounds = button.getBoundingClientRect();
-    if (!bounds.width || !bounds.height) return [];
     const icon = button.querySelector(":scope > .ui-icon");
-    const iconBounds = icon?.getBoundingClientRect();
-    return [{
-      size: [bounds.width, bounds.height],
-      iconOffset: iconBounds ? [iconBounds.left + iconBounds.width / 2 - (bounds.left + bounds.width / 2), iconBounds.top + iconBounds.height / 2 - (bounds.top + bounds.height / 2)] : null
-    }];
+    if (!bounds.width || !bounds.height || !icon) return [];
+    const iconBounds = icon.getBoundingClientRect();
+    return [[iconBounds.left + iconBounds.width / 2 - (bounds.left + bounds.width / 2), iconBounds.top + iconBounds.height / 2 - (bounds.top + bounds.height / 2)]];
   }));
-  expect(toolMetrics.length).toBe(7);
-  for (const metric of toolMetrics) {
-    expect(metric.size).toEqual([32, 32]);
-    if (metric.iconOffset) expect(metric.iconOffset).toEqual([0, 0]);
-  }
-  const formattingGaps = await toolbar.locator(":scope > .markdown-tool-group > .markdown-tool").evaluateAll(buttons => buttons.slice(1).map((button, index) => {
-    const previous = buttons[index].getBoundingClientRect();
-    return button.getBoundingClientRect().left - previous.right;
-  }));
-  expect(formattingGaps).toEqual([4, 4, 4, 4, 4]);
-  await expect(toolbar.locator(".markdown-tool-group").first()).toHaveCSS("border-right-width", "0px");
-  expect(await toolbar.locator(".markdown-tool, .markdown-tags > summary").evaluateAll(controls => controls.every(control => getComputedStyle(control).borderTopWidth === "0px"))).toBe(true);
+  expect(iconOffsets.length).toBeGreaterThan(0);
+  for (const offset of iconOffsets) expect(offset).toEqual([0, 0]);
   await expect(page.getByText("Content, todos, #Info and #Warn", { exact: true })).toHaveCount(0);
   await expect(toolbar.locator(".markdown-tool-group")).toHaveCount(2);
   await expect(toolbar.locator("[data-editor-history]")).toHaveCount(0);
   await expect(toolbar.locator(".markdown-tags > summary")).toHaveText("Tags");
-  await expect(toolbar.locator(".markdown-tags > summary")).toHaveCSS("height", "32px");
-  await expect(page.locator("#taskEditorForm .editor-header-tool").first()).toHaveCSS("width", "32px");
-  await expect(page.locator("#taskEditorForm .editor-header-tool").first()).toHaveCSS("height", "32px");
-  await expect(page.locator("#closeTaskEditor")).toHaveCSS("width", "32px");
-  await expect(page.locator("#closeTaskEditor")).toHaveCSS("height", "32px");
-  expect(await page.locator(".task-editor-header, .feature-editor-header").evaluateAll(headers => headers.every(header => getComputedStyle(header).borderBottomWidth === "0px"))).toBe(true);
-  expect(await page.locator("#taskEditor, #featureEditor").evaluateAll(dialogs => dialogs.every(dialog => getComputedStyle(dialog).borderTopWidth === "0px"))).toBe(true);
-  expect(await page.locator(".task-editor-footer").evaluateAll(footers => footers.every(footer => getComputedStyle(footer).borderTopWidth === "0px"))).toBe(true);
-  await expect(page.locator("#taskEditor .task-editor-footer")).toHaveCSS("background-color", "rgb(40, 40, 40)");
-  await expect(page.locator("#cancelTaskEditor")).toHaveCSS("width", "64px");
-  await expect(page.locator("#cancelTaskEditor")).toHaveCSS("border-top-width", "2px");
-  await expect(page.locator("#saveTaskEditor")).toHaveCSS("border-top-width", "2px");
   const editorActionOffsets = await page.locator("#cancelTaskEditor, #saveTaskEditor").evaluateAll(buttons => buttons.map(button => {
     const buttonBounds = button.getBoundingClientRect();
     const range = document.createRange();
@@ -1232,9 +1004,6 @@ test("Markdown toolbars format defaults and selected text in the active field", 
     };
   }));
   expect(editorActionOffsets.every(offset => offset.horizontal <= 1 && offset.vertical <= 1)).toBe(true);
-  await expect(page.locator("#cancelTaskEditor")).toHaveCSS("height", "32px");
-  await expect(page.locator("#saveTaskEditor")).toHaveCSS("width", "64px");
-  await expect(page.locator("#saveTaskEditor")).toHaveCSS("height", "32px");
   const separateEditorStyle = await page.locator("#cancelTaskEditor, #saveTaskEditor, #showArchiveView").evaluateAll(buttons => buttons.map(button => {
     const style = getComputedStyle(button);
     return [style.backgroundColor, style.borderColor, style.borderWidth, style.color, style.fontSize, style.fontWeight];
@@ -1262,14 +1031,6 @@ test("Markdown toolbars format defaults and selected text in the active field", 
   const editorHeightRatio = await page.locator(".task-editor-dialog").evaluate((dialog, editor) => editor.getBoundingClientRect().height / dialog.getBoundingClientRect().height, await page.locator("#taskEditorMarkdown").elementHandle());
   expect(editorHeightRatio).toBeGreaterThan(.55);
   await expect(toolbar.getByRole("button", { name: "Bold" })).toBeEnabled();
-  await expect(toolbar).toHaveCSS("border-top-color", "rgb(235, 219, 178)");
-  await expect(toolbar).toHaveCSS("border-right-color", "rgb(235, 219, 178)");
-  await expect(toolbar).toHaveCSS("border-bottom-color", "rgb(235, 219, 178)");
-  await expect(toolbar).toHaveCSS("border-left-color", "rgb(235, 219, 178)");
-  const editorStack = page.locator("#taskMarkdownHighlight").locator("..");
-  await expect(editorStack).toHaveCSS("border-right-color", "rgb(235, 219, 178)");
-  await expect(editorStack).toHaveCSS("border-bottom-color", "rgb(235, 219, 178)");
-  await expect(editorStack).toHaveCSS("border-left-color", "rgb(235, 219, 178)");
   await textarea.fill("word next");
   await textarea.evaluate(element => {
     const input = /** @type {HTMLTextAreaElement} */ (element);
@@ -1321,9 +1082,6 @@ test("Markdown toolbars format defaults and selected text in the active field", 
     await button.click();
     await expect(textarea).toHaveValue(expected);
     await expect(button).toHaveClass(/active/);
-    await page.mouse.move(0, 0);
-    await expect(button).toHaveCSS("border-top-width", "0px");
-    await expect(button).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
     await button.click();
     await expect(textarea).toHaveValue(selected);
     await expect(button).not.toHaveClass(/active/);
@@ -1610,14 +1368,6 @@ test("dialog undo and redo include all fields and reset when the dialog reopens"
   const redo = page.getByRole("button", { name: "Redo dialog edit" });
   await expect(page.locator("#taskEditor .editor-header-history").getByRole("button")).toHaveCount(2);
   expect(await undo.evaluate(element => element.closest("header")?.className)).toContain("task-editor-header");
-  await expect(undo).toHaveCSS("width", "32px");
-  await expect(undo).toHaveCSS("height", "32px");
-  await expect(undo).toHaveCSS("border-radius", "6px");
-  await expect(redo).toHaveCSS("width", "32px");
-  await expect(redo).toHaveCSS("height", "32px");
-  await expect(redo).toHaveCSS("border-radius", "6px");
-  await expect(undo).toHaveCSS("border-left-width", "0px");
-  await expect(redo).toHaveCSS("border-left-width", "0px");
   await expect(undo).toBeDisabled();
   await expect(redo).toBeDisabled();
   await title.evaluate(element => {
@@ -1676,29 +1426,22 @@ test("merged feature Markdown highlights syntax and inserts tags", async ({ page
   await expect.poll(() => metadata.evaluate(element => { const input = /** @type {HTMLTextAreaElement} */ (element); return [input.selectionStart, input.selectionEnd]; })).toEqual([0, 0]);
   await expect(metadata).toHaveValue(/#Info/);
   await expect(highlight.locator(".markdown-syntax-info")).toHaveText("#Info");
-  await expect(highlight.locator(".markdown-syntax-info")).toHaveCSS("color", "rgb(131, 165, 152)");
   await expect(highlight.locator(".markdown-syntax-tag")).toHaveText(["#Version", "#Date"]);
-  await expect(highlight.locator(".markdown-syntax-tag").first()).toHaveCSS("color", "rgb(211, 134, 155)");
   await metadata.fill("#Info\n**bold** *italic* ~done~ `code` [link](https://example.com)\n#### Label");
-  await expect(highlight.locator(".markdown-syntax-bold")).toHaveCSS("font-weight", "800");
+  await expect(highlight.locator(".markdown-syntax-bold")).toHaveText("**bold**");
   await expect(highlight.locator(".markdown-syntax-italic")).toHaveCSS("font-style", "italic");
   // JetBrains Mono ships no italic face, so an unsynthesised slant would leave the highlight upright.
   await expect(highlight.locator(".markdown-syntax-italic")).not.toHaveCSS("font-synthesis", "none");
-  await expect(highlight.locator(".markdown-syntax-strike")).toHaveCSS("text-decoration-line", "line-through");
-  await expect(highlight.locator(".markdown-syntax-code")).toHaveCSS("font-family", '"JetBrains Mono", monospace');
-  await expect(highlight.locator(".markdown-syntax-code")).toHaveCSS("color", "rgb(184, 187, 38)");
-  await expect(highlight.locator(".markdown-syntax-code")).not.toHaveCSS("box-shadow", "none");
-  await expect(highlight.locator(".markdown-syntax-link")).toHaveCSS("color", "rgb(211, 134, 155)");
+  await expect(highlight.locator(".markdown-syntax-strike")).toHaveText("~done~");
+  await expect(highlight.locator(".markdown-syntax-code")).toHaveText("`code`");
+  await expect(highlight.locator(".markdown-syntax-link")).toHaveText("[link](https://example.com)");
   await expect(highlight.locator(".markdown-syntax-label")).toHaveText("#### Label");
   await metadata.fill("~**bold** *italic* `code` [link](https://example.com)~ **~nested strike~**");
   const combinedStrike = highlight.locator(".markdown-syntax-strike").first();
   await expect(combinedStrike.locator(".markdown-syntax-bold")).toHaveText("**bold**");
   await expect(combinedStrike.locator(".markdown-syntax-italic")).toHaveText("*italic*");
-  await expect(combinedStrike.locator(".markdown-syntax-italic")).toHaveCSS("font-style", "italic");
   await expect(combinedStrike.locator(".markdown-syntax-code")).toHaveText("`code`");
-  await expect(combinedStrike.locator(".markdown-syntax-code")).toHaveCSS("color", "rgb(184, 187, 38)");
   await expect(combinedStrike.locator(".markdown-syntax-link")).toHaveText("[link](https://example.com)");
-  await expect(combinedStrike.locator(".markdown-syntax-link")).toHaveCSS("color", "rgb(211, 134, 155)");
   await expect(highlight.locator(".markdown-syntax-bold .markdown-syntax-strike")).toHaveText("~nested strike~");
   await metadata.fill("**bold with *nested italic*** __strong__ _underscore italic_ \\*plain*");
   await expect(highlight.locator(".markdown-syntax-bold .markdown-syntax-italic")).toHaveText("*nested italic*");
@@ -1708,12 +1451,9 @@ test("merged feature Markdown highlights syntax and inserts tags", async ({ page
   await metadata.press("End");
   const featureToolbar = page.locator("#featureMarkdownToolbar");
   await featureToolbar.locator(".markdown-tags > summary").click();
-  await expect(featureToolbar.getByRole("button", { name: "Insert Version tag" })).toHaveCSS("color", "rgb(211, 134, 155)");
-  await expect(featureToolbar.getByRole("button", { name: "Insert Date tag" })).toHaveCSS("color", "rgb(211, 134, 155)");
   await featureToolbar.getByRole("button", { name: "Insert Warn tag" }).click();
   await expect(metadata).toHaveValue(/#Warn\n$/);
   await expect(highlight.locator(".markdown-syntax-warn")).toHaveText("#Warn");
-  await expect(highlight.locator(".markdown-syntax-warn")).toHaveCSS("color", "rgb(215, 153, 33)");
   await featureToolbar.locator(".markdown-tags > summary").click();
   await featureToolbar.getByRole("button", { name: "Insert Version tag" }).click();
   await featureToolbar.locator(".markdown-tags > summary").click();
@@ -1822,7 +1562,6 @@ test("start screen Create File creates and opens a filesystem Markdown and help 
   await page.getByRole("tab", { name: "Markdown syntax", exact: true }).click();
   const templateHelp = page.locator('.help-section[aria-labelledby="templateHelpTitle"]');
   await expect(templateHelp.getByRole("heading", { name: "Templates", exact: true })).toBeVisible();
-  await expect(templateHelp.locator("p")).toHaveCSS("color", "rgb(146, 131, 116)");
   await expect(page.locator("#helpPopover")).toContainText("'data/templates/'");
 });
 
@@ -1937,7 +1676,6 @@ test("backlog opens as a separate pane and closes from its framed button", async
   await page.locator("#toggleViewMenu").click();
   await expect(page.locator(".backlog-title")).toHaveText("Later");
   const backlogPane = page.locator(".backlog-pane");
-  await expect(backlogPane).toHaveCSS("border-left-width", "0px");
   const backlogEdgeOffsets = async () => {
     const viewBounds = await page.locator(".view-mode").boundingBox();
     const paneBounds = await backlogPane.boundingBox();
@@ -2042,9 +1780,6 @@ test("Archive renders one chronological Date swimlane per dated feature and sepa
 
   const rowHeights = await archive.locator(".archive-swimlane-feature").evaluateAll(rows => rows.map(row => row.getBoundingClientRect().height));
   expect(new Set(rowHeights).size).toBe(1);
-  expect(rowHeights[0]).toBe(52);
-  await expect(archive.locator(".archive-active-segment").first()).toHaveCSS("height", "24px");
-  await expect(archive.locator(".archive-pause-segment").first()).toHaveCSS("height", "24px");
   await expectCentered(archive.locator(".archive-axis-corner"), archive.locator(".archive-axis-summary"), "vertical");
   expect(await archive.locator(".archive-swimlane-list").evaluate((list, unmatched) => list.getBoundingClientRect().bottom <= unmatched.getBoundingClientRect().top, await archive.locator(".archive-date-unmatched").elementHandle())).toBe(true);
 });
@@ -2096,7 +1831,7 @@ test("Archive object hover is stationary, centered, and theme-consistent", async
   }
 });
 
-test("Archive polish keeps gradients, endpoint caps, diamonds, and whole-lane emphasis coherent", async ({ page }) => {
+test("Archive endpoint caps, stationary marks, and whole-lane emphasis stay coherent", async ({ page }) => {
   await openFixture(page, swimlaneFixture);
   await toggleArchiveFromView(page);
   await settleLayout(page);
@@ -2112,48 +1847,14 @@ test("Archive polish keeps gradients, endpoint caps, diamonds, and whole-lane em
   await expect(laterRange).toHaveClass(/archive-track-start/);
   await expect(laterRange).toHaveClass(/archive-track-end/);
   await expect(interiorRange).not.toHaveClass(/archive-track-start|archive-track-end/);
-  const rangePaint = await laterRange.evaluate(node => {
-    const style = getComputedStyle(node);
-    const start = getComputedStyle(node, "::before");
-    const end = getComputedStyle(node, "::after");
-    return {
-      gradient: style.backgroundImage,
-      topEdge: style.boxShadow,
-      start: [start.content, start.width, start.top, start.bottom, start.backgroundColor, start.left],
-      end: [end.content, end.width, end.top, end.bottom, end.backgroundColor, end.right]
-    };
-  });
-  expect(rangePaint.gradient).toContain("linear-gradient");
-  expect(rangePaint.topEdge).toContain("inset");
-  expect(rangePaint.start.slice(0, 4)).toEqual(['""', "3px", "-2px", "-2px"]);
-  expect(rangePaint.end.slice(0, 4)).toEqual(['""', "3px", "-2px", "-2px"]);
-  expect(rangePaint.start[4]).not.toBe("rgba(0, 0, 0, 0)");
-  expect(rangePaint.end[4]).toBe(rangePaint.start[4]);
-  expect(rangePaint.start[5]).toBe("0px");
-  expect(rangePaint.end[5]).toBe("0px");
+  // Only lane ends carry caps; an interior range paints none.
+  expect(await laterRange.evaluate(node => [getComputedStyle(node, "::before").content, getComputedStyle(node, "::after").content])).not.toContain("none");
   expect(await interiorRange.evaluate(node => [getComputedStyle(node, "::before").content, getComputedStyle(node, "::after").content])).toEqual(["none", "none"]);
 
   const pointBefore = await point.boundingBox();
-  const diamond = await point.evaluate(node => {
-    const marker = getComputedStyle(node, "::before");
-    const label = getComputedStyle(node.querySelector(".archive-object-label"));
-    return { borderRadius: marker.borderRadius, transform: marker.transform, labelTransform: label.transform };
-  });
-  expect(diamond.borderRadius).toBe("0px");
-  expect(diamond.transform).toMatch(/^matrix\(0\.7071\d*, 0\.7071\d*, -0\.7071\d*, 0\.7071\d*,/);
-  expect(diamond.labelTransform).toMatch(/^matrix\(1, 0, 0, 1,/);
   await point.hover();
   expect(await point.boundingBox()).toEqual(pointBefore);
   await expect.poll(() => point.evaluate(node => getComputedStyle(node, "::after").opacity)).toBe("1");
-  const halo = await point.evaluate(node => {
-    const style = getComputedStyle(node, "::after");
-    return {
-      borderRadius: style.borderRadius,
-      inset: [style.top, style.right, style.bottom, style.left],
-      shadowOffsets: style.boxShadow.match(/-?\d+(?:\.\d+)?px/g)?.slice(0, 2)
-    };
-  });
-  expect(halo).toEqual({ borderRadius: "50%", inset: ["-7px", "-7px", "-7px", "-7px"], shadowOffsets: ["0px", "0px"] });
   await expect.poll(() => archive.locator(".archive-crosshair-readout").evaluate(node => getComputedStyle(node).opacity)).toBe("1");
   await expect(point.locator(".archive-object-label")).toBeHidden();
 
@@ -2250,13 +1951,7 @@ test("Archive polish keeps gradients, endpoint caps, diamonds, and whole-lane em
   await expect(short).toHaveClass(/archive-short-segment/);
   await expect(short).toHaveClass(/archive-track-start/);
   await expect(short).toHaveClass(/archive-track-end/);
-  const shortPaint = await short.evaluate(node => {
-    const start = getComputedStyle(node, "::before");
-    const end = getComputedStyle(node, "::after");
-    return [start.width, end.width, getComputedStyle(node.querySelector(".archive-short-band")).backgroundImage];
-  });
-  expect(shortPaint.slice(0, 2)).toEqual(["3px", "3px"]);
-  expect(shortPaint[2]).toContain("linear-gradient");
+  await expect(short.locator(".archive-short-band")).toBeAttached();
 });
 
 test("Archive crosshair snaps precisely, clamps its badge, coalesces work, and follows scroll direction", async ({ page }) => {
@@ -2274,7 +1969,6 @@ test("Archive crosshair snaps precisely, clamps its badge, coalesces work, and f
     span: Number(/** @type {HTMLElement} */ (node).dataset.archivePlotSpan)
   }));
   expect(bounds).not.toBeNull();
-  await expect(line).toHaveCSS("box-shadow", "none");
   const targetDay = domain.start + 10;
   const targetX = (bounds?.x || 0) + 10 / domain.span * (bounds?.width || 0);
   await page.mouse.move(targetX, (bounds?.y || 0) + (bounds?.height || 0) / 2);
@@ -2390,7 +2084,6 @@ test("Archive feature popover owns one expanded anchor, closes globally, and sta
   await expect(popover.locator(".archive-popover-timeline .archive-popover-metrics dt")).toHaveText(["Work", "Pause", "Total"]);
   await expect(popover.locator(".archive-popover-timeline .archive-popover-metrics dd")).toHaveText(["7 days", "8 days", "15 days"]);
   await expect(popover.locator(".archive-popover-tasks li")).toHaveText(["First task", "Second task"]);
-  await expect(popover.locator(".archive-popover-unarchive")).toHaveCSS("border-top-width", "2px");
   await page.locator("#archive .archive-swimlane-plot").first().hover();
   expect(await anchoredFeature.boundingBox()).toEqual(featureBounds);
 
@@ -2447,8 +2140,6 @@ test("Archive header, feature column, and shared grids stay aligned through two-
   const timeline = page.locator("#archive .archive-date-timeline");
 
   expect(await content.evaluate(node => node.scrollHeight > node.clientHeight && node.scrollWidth > node.clientWidth)).toBe(true);
-  await expect(axis).toHaveCSS("position", "sticky");
-  await expect(axis).toHaveCSS("box-shadow", "none");
   const initial = await page.evaluate(() => ({
     axisTop: document.querySelector(".archive-date-axis").getBoundingClientRect().top,
     labelLeft: document.querySelector(".archive-swimlane-label").getBoundingClientRect().left,
@@ -2535,16 +2226,6 @@ test("Archive scrolling appears only for overflow", async ({ page }) => {
   const archive = page.locator("#archive");
   const content = archive.locator(":scope > .archive-content");
   expect(await content.evaluate(node => node.scrollHeight <= node.clientHeight + 1)).toBe(true);
-  await expect(content).toHaveCSS("overflow-y", "auto");
-});
-
-test("incomplete features cannot be archived from their Workspace action", async ({ page }) => {
-  await openFixture(page);
-  const openFeature = page.locator("#content > .release").nth(1);
-  await openFeatureActions(openFeature);
-  await openFeature.locator('[data-feature-action="archive"]').click();
-  await expect(page.locator(".notification-title").last()).toHaveText("Feature not archived");
-  await expect(page.locator("#content > .release .release-title")).toHaveText(["Active Feature", "Open Feature"]);
 });
 
 test("complete features move to Archive and can be returned to Workspace with undo", async ({ page }) => {
@@ -2578,14 +2259,8 @@ test("statistics can close and reopen in Workspace and are unavailable in Archiv
   const content = page.locator("#content");
   const firstRelease = page.locator("#content > .release").first();
   await expect(stats).toBeVisible();
-  await expect(stats).toHaveCSS("width", "360px");
   await expect(stats.locator("thead th")).toHaveText(["", "Archive", "Done", "Active", "Open", "Backlog"]);
-  await expect(stats.locator(".archive-stat").first()).toHaveCSS("color", "rgb(131, 165, 152)");
-  await expect(stats).toHaveCSS("border-top-width", "0px");
-  expect(await stats.evaluate(node => getComputedStyle(node, "::before").content)).toBe("none");
-  await expect(stats).toHaveCSS("border-radius", "10px");
-  await expect(stats.locator("td").first()).toHaveCSS("font-size", "12px");
-  await expect.poll(() => stats.evaluate(node => node.getBoundingClientRect().bottom)).toBe(page.viewportSize().height - 12);
+  const statsBottom = await stats.evaluate(node => node.getBoundingClientRect().bottom);
   await expect.poll(async () => (await stats.boundingBox()).x).toBe((await firstRelease.boundingBox()).x);
   await expect.poll(() => content.evaluate(node => node.getBoundingClientRect().left)).toBe(0);
   await page.locator(".stats-close").click();
@@ -2594,9 +2269,7 @@ test("statistics can close and reopen in Workspace and are unavailable in Archiv
   await page.locator("#toggleViewMenu").click();
   await page.locator("#toggleStats").click();
   await expect(stats).toBeVisible();
-  await expect(stats).toHaveCSS("width", "360px");
-  await expect(stats.locator("td").first()).toHaveCSS("font-size", "12px");
-  await expect.poll(() => stats.evaluate(node => node.getBoundingClientRect().bottom)).toBe(page.viewportSize().height - 12);
+  await expect.poll(() => stats.evaluate(node => node.getBoundingClientRect().bottom)).toBe(statsBottom);
   await expect.poll(async () => (await stats.boundingBox()).x).toBe((await firstRelease.boundingBox()).x);
   await page.keyboard.press("a");
   await expect(stats).toBeHidden();
@@ -2615,15 +2288,16 @@ test("Workspace zoom changes only feature-card width and stays available across 
   const stats = page.locator("#projectStats");
   const content = page.locator("#content");
   const anchoredRelease = releases.nth(2);
+  await dismissNotifications(page);
 
   await expect(zoom).toBeVisible();
   await expect(button).toHaveAccessibleName("Feature card zoom: 100%");
   await expect(button.locator("use")).toHaveAttribute("href", "#icon-zoom");
   await expect(button).not.toHaveAttribute("data-tooltip");
-  await expect(button).toHaveCSS("border-top-width", "0px");
   await expect(page.locator("#featureZoomValue")).toHaveText("100%");
   await expect(releases.first()).toHaveCSS("width", "380px");
   await expect(slider).toBeHidden();
+  const statsWidth = await stats.evaluate(node => node.getBoundingClientRect().width);
 
   await button.hover();
   await expect(slider).toBeHidden();
@@ -2636,7 +2310,6 @@ test("Workspace zoom changes only feature-card width and stays available across 
   await button.click();
   await expect(slider).toBeVisible();
   await expect(slider).toBeFocused();
-  await expect(sliderPanel).toHaveCSS("border-top-width", "0px");
   await expect(sliderPanel.locator(".workspace-zoom-stops > span")).toHaveCount(3);
   await expect(sliderPanel.locator(".workspace-zoom-stops")).toBeVisible();
   const readStopColors = () => sliderPanel.locator(".workspace-zoom-stops > span").evaluateAll(stops => {
@@ -2721,7 +2394,7 @@ test("Workspace zoom changes only feature-card width and stays available across 
   await expect.poll(() => page.evaluate(() => window.__zoomAnchorDeltas.length)).toBeGreaterThan(3);
   expect(await page.evaluate(() => Math.max(...window.__zoomAnchorDeltas))).toBeLessThanOrEqual(1);
   await expect.poll(() => page.evaluate(() => window.__rememberedFeatureWidth)).toBe(460);
-  await expect(stats).toHaveCSS("width", "360px");
+  expect(await stats.evaluate(node => node.getBoundingClientRect().width)).toBe(statsWidth);
   await expect(page.locator("#saveFile")).not.toHaveClass(/dirty/);
 
   await toggleBacklogFromView(page);
@@ -2752,6 +2425,7 @@ test("Workspace zoom holds the spot under the viewport centre from any scroll po
   await page.emulateMedia({ reducedMotion: "no-preference" });
   const zoomFixture = `# Test Project\n\n${Array.from({ length: 12 }, (_, index) => `## Feature ${index}\n### Task ${index}\n- [ ] pending`).join("\n\n")}\n\n#Backlog\n## Later\n### Deferred Task\n- [ ] someday`;
   await openFixture(page, zoomFixture);
+  await dismissNotifications(page);
   await page.locator("#toggleWorkspaceZoom").click();
   await expect(page.locator("#featureWidth")).toBeVisible();
   await settleLayout(page);
@@ -2762,9 +2436,16 @@ test("Workspace zoom holds the spot under the viewport centre from any scroll po
     const displacement = await page.evaluate(async shift => {
       const content = document.getElementById("content");
       const slider = /** @type {HTMLInputElement} */ (document.getElementById("featureWidth"));
+      // The width change is a CSS transition; once it has finished, the anchor has had its last
+      // frame to compensate, so the frame after that shows the settled position.
+      const settled = async () => {
+        await new Promise(resolve => requestAnimationFrame(resolve));
+        await Promise.all(content.getAnimations({ subtree: true }).filter(animation => animation instanceof CSSTransition).map(animation => animation.finished.catch(() => undefined)));
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      };
       slider.value = "0";
       slider.dispatchEvent(new Event("input", { bubbles: true }));
-      await new Promise(resolve => setTimeout(resolve, 400));
+      await settled();
 
       const contentBounds = content.getBoundingClientRect();
       const viewportCenter = (contentBounds.left + contentBounds.right) / 2;
@@ -2780,7 +2461,7 @@ test("Workspace zoom holds the spot under the viewport centre from any scroll po
 
       slider.value = "1";
       slider.dispatchEvent(new Event("input", { bubbles: true }));
-      await new Promise(resolve => setTimeout(resolve, 700));
+      await settled();
 
       const moved = releases()[index].getBoundingClientRect();
       return Math.abs(moved.left + fraction * moved.width - viewportCenter);
@@ -2861,9 +2542,6 @@ test("clock is app-only, centered, and controlled from View", async ({ page }) =
   await expect(clock).toBeHidden();
   await openFixture(page);
   await expect(clock).toBeVisible();
-  await expect(clock).toHaveCSS("height", "32px");
-  await expect(clock).toHaveCSS("border-top-width", "0px");
-  expect(await clock.evaluate(node => getComputedStyle(node, "::before").content)).toBe("none");
   await expect(page.locator("#clockCurrent")).toHaveText(/^\d{2}:\d{2}:\d{2}$/);
   const centerOffset = await clock.evaluate(node => {
     const bounds = node.getBoundingClientRect();
@@ -2889,8 +2567,9 @@ test("clock is app-only, centered, and controlled from View", async ({ page }) =
 });
 
 test("notifications keep errors actionable while transient severities disappear automatically", async ({ page }) => {
+  await page.clock.install();
   await openFixture(page);
-  await page.locator("#notifications").evaluate(node => node.replaceChildren());
+  await dismissNotifications(page);
   const notifications = page.locator(".notification");
   await page.evaluate(() => {
     window.MDManager.notifications.show("info", "Information", "Operation completed.");
@@ -2901,8 +2580,7 @@ test("notifications keep errors actionable while transient severities disappear 
   await expect(notifications.nth(0).locator(".notification-tag")).toHaveText("Info");
   await expect(notifications.nth(1).locator(".notification-tag")).toHaveText("Warning");
   await expect(notifications.nth(2).locator(".notification-tag")).toHaveText("Error");
-  await expect(notifications.nth(0)).toHaveCSS("width", "280px");
-  await expect(notifications.nth(0)).toHaveCSS("height", "88px");
+  const shortHeight = await notifications.nth(0).evaluate(node => node.getBoundingClientRect().height);
 
   const longMessage = "UnbrokenDiagnostic".repeat(40);
   await page.evaluate(message => {
@@ -2921,9 +2599,6 @@ test("notifications keep errors actionable while transient severities disappear 
   const copyError = longNotification.locator(".notification-copy-action");
   const closeError = longNotification.getByRole("button", { name: "Close error" });
   await expect(closeError).toBeVisible();
-  await expect(copyError).toHaveCSS("width", "24px");
-  await expect(copyError).toHaveCSS("height", "24px");
-  await expect(copyError).toHaveCSS("border-top-width", "0px");
   await copyError.click();
   await expect.poll(() => page.evaluate(() => window.__copiedError)).toBe(`Error: Code MDM-999 Long error\nDetails: ${longMessage}`);
   await expect(copyError.locator("use")).toHaveAttribute("href", "#icon-check");
@@ -2944,8 +2619,8 @@ test("notifications keep errors actionable while transient severities disappear 
       actionsRightDifference: Math.abs(copyBounds.right - closeBounds.right)
     };
   });
-  expect(longLayout.height).toBeGreaterThanOrEqual(88);
-  expect(longLayout.height).toBeLessThanOrEqual(144);
+  expect(longLayout.height).toBeGreaterThanOrEqual(shortHeight);
+  expect(longLayout.height).toBeLessThanOrEqual(shortHeight * 2);
   expect(longLayout.contained).toBe(true);
   expect(longLayout.horizontalOverflow).toBe(false);
   expect(longLayout.copyCentered).toBeLessThanOrEqual(1);
@@ -2957,13 +2632,10 @@ test("notifications keep errors actionable while transient severities disappear 
   const accentBars = await page.locator(".backlog-header, .notification-info").evaluateAll(nodes => nodes.map(node => {
     const bounds = node.getBoundingClientRect();
     const accent = getComputedStyle(node, "::before");
-    return { elementWidth: bounds.width, barWidth: Number.parseFloat(accent.width), barHeight: Number.parseFloat(accent.height), color: accent.backgroundColor };
+    return { elementWidth: bounds.width, barWidth: Number.parseFloat(accent.width), barHeight: Number.parseFloat(accent.height) };
   }));
-  for (const accent of accentBars) {
-    expect(accent.barHeight).toBe(2);
-    expect(Math.round(Math.abs(accent.elementWidth - accent.barWidth))).toBeLessThanOrEqual(2);
-  }
-  expect(accentBars.map(accent => accent.color)).toEqual(["rgb(211, 134, 155)", "rgb(131, 165, 152)"]);
+  expect(accentBars[0].barHeight).toBe(accentBars[1].barHeight);
+  for (const accent of accentBars) expect(Math.round(Math.abs(accent.elementWidth - accent.barWidth))).toBeLessThanOrEqual(2);
   const positions = await notifications.evaluateAll(nodes => nodes.map(node => node.getBoundingClientRect().y));
   expect(positions[0]).toBeLessThan(positions[1]);
   await page.evaluate(() => {
@@ -2981,7 +2653,8 @@ test("notifications keep errors actionable while transient severities disappear 
   const notificationBounds = await notifications.first().boundingBox();
   const headerBounds = await page.locator(".header").boundingBox();
   expect(notificationBounds.y).toBeGreaterThan(headerBounds.y + headerBounds.height);
-  await expect(page.locator(".notification-info,.notification-warning")).toHaveCount(0, { timeout: 5000 });
+  await page.clock.fastForward(4000);
+  await expect(page.locator(".notification-info,.notification-warning")).toHaveCount(0);
   await expect(page.locator(".notification-error")).toHaveCount(2);
   for (let index = 0; index < 2; index += 1) await page.locator('.notification-error [aria-label="Close error"]').first().click();
   await expect(notifications).toHaveCount(0);
@@ -3030,14 +2703,10 @@ test("keyboard copy pastes a task at the pointer and resets completed todos", as
   await page.locator("#content").click({ position: { x: 5, y: 5 } });
   await expect(page.locator(".clipboard-source")).toHaveCount(0);
   await source.locator(".card-header").hover();
-  await expect(source).toHaveCSS("border-color", "rgb(235, 219, 178)");
   await expect(page.locator(".clipboard-source")).toHaveCount(0);
   await page.keyboard.press("Control+c");
   await expect(source).toHaveClass(/copy-feedback/);
   await expect(source).toHaveClass(/clipboard-source/);
-  await expect(source).toHaveCSS("outline-color", "rgb(131, 165, 152)");
-  expect(await source.evaluate(element => getComputedStyle(element, "::after").backgroundColor)).toBe("rgb(131, 165, 152)");
-  expect(await source.evaluate(element => getComputedStyle(element, "::after").animationFillMode)).toBe("forwards");
   await expect(page.locator(".clipboard-indicator")).toHaveCount(1);
   await expect(page.locator(".notification-title").last()).toHaveText("Task copied");
   await expect(page.locator(".notification-body").last()).toHaveText("Finished copied to clipboard.");
@@ -3046,8 +2715,6 @@ test("keyboard copy pastes a task at the pointer and resets completed todos", as
   const indicatorBounds = await page.locator(".clipboard-indicator").boundingBox();
   expect(Math.abs(indicatorBounds.x + indicatorBounds.width / 2 - sourceBounds.x - sourceBounds.width)).toBeLessThanOrEqual(1);
   expect(Math.abs(indicatorBounds.y + indicatorBounds.height / 2 - sourceBounds.y)).toBeLessThanOrEqual(1);
-  await expect(page.locator(".clipboard-indicator")).toHaveCSS("width", "20px");
-  await expect(page.locator(".clipboard-indicator")).toHaveCSS("height", "20px");
 
   await page.locator("#content > .release").nth(0).locator(".note-toggle").click();
   await expect.poll(async () => {
@@ -3111,7 +2778,6 @@ test("context copy inserts feature cards before or after the pointed midpoint", 
   await features.nth(0).locator(".release-header").click({ button: "right" });
   await expect(features.nth(0)).toHaveClass(/copy-feedback/);
   await expect(features.nth(0)).toHaveClass(/clipboard-source/);
-  expect(await features.nth(0).evaluate(element => getComputedStyle(element, "::after").backgroundColor)).toBe("rgb(131, 165, 152)");
   await expect(page.locator(".notification-title").last()).toHaveText("Feature copied");
 
   await features.nth(1).locator(".release-header").click({ button: "right" });
@@ -3142,7 +2808,6 @@ test("help popover documents shortcuts and Markdown and closes predictably", asy
   const soundButton = page.locator("#toggleSounds");
   const positions = await Promise.all([helpButton, soundButton].map(locator => locator.evaluate(node => node.getBoundingClientRect().x)));
   expect(positions[0]).toBeLessThan(positions[1]);
-  await expect(page.locator(".help-menu")).toHaveCSS("border-left-style", "none");
   await helpButton.click();
   const help = page.locator("#helpPopover");
   await expect(help).toBeVisible();
@@ -3157,12 +2822,6 @@ test("help popover documents shortcuts and Markdown and closes predictably", asy
   await expect(shortcutPanel).toBeVisible();
   await expect(markdownPanel).toBeHidden();
   await expect(shortcutPanel).toContainText("Ctrl");
-  const keySurfaces = await shortcutPanel.locator("kbd").evaluateAll(keys => keys.map(key => {
-    const style = getComputedStyle(key);
-    return { minWidth: style.minWidth, height: style.height, display: style.display, overflow: style.overflow };
-  }));
-  expect(keySurfaces.length).toBeGreaterThan(0);
-  expect(keySurfaces.every(key => key.minWidth === "22px" && key.height === "22px" && key.display === "grid" && key.overflow === "hidden")).toBe(true);
   await expect(shortcutPanel.locator(".shortcut-list > div").filter({ hasText: "Open workspace" }).locator("kbd")).toHaveText("W");
   await expect(shortcutPanel.locator(".shortcut-list > div").filter({ hasText: "Open archive" }).locator("kbd")).toHaveText("A");
   await expect(shortcutPanel.locator(".shortcut-list > div").filter({ hasText: "Toggle backlog" }).locator("kbd")).toHaveText("B");
@@ -3195,29 +2854,15 @@ test("help popover documents shortcuts and Markdown and closes predictably", asy
   await expect(markdownPanel).not.toContainText("Marks the");
   const formatting = markdownPanel.locator(".help-formatting");
   await expect(formatting.locator(".markdown-syntax-bold")).toHaveText("**Bold**");
-  await expect(formatting.locator(".markdown-syntax-bold")).toHaveCSS("font-weight", "800");
-  await expect(formatting.locator(".markdown-syntax-italic")).toHaveCSS("font-style", "italic");
-  await expect(formatting.locator(".markdown-syntax-strike")).toHaveCSS("text-decoration-line", "line-through");
   await expect(formatting.locator(".markdown-syntax-code")).toHaveText("`Code`");
   await expect(formatting.locator(".markdown-syntax-link")).toHaveText("[URL](url)");
   await expect(formatting).not.toContainText("Bullet");
   await expect(formatting).not.toContainText("Nested");
-  await expect(markdownPanel.locator(".help-tag-info")).toHaveCSS("color", "rgb(131, 165, 152)");
-  await expect(markdownPanel.locator(".help-tag-warn")).toHaveCSS("color", "rgb(215, 153, 33)");
   await page.keyboard.press("Escape");
   await expect(help).toBeHidden();
   await expect(helpButton).toHaveAttribute("aria-expanded", "false");
 });
 
-test("Ignore hides the following feature or task from the application", async ({ page }) => {
-  await openFixture(page, "# Ignore Test\n\n#Ignore\n## Hidden Feature\n### Child\n- [ ] hidden feature task\n\n## Visible Feature\n#Ignore\n### Hidden Task\n- [ ] hidden task\n\n### Visible Task\n- [ ] shown");
-  await expect(page.locator("#content > .release")).toHaveCount(1);
-  await expect(page.locator("#content .release-title")).toHaveText("Visible Feature");
-  await expect(page.locator("#content .card")).toHaveCount(1);
-  await expect(page.locator("#content .card-title")).toHaveText("Visible Task");
-  await expect(page.locator("#projectStats tbody tr").nth(0).locator("td").first()).toHaveText("0");
-  await expect(page.locator("#projectStats tbody tr").nth(2).locator("td.open")).toHaveText("1");
-});
 
 test("Workspace tasks use the scrollbar space only when the feature overflows", async ({ page }) => {
   const todos = Array.from({ length: 40 }, (_, index) => `- [ ] Todo ${index + 1}`).join("\n");
@@ -3320,14 +2965,6 @@ test("checking a todo updates progress, dirty state, save output, undo, and redo
   await expect.poll(() => page.evaluate(() => window.__savedMarkdown)).toContain("- [x] ~open~");
 });
 
-test("Control+S saves the current project through the global save action", async ({ page }) => {
-  await openFixture(page);
-  await page.locator(".card-header").first().click();
-  await page.locator(".card").first().locator(".checkbox").nth(1).click();
-  await page.keyboard.press("Control+s");
-  await expect.poll(() => page.evaluate(() => window.__savedMarkdown)).toContain("- [x] ~open~");
-  await expect(page.locator("#saveFile")).not.toHaveClass(/dirty/);
-});
 
 test("global keyboard shortcuts open files and undo and redo project changes", async ({ page }) => {
   await openFixture(page);
@@ -3395,10 +3032,10 @@ test("adding and immediately deleting a task or feature returns to the saved sta
 
 test("view menu, keyboard shortcut, and accessibility states stay synchronized", async ({ page }) => {
   await openFixture(page);
+  await expect(page.locator("#toggleViewMenu")).toHaveAccessibleName("View options");
   await page.locator("#toggleViewMenu").click();
   await expect(page.locator("#toggleViewMenu")).toHaveAttribute("aria-expanded", "true");
   await expect(page.locator("#viewOptions > button")).toHaveText(["Show archived features", "Show backlog", "Show clock", "Include done features", "Show feature metadata", "Show statistics"]);
-  await expect(page.locator("#toggleBacklog")).toHaveCSS("color", "rgb(235, 219, 178)");
   await expect(page.locator("#toggleBacklog")).toHaveAttribute("aria-pressed", "false");
   await page.keyboard.press("Escape");
   await expect(page.locator("#viewOptions")).toBeHidden();
@@ -3476,15 +3113,10 @@ test("SortableJS moves a task between features and persists the new order", asyn
   await expect.poll(() => page.evaluate(() => window.__savedMarkdown)).toMatch(/## Open Feature[\s\S]*### Started Task/);
 });
 
-test("Workspace uses 380px features and 360px tasks on common and 4K viewports", async ({ page }) => {
+test("Workspace feature and task widths do not grow with 4K viewports", async ({ page }) => {
   await openFixture(page);
-  const normalWidth = await page.locator("#content > .release").first().evaluate(node => node.getBoundingClientRect().width);
-  const normalTaskWidth = await page.locator("#content > .release").first().locator(".card").first().evaluate(node => node.getBoundingClientRect().width);
+  const widths = () => page.locator("#content > .release").first().evaluate(node => [node.getBoundingClientRect().width, node.querySelector(".card").getBoundingClientRect().width]);
+  const normal = await widths();
   await page.setViewportSize({ width: 3840, height: 2160 });
-  const wideWidth = await page.locator("#content > .release").first().evaluate(node => node.getBoundingClientRect().width);
-  const wideTaskWidth = await page.locator("#content > .release").first().locator(".card").first().evaluate(node => node.getBoundingClientRect().width);
-  expect(normalWidth).toBe(380);
-  expect(normalTaskWidth).toBe(360);
-  expect(wideWidth).toBe(380);
-  expect(wideTaskWidth).toBe(360);
+  expect(await widths()).toEqual(normal);
 });

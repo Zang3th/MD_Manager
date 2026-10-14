@@ -1,8 +1,5 @@
-const { test, expect } = require("./fixtures");
-const path = require("node:path");
-const { pathToFileURL } = require("node:url");
+const { test, expect, appUrl } = require("./fixtures");
 
-const appUrl = pathToFileURL(path.resolve(__dirname, "../../MD_Manager.html")).href;
 const entry = (/** @type {string} */ title, /** @type {string} */ date) => `## ${title}\n#Version\n- 1.0.0\n#Date\n${date.split(" | ").map(range => `- ${range}`).join("\n")}\n### Done\n- [x] done`;
 const source = `# Caps\n#Archive\n# Archive\n${[
   entry("Long", "2026-01-03 - 2026-02-17"),

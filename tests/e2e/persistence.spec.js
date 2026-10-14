@@ -1,7 +1,5 @@
-const { test, expect } = require("./fixtures");
-const path = require("node:path");
+const { test, expect, appUrl, dismissNotifications } = require("./fixtures");
 
-const appUrl = `file:///${path.resolve(__dirname, "../../MD_Manager.html").replaceAll("\\", "/")}`;
 
 test("a failed save stays dirty, reports the error, and allows a later save", async ({ page }) => {
   await page.goto(appUrl);
@@ -170,6 +168,7 @@ test("feature-card zoom is restored from the matching recent file after reload",
   await page.locator(".recent-file-open").click();
   await expect(page.locator("#content > .release")).toHaveCSS("width", "540px");
   await expect(page.locator("#featureZoomValue")).toHaveText("140%");
+  await dismissNotifications(page);
   await page.locator("#toggleWorkspaceZoom").click();
   const slider = page.locator("#featureWidth");
   await slider.press("ArrowLeft");

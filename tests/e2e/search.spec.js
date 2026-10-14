@@ -1,8 +1,7 @@
-const { test, expect } = require("./fixtures");
+const { test, expect, appUrl } = require("./fixtures");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const appUrl = `file:///${path.resolve(__dirname, "../../MD_Manager.html").replaceAll("\\", "/")}`;
 const goldenFixture = fs.readFileSync(path.resolve(__dirname, "../../data/parsing/Layout.md"), "utf8");
 
 /** @param {import("@playwright/test").Page} page @param {string} markdown */

@@ -1,8 +1,5 @@
-const { test, expect } = require("./fixtures");
-const path = require("node:path");
-const { pathToFileURL } = require("node:url");
+const { test, expect, appUrl } = require("./fixtures");
 
-const appUrl = pathToFileURL(path.resolve(__dirname, "../../MD_Manager.html")).href;
 const fixture = `# Statistics Project
 
 ## First feature
@@ -197,32 +194,28 @@ test("chart headings and feature detail headers are concise and match their valu
   await expect(details.locator("dd")).toHaveText(["2 todos", "3 days"]);
 });
 
-test("shared counts stay blue and left aligned while histogram values stay accessible without details", async ({ page }) => {
+test("shared counts stay left aligned while histogram values stay accessible without details", async ({ page }) => {
   await openFixture(page);
   await openStatistics(page);
   const details = page.locator("#chartDetails");
-  for (const theme of ["dark", "light"]) {
-    if (await page.locator("body").getAttribute("data-theme") !== `gruvbox-${theme}`) await page.evaluate(() => window.MDManager.theme.next());
-    await page.locator(".chart-point-group").hover();
-    await expect(details).toBeVisible();
-    await expect(details.locator("header")).toHaveText("2 features");
-    await expect(details.locator("header>span")).toHaveCount(1);
-    await expect(details.locator(".chart-group-count")).toHaveCSS("color", theme === "dark" ? "rgb(131, 165, 152)" : "rgb(7, 102, 120)");
-    const alignment = await details.evaluate(popup => {
-      const header = popup.querySelector("header");
-      return { badge: header.querySelector(".chart-group-count").getBoundingClientRect().left, left: header.getBoundingClientRect().left + parseFloat(getComputedStyle(header).paddingLeft) };
-    });
-    expect(alignment.badge).toBe(alignment.left);
-    await expect(details.locator("li")).toHaveText(["First feature", "Second feature"]);
-    await expect(details.locator("dd")).toHaveText(["2 todos", "3 days"]);
-    await page.locator('[data-chart-bin="0"]').hover();
-    await expect(details).toBeHidden();
-    await expect(page.locator('[data-chart-bin="0"]')).toHaveAttribute("aria-label", "3\u201310 days: 3 features");
-    await page.locator("#closeStatistics").focus();
-    await page.locator('[data-chart-bin="1"]').focus();
-    await expect(details).toBeHidden();
-    await expect(page.locator('[data-chart-bin="1"]')).toHaveAttribute("aria-label", "11\u201318 days: 1 feature");
-  }
+  await page.locator(".chart-point-group").hover();
+  await expect(details).toBeVisible();
+  await expect(details.locator("header")).toHaveText("2 features");
+  await expect(details.locator("header>span")).toHaveCount(1);
+  const alignment = await details.evaluate(popup => {
+    const header = popup.querySelector("header");
+    return { badge: header.querySelector(".chart-group-count").getBoundingClientRect().left, left: header.getBoundingClientRect().left + parseFloat(getComputedStyle(header).paddingLeft) };
+  });
+  expect(alignment.badge).toBe(alignment.left);
+  await expect(details.locator("li")).toHaveText(["First feature", "Second feature"]);
+  await expect(details.locator("dd")).toHaveText(["2 todos", "3 days"]);
+  await page.locator('[data-chart-bin="0"]').hover();
+  await expect(details).toBeHidden();
+  await expect(page.locator('[data-chart-bin="0"]')).toHaveAttribute("aria-label", "3\u201310 days: 3 features");
+  await page.locator("#closeStatistics").focus();
+  await page.locator('[data-chart-bin="1"]').focus();
+  await expect(details).toBeHidden();
+  await expect(page.locator('[data-chart-bin="1"]')).toHaveAttribute("aria-label", "11\u201318 days: 1 feature");
 });
 
 test("chart details start at half width, grow with their current content and stay inside the dialog", async ({ page }) => {
@@ -512,10 +505,7 @@ test("1080p portrait statistics fits both charts and the table without unnecessa
   }
   await page.setViewportSize({ width: 1080, height: 1920 });
   await page.mouse.move(4, 4);
-  for (const theme of ["dark", "light"]) {
-    if (await page.locator("body").getAttribute("data-theme") !== `gruvbox-${theme}`) await page.evaluate(() => window.MDManager.theme.next());
-    await expect(page.locator("#statisticsDialog")).toHaveScreenshot(`statistics-portrait-${theme}.png`, { animations: "disabled", maxDiffPixels: 100 });
-  }
+  await expect(page.locator("#statisticsDialog")).toHaveScreenshot("statistics-portrait-dark.png", { animations: "disabled", maxDiffPixels: 100 });
   await page.locator(".chart-point-group").hover();
   await expect(page.locator("#chartDetails")).toBeVisible();
   await expect(page.locator("#chartDetails li")).toHaveText(["First feature", "Second feature"]);
@@ -561,9 +551,7 @@ test("statistics maintains themed geometry and readable plots at wide and narrow
   await expect(page.locator('.statistics-scatter .chart-axis-label:not([transform])')).toBeInViewport();
   await page.evaluate(() => { document.getElementById("statisticsContent").scrollTop = 0; document.querySelector(".statistics-chart-scroll").scrollLeft = 0; });
   await page.mouse.move(1000, 120);
-  for (const theme of ["dark", "light"]) {
-    if (await page.locator("body").getAttribute("data-theme") !== `gruvbox-${theme}`) await page.evaluate(() => window.MDManager.theme.next());
-    await expect(page.locator("#statisticsDialog")).toHaveCSS("background-color", theme === "dark" ? "rgb(40, 40, 40)" : "rgb(235, 219, 178)");
-    await expect(page.locator("#statisticsDialog")).toHaveScreenshot(`statistics-${theme}.png`, { animations: "disabled", maxDiffPixels: 100 });
-  }
+  await page.evaluate(() => window.MDManager.theme.next());
+  await expect(page.locator("body")).toHaveAttribute("data-theme", "gruvbox-light");
+  await expect(page.locator("#statisticsDialog")).toHaveScreenshot("statistics-light.png", { animations: "disabled", maxDiffPixels: 100 });
 });

@@ -1,7 +1,5 @@
-const { test, expect } = require("./fixtures");
-const path = require("node:path");
+const { test, expect, appUrl } = require("./fixtures");
 
-const appUrl = `file:///${path.resolve(__dirname, "../../MD_Manager.html").replaceAll("\\", "/")}`;
 
 test("missing File System Access API blocks unsupported browsers with concise visible and detailed copied errors", async ({ page }) => {
   await page.addInitScript(() => {

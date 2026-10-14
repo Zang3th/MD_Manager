@@ -5,6 +5,7 @@ module.exports = defineConfig({
   snapshotPathTemplate: "{testDir}/snapshots/{platform}/{arg}{ext}",
   updateSnapshots: process.env.CI ? "none" : "missing",
   fullyParallel: true,
+  workers: process.env.CI ? "100%" : undefined,
   forbidOnly: true,
   retries: 0,
   reporter: "line",

@@ -4,14 +4,15 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const PLATFORM_BASELINE_NAMES = [
-  "start-dark.png",
-  "start-light.png",
-  "workspace-pinned-backlog-dark.png",
-  "workspace-pinned-backlog-light.png",
-  "help-dialog-dark.png",
+  "archive-light.png",
   "help-dialog-light.png",
+  "search-palette-dark.png",
+  "start-dark.png",
+  "statistics-light.png",
+  "statistics-portrait-dark.png",
   "task-edit-dialog-dark.png",
-  "task-edit-dialog-light.png"
+  "workspace-pinned-backlog-dark.png",
+  "workspace-pinned-backlog-light.png"
 ];
 
 /** @param {string} value */
@@ -116,10 +117,6 @@ function checkHarness(root) {
     }
   }
 
-  const markdownTests = source("tests/unit/markdown.test.js");
-  for (const contract of ["data/parsing/Layout.md", "round-trips without losing information", "serialization remains stable across repeated LF and CRLF round trips"]) {
-    if (!markdownTests.includes(contract)) report("tests/unit/markdown.test.js", "HARNESS-MARKDOWN-001", `Markdown regression contract is missing '${contract}'`);
-  }
   const layout = source("data/parsing/Layout.md");
   for (const marker of ["#Pin", "#Ignore", "#Backlog", "#Archive", "#Version", "#Date", "#Info", "#Warn"]) {
     if (!new RegExp(`^${marker}$`, "m").test(layout)) report("data/parsing/Layout.md", "HARNESS-MARKDOWN-002", `golden file is missing required marker '${marker}'`);

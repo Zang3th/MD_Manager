@@ -7,17 +7,6 @@ const path = require("node:path");
 const test = require("node:test");
 const { PLATFORM_BASELINE_NAMES, checkHarness } = require("../../tools/check-harness.js");
 
-const baselineNames = [
-  "start-dark.png",
-  "start-light.png",
-  "workspace-pinned-backlog-dark.png",
-  "workspace-pinned-backlog-light.png",
-  "help-dialog-dark.png",
-  "help-dialog-light.png",
-  "task-edit-dialog-dark.png",
-  "task-edit-dialog-light.png"
-];
-
 /** @param {string} root @param {string} relative @param {string} content */
 function write(root, relative, content = "fixture\n") {
   const target = path.join(root, relative);
@@ -48,17 +37,15 @@ function fixture(t) {
   write(root, "README.md", "Run `npm run verify`.\n");
   write(root, "playwright.config.js", "module.exports = { fullyParallel: true, forbidOnly: true, retries: 0 };\n");
   write(root, ".github/workflows/verify.yml", "workflow_call:\npermissions:\n  contents: read\n# ubuntu-latest windows-latest macos-latest\n- run: node tools/check-harness.js\n- run: npm ci\n- run: npm run verify\n");
-  write(root, "tests/unit/markdown.test.js", "// data/parsing/Layout.md\n// round-trips without losing information\n// serialization remains stable across repeated LF and CRLF round trips\n");
   write(root, "docs/work/current.md", "# Current Work\n\n_No active work item._\n");
   write(root, "data/parsing/Layout.md", ["# Layout", "#Pin", "#Ignore", "#Backlog", "#Archive", "#Version", "#Date", "#Info", "#Warn"].join("\n"));
   for (const platform of ["linux", "win32", "darwin"]) {
-    for (const name of baselineNames) write(root, `tests/e2e/snapshots/${platform}/${name}`, "");
+    for (const name of PLATFORM_BASELINE_NAMES) write(root, `tests/e2e/snapshots/${platform}/${name}`, "");
   }
   return root;
 }
 
 test("accepts a coherent deterministic harness contract", t => {
-  assert.deepEqual(PLATFORM_BASELINE_NAMES, baselineNames);
   assert.deepEqual(checkHarness(fixture(t)), []);
 });
 

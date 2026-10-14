@@ -1,8 +1,5 @@
-const { test, expect } = require("./fixtures");
-const path = require("node:path");
-const { pathToFileURL } = require("node:url");
+const { test, expect, appUrl } = require("./fixtures");
 
-const appUrl = pathToFileURL(path.resolve(__dirname, "../../MD_Manager.html")).href;
 const source = `# Project
 
 ## Open

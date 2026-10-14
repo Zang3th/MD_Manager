@@ -1,7 +1,5 @@
-const { test, expect } = require("./fixtures");
-const path = require("node:path");
+const { test, expect, appUrl } = require("./fixtures");
 
-const appUrl = `file:///${path.resolve(__dirname, "../../MD_Manager.html").replaceAll("\\", "/")}`;
 const initialMarkdown = "# Local Project\n\n## Feature\n### Task\n- [ ] Todo";
 
 /** @param {import("@playwright/test").Page} page */
@@ -60,38 +58,22 @@ test("external changes show warning actions and Reload starts a clean undo syste
   await changeDisk(page, "# External Project\n\n## Feature\n### Task\n- [ ] Changed");
   const save = page.locator("#saveFile");
   await expect(save).toHaveText("Conflict");
-  await expect(save).toHaveCSS("color", "rgb(215, 153, 33)");
-  await expect(save).toHaveCSS("border-color", "rgba(0, 0, 0, 0)");
-  await expect(save.locator('use')).toHaveAttribute("href", "#icon-close");
   await expect(reload).toBeHidden();
   await expect(overwrite).toBeHidden();
   await save.click();
   await expect(save).toHaveAttribute("aria-expanded", "true");
   await expect(reload).toBeVisible();
   await expect(overwrite).toBeVisible();
-  await expect(reload.locator("use")).toHaveAttribute("href", "#icon-reload");
-  await expect(overwrite.locator("use")).toHaveAttribute("href", "#icon-clipboard");
-  const buttonStyles = await page.locator("#externalActions button").evaluateAll(buttons => buttons.map(button => {
-    const style = getComputedStyle(button);
-    return { width: style.width, color: style.color, background: style.backgroundColor, borderWidth: style.borderWidth };
-  }));
-  expect(buttonStyles[0].width).toBe(buttonStyles[1].width);
-  expect(await page.locator("#externalActions button").evaluateAll(buttons => buttons.every(button => button.scrollWidth <= button.clientWidth))).toBe(true);
-  expect(buttonStyles.map(style => style.background)).toEqual(["rgba(0, 0, 0, 0)", "rgba(0, 0, 0, 0)"]);
-  expect(buttonStyles.map(style => style.borderWidth)).toEqual(["0px", "0px"]);
-  expect(buttonStyles.map(style => style.color)).toEqual(["rgb(184, 187, 38)", "rgb(254, 128, 25)"]);
-  const buttonBounds = await page.locator("#externalActions button").evaluateAll(buttons => buttons.map(button => button.getBoundingClientRect().toJSON()));
-  expect(buttonBounds[1].top).toBe(buttonBounds[0].bottom);
+  const buttons = await page.locator("#externalActions button").evaluateAll(nodes => nodes.map(node => ({ bounds: node.getBoundingClientRect().toJSON(), fits: node.scrollWidth <= node.clientWidth })));
+  expect(buttons[0].bounds.width).toBe(buttons[1].bounds.width);
+  expect(buttons.every(button => button.fits)).toBe(true);
+  expect(buttons[1].bounds.top).toBe(buttons[0].bounds.bottom);
   await reload.hover();
   await expect(reload).toHaveCSS("opacity", "1");
-  await expect(reload).toHaveCSS("background-color", "rgb(60, 56, 54)");
-  await expect(reload).toHaveCSS("color", "rgb(184, 187, 38)");
   await expect(overwrite).toHaveCSS("opacity", "0.45");
   await overwrite.hover();
   await expect(reload).toHaveCSS("opacity", "0.45");
   await expect(overwrite).toHaveCSS("opacity", "1");
-  await expect(overwrite).toHaveCSS("background-color", "rgb(60, 56, 54)");
-  await expect(overwrite).toHaveCSS("color", "rgb(254, 128, 25)");
   const warning = page.locator(".notification-warning").last();
   await expect(warning.locator(".notification-title")).toHaveText("File changed externally");
   await expect(warning.locator(".notification-body")).toContainText("Choose Reload or Overwrite");

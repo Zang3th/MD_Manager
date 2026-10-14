@@ -1,8 +1,5 @@
-const { test, expect } = require("./fixtures");
-const path = require("node:path");
-const { pathToFileURL } = require("node:url");
+const { test, expect, appUrl, settleLayout } = require("./fixtures");
 
-const appUrl = pathToFileURL(path.resolve(__dirname, "../../MD_Manager.html")).href;
 const entry = (/** @type {string} */ title, /** @type {string[]} */ dates) => `## ${title}\n#Version\n- 1.2.3\n#Date\n${dates.map(date => `- ${date}`).join("\n")}\n### Done\n- [x] done`;
 const edges = `# Edges\n#Archive\n# Archive\n${[
   entry("First range", ["2026-01-01 - 2026-01-02"]),
@@ -44,76 +41,72 @@ async function durationGeometry(mark) {
   });
 }
 
-for (const theme of ["dark", "light"]) {
-  for (const ratio of [1, 2]) {
-    test.describe(`Archive duration labels (${theme}, DPR ${ratio})`, () => {
-      test.use({ deviceScaleFactor: ratio });
-      test("range and pause durations stay by their own period without wrapping or scroll growth", async ({ page }, testInfo) => {
-        for (const width of [1441, 800]) {
-          await page.setViewportSize({ width, height: 900 });
-          await open(page, durationSource);
-          await setTheme(page, theme);
-          await expect.poll(() => page.locator(".archive-date-timeline").evaluate(node => Number(/** @type {HTMLElement} */ (node).dataset.archiveDateLayout?.split(":")[0]) === node.querySelector(".archive-axis-plot").getBoundingClientRect().width)).toBe(true);
-          const content = page.locator(".archive-content");
-          const extent = await content.evaluate(node => ({ width: node.scrollWidth, height: node.scrollHeight }));
-          const marks = page.locator(".archive-active-segment,.archive-pause-segment");
-          await expect(marks).toHaveCount(6);
-          for (let index = 0; index < 6; index++) {
-            const mark = marks.nth(index);
-            const band = mark.locator(".archive-short-band");
-            await (await band.isVisible() ? band : mark).hover();
-            const value = await durationGeometry(mark);
-            expect(value.whiteSpace).toBe("nowrap");
-            expect(value.label.height).toBeLessThanOrEqual(value.lineHeight + .05);
-            expect(value.clipped).toBeLessThanOrEqual(1);
-            expect(value.label.left).toBeGreaterThanOrEqual(value.frozen.right + 3.9);
-            expect(value.label.right).toBeLessThanOrEqual(Math.min(value.plot.right + 8, value.windowWidth - 12) + .1);
-            if (!index) expect(value.label.top).toBeCloseTo(value.anchor.bottom + 8, 1);
-            else expect(value.label.bottom).toBeCloseTo(value.anchor.top - 8, 1);
-            expect(value.label.top).toBeGreaterThanOrEqual(value.axis.bottom);
-            expect(await content.evaluate(node => ({ width: node.scrollWidth, height: node.scrollHeight }))).toEqual(extent);
-            await page.screenshot({ path: testInfo.outputPath(`duration-${width}-${index}.png`), animations: "disabled" });
-            await page.mouse.move(0, 0);
-            await expect(mark.locator(".archive-object-label")).not.toHaveClass(/is-positioned/);
-          }
-        }
-      });
-
-      test("stationary-pointer scrolling and resizing retain the hovered duration and clear departed periods", async ({ page }) => {
-        await page.setViewportSize({ width: 1024, height: 600 });
-        await open(page, `# Scroll\n#Archive\n# Archive\n${Array.from({ length: 48 }, (_, index) => entry(`Range ${index}`, ["2026-01-01 - 2026-12-31"])).join("\n\n")}`);
-        await setTheme(page, theme);
+// Label placement is layout geometry: it can differ between device pixel ratios but not between themes.
+for (const ratio of [1, 2]) {
+  test.describe(`Archive duration labels (DPR ${ratio})`, () => {
+    test.use({ deviceScaleFactor: ratio });
+    test("range and pause durations stay by their own period without wrapping or scroll growth", async ({ page }) => {
+      for (const width of [1441, 800]) {
+        await page.setViewportSize({ width, height: 900 });
+        await open(page, durationSource);
+        await expect.poll(() => page.locator(".archive-date-timeline").evaluate(node => Number(/** @type {HTMLElement} */ (node).dataset.archiveDateLayout?.split(":")[0]) === node.querySelector(".archive-axis-plot").getBoundingClientRect().width)).toBe(true);
         const content = page.locator(".archive-content");
-        const marks = page.locator(".archive-active-segment");
-        await marks.first().hover();
-        const before = await durationGeometry(marks.first());
-        await content.evaluate(node => { node.scrollTop = 4; });
-        await settle(page);
-        const partial = await durationGeometry(marks.first());
-        expect(partial.label.top).toBeCloseTo(before.label.top - 4, 1);
-        expect(partial.label.top).toBeCloseTo(partial.anchor.bottom + 8, 1);
-        await content.evaluate(node => { node.scrollTop = 52; });
-        await settle(page);
-        await expect(marks.first().locator(".archive-object-label")).not.toHaveClass(/is-positioned/);
-        const next = await durationGeometry(marks.nth(1));
-        expect(next.label.top).toBeCloseTo(next.anchor.bottom + 8, 1);
-        await page.setViewportSize({ width: 1231, height: 600 });
-        await settle(page);
-        const resized = await durationGeometry(marks.nth(1));
-        expect(resized.label.top).toBeCloseTo(resized.anchor.bottom + 8, 1);
-        expect(resized.label.height).toBeLessThanOrEqual(resized.lineHeight + .05);
-        await content.evaluate(node => { node.scrollLeft = 80; });
-        await settle(page);
-        const horizontal = await durationGeometry(marks.nth(1));
-        expect(horizontal.label.top).toBeCloseTo(horizontal.anchor.bottom + 8, 1);
-        expect(horizontal.label.left).toBeGreaterThanOrEqual(horizontal.frozen.right + 3.9);
-        await page.locator("#projectTitle").hover();
-        await expect(page.locator(".archive-object-label.is-positioned")).toHaveCount(0);
-        await page.locator("#showWorkspaceView").click();
-        await expect(page.locator(".archive-object-label.is-positioned")).toHaveCount(0);
-      });
+        const extent = await content.evaluate(node => ({ width: node.scrollWidth, height: node.scrollHeight }));
+        const marks = page.locator(".archive-active-segment,.archive-pause-segment");
+        await expect(marks).toHaveCount(6);
+        for (let index = 0; index < 6; index++) {
+          const mark = marks.nth(index);
+          const band = mark.locator(".archive-short-band");
+          await (await band.isVisible() ? band : mark).hover();
+          const value = await durationGeometry(mark);
+          expect(value.whiteSpace).toBe("nowrap");
+          expect(value.label.height).toBeLessThanOrEqual(value.lineHeight + .05);
+          expect(value.clipped).toBeLessThanOrEqual(1);
+          expect(value.label.left).toBeGreaterThanOrEqual(value.frozen.right + 3.9);
+          expect(value.label.right).toBeLessThanOrEqual(Math.min(value.plot.right + 8, value.windowWidth - 12) + .1);
+          if (!index) expect(value.label.top).toBeCloseTo(value.anchor.bottom + 8, 1);
+          else expect(value.label.bottom).toBeCloseTo(value.anchor.top - 8, 1);
+          expect(value.label.top).toBeGreaterThanOrEqual(value.axis.bottom);
+          expect(await content.evaluate(node => ({ width: node.scrollWidth, height: node.scrollHeight }))).toEqual(extent);
+          await page.mouse.move(0, 0);
+          await expect(mark.locator(".archive-object-label")).not.toHaveClass(/is-positioned/);
+        }
+      }
     });
-  }
+
+    test("stationary-pointer scrolling and resizing retain the hovered duration and clear departed periods", async ({ page }) => {
+      await page.setViewportSize({ width: 1024, height: 600 });
+      await open(page, `# Scroll\n#Archive\n# Archive\n${Array.from({ length: 48 }, (_, index) => entry(`Range ${index}`, ["2026-01-01 - 2026-12-31"])).join("\n\n")}`);
+      const content = page.locator(".archive-content");
+      const marks = page.locator(".archive-active-segment");
+      await marks.first().hover();
+      const before = await durationGeometry(marks.first());
+      await content.evaluate(node => { node.scrollTop = 4; });
+      await settleLayout(page);
+      const partial = await durationGeometry(marks.first());
+      expect(partial.label.top).toBeCloseTo(before.label.top - 4, 1);
+      expect(partial.label.top).toBeCloseTo(partial.anchor.bottom + 8, 1);
+      await content.evaluate(node => { node.scrollTop = 52; });
+      await settleLayout(page);
+      await expect(marks.first().locator(".archive-object-label")).not.toHaveClass(/is-positioned/);
+      const next = await durationGeometry(marks.nth(1));
+      expect(next.label.top).toBeCloseTo(next.anchor.bottom + 8, 1);
+      await page.setViewportSize({ width: 1231, height: 600 });
+      await settleLayout(page);
+      const resized = await durationGeometry(marks.nth(1));
+      expect(resized.label.top).toBeCloseTo(resized.anchor.bottom + 8, 1);
+      expect(resized.label.height).toBeLessThanOrEqual(resized.lineHeight + .05);
+      await content.evaluate(node => { node.scrollLeft = 80; });
+      await settleLayout(page);
+      const horizontal = await durationGeometry(marks.nth(1));
+      expect(horizontal.label.top).toBeCloseTo(horizontal.anchor.bottom + 8, 1);
+      expect(horizontal.label.left).toBeGreaterThanOrEqual(horizontal.frozen.right + 3.9);
+      await page.locator("#projectTitle").hover();
+      await expect(page.locator(".archive-object-label.is-positioned")).toHaveCount(0);
+      await page.locator("#showWorkspaceView").click();
+      await expect(page.locator(".archive-object-label.is-positioned")).toHaveCount(0);
+    });
+  });
 }
 
 /** @param {import("@playwright/test").Page} page @param {Buffer} png @param {Array<{x:number,y:number,width:number,height:number,color:number[]}>} samples */
@@ -137,132 +130,128 @@ async function pixelMasks(page, png, samples) {
   }, { encoded: png.toString("base64"), samples });
 }
 
-for (const theme of ["dark", "light"]) {
-  for (const ratio of [1, 2]) {
-    test.describe(`Archive corrected geometry (${theme}, DPR ${ratio})`, () => {
-      test.use({ deviceScaleFactor: ratio });
-      test("paired caps share dimensions and physical pixel coverage after resizing", async ({ page }, testInfo) => {
-        await open(page, geometrySource);
-        await setTheme(page, theme);
-        for (const viewportWidth of [1441, 1231]) {
-          await page.setViewportSize({ width: viewportWidth, height: 900 });
-          await settle(page);
-          await page.mouse.move(0, 0);
-          const pairs = await page.locator(".archive-swimlane-feature").evaluateAll(rows => rows.flatMap(row => {
-            const start = row.querySelector(".archive-track-start");
-            const end = row.querySelector(".archive-track-end");
-            if (!start || !end) return [];
-            const cap = (/** @type {Element} */ node, /** @type {string} */ side) => {
-              const bounds = node.getBoundingClientRect();
-              const style = getComputedStyle(node, side);
-              const canvas = document.createElement("canvas");
-              canvas.width = canvas.height = 1;
-              const context = /** @type {CanvasRenderingContext2D} */ (canvas.getContext("2d"));
-              context.fillStyle = style.backgroundColor;
-              context.fillRect(0, 0, 1, 1);
-              return { x: bounds.left + parseFloat(style.left), y: bounds.top + parseFloat(style.top), width: parseFloat(style.width), height: parseFloat(style.height), color: [...context.getImageData(0, 0, 1, 1).data].slice(0, 3) };
-            };
-            return [[cap(start, "::before"), cap(end, "::after")]];
-          }));
-          expect(pairs).toHaveLength(4);
-          const samples = pairs.flatMap(pair => pair.map(cap => {
-            expect(cap.width).toBe(3);
-            expect(cap.height).toBe(28);
-            expect(Math.abs(cap.x * ratio - Math.round(cap.x * ratio))).toBeLessThan(.04);
-            return { x: Math.round(cap.x * ratio) - 2, y: Math.floor(cap.y * ratio) - 2, width: 3 * ratio + 4, height: 28 * ratio + 4, color: cap.color };
-          }));
-          const png = await page.screenshot({ path: testInfo.outputPath(`caps-${viewportWidth}.png`), animations: "disabled" });
-          const masks = await pixelMasks(page, png, samples);
-          for (let index = 0; index < masks.length; index += 2) {
-            expect(masks[index], `start/end cap ${index / 2} at ${viewportWidth}`).toEqual(masks[index + 1]);
-            expect(masks[index][14 * ratio].replaceAll("0", "")).toHaveLength(3 * ratio);
-          }
+// Pixel coverage is compared within one rendering, so only the device pixel ratio can change it.
+for (const ratio of [1, 2]) {
+  test.describe(`Archive corrected geometry (DPR ${ratio})`, () => {
+    test.use({ deviceScaleFactor: ratio });
+    test("paired caps share dimensions and physical pixel coverage after resizing", async ({ page }) => {
+      await open(page, geometrySource);
+      for (const viewportWidth of [1441, 1231]) {
+        await page.setViewportSize({ width: viewportWidth, height: 900 });
+        await settleLayout(page);
+        await page.mouse.move(0, 0);
+        const pairs = await page.locator(".archive-swimlane-feature").evaluateAll(rows => rows.flatMap(row => {
+          const start = row.querySelector(".archive-track-start");
+          const end = row.querySelector(".archive-track-end");
+          if (!start || !end) return [];
+          const cap = (/** @type {Element} */ node, /** @type {string} */ side) => {
+            const bounds = node.getBoundingClientRect();
+            const style = getComputedStyle(node, side);
+            const canvas = document.createElement("canvas");
+            canvas.width = canvas.height = 1;
+            const context = /** @type {CanvasRenderingContext2D} */ (canvas.getContext("2d"));
+            context.fillStyle = style.backgroundColor;
+            context.fillRect(0, 0, 1, 1);
+            return { x: bounds.left + parseFloat(style.left), y: bounds.top + parseFloat(style.top), width: parseFloat(style.width), height: parseFloat(style.height), color: [...context.getImageData(0, 0, 1, 1).data].slice(0, 3) };
+          };
+          return [[cap(start, "::before"), cap(end, "::after")]];
+        }));
+        expect(pairs).toHaveLength(4);
+        const samples = pairs.flatMap(pair => pair.map(cap => {
+          expect(cap.width).toBe(3);
+          expect(cap.height).toBe(28);
+          expect(Math.abs(cap.x * ratio - Math.round(cap.x * ratio))).toBeLessThan(.04);
+          return { x: Math.round(cap.x * ratio) - 2, y: Math.floor(cap.y * ratio) - 2, width: 3 * ratio + 4, height: 28 * ratio + 4, color: cap.color };
+        }));
+        const png = await page.screenshot({ animations: "disabled" });
+        const masks = await pixelMasks(page, png, samples);
+        for (let index = 0; index < masks.length; index += 2) {
+          expect(masks[index], `start/end cap ${index / 2} at ${viewportWidth}`).toEqual(masks[index + 1]);
+          expect(masks[index][14 * ratio].replaceAll("0", "")).toHaveLength(3 * ratio);
         }
-      });
-
-      test("crosshair overlays minor, major and endpoint strokes with identical pixel coverage", async ({ page }, testInfo) => {
-        await page.setViewportSize({ width: 1441, height: 900 });
-        await open(page, geometrySource);
-        await setTheme(page, theme);
-        await page.addStyleTag({ content: ".archive-date-grid .archive-grid-path{stroke:#fff!important}.archive-swimlane-plot{background:transparent!important}.archive-crosshair-line{stroke:#fff!important;stroke-dasharray:none!important}.archive-swimlane-rows.pixel-grid-hidden>.archive-date-grid:not(.archive-crosshair-track){visibility:hidden}" });
-        const timeline = page.locator(".archive-date-timeline");
-        const rows = page.locator(".archive-swimlane-rows");
-        for (const viewportWidth of [1441, 1231]) {
-          await page.setViewportSize({ width: viewportWidth, height: 900 });
-          await settle(page);
-          const targets = await timeline.evaluate(node => {
-            const plot = node.querySelector(".archive-swimlane-plot").getBoundingClientRect();
-            const axis = /** @type {HTMLElement} */ (node.querySelector(".archive-date-axis"));
-            return ["endpoint", "minor", "major"].map(level => {
-              const path = /** @type {SVGPathElement} */ (node.querySelector(`.archive-swimlane-rows>.archive-date-grid .archive-grid-path-${level}`));
-              const x = Number(path.getAttribute("d")?.match(/M([\d.]+)/)?.[1]);
-              const day = level === "endpoint" ? 0 : Math.round(x / plot.width * Number(axis.dataset.archivePlotSpan));
-              return { level, x: plot.left + x, pointerX: plot.left + day / Number(axis.dataset.archivePlotSpan) * plot.width, y: plot.bottom - 5, width: parseFloat(getComputedStyle(path).strokeWidth) };
-            });
-          });
-          for (const target of targets) {
-            await rows.evaluate(node => node.classList.remove("pixel-grid-hidden"));
-            await page.mouse.move(0, 0);
-            const sample = { x: Math.floor(target.x * ratio) - 5, y: Math.floor(target.y * ratio), width: 12, height: 1, color: [255, 255, 255] };
-            const [gridMask] = await pixelMasks(page, await page.screenshot({ animations: "disabled" }), [sample]);
-            await page.mouse.move(target.pointerX + .01, target.y);
-            await expect(timeline).toHaveClass(/archive-crosshair-active/);
-            const line = timeline.locator(".archive-crosshair-line");
-            await expect(line).toHaveCSS("stroke-width", `${target.width}px`);
-            const bounds = await line.boundingBox();
-            expect(Math.abs(bounds.x + bounds.width / 2 - target.x)).toBeLessThan(.04);
-            await rows.evaluate(node => node.classList.add("pixel-grid-hidden"));
-            const [lineMask] = await pixelMasks(page, await page.screenshot({ path: testInfo.outputPath(`crosshair-${target.level}-${viewportWidth}.png`), animations: "disabled" }), [sample]);
-            expect(lineMask, target.level).toEqual(gridMask);
-            expect(lineMask[0].replaceAll("0", "")).toHaveLength(Math.round(target.width * ratio));
-          }
-        }
-      });
+      }
     });
-  }
 
-  test(`Archive popover remains vertically aligned and labels reach the divider (${theme})`, async ({ page }) => {
-    await page.setViewportSize({ width: 1024, height: 600 });
-    await open(page, large(48));
-    await setTheme(page, theme);
-    await page.emulateMedia({ reducedMotion: "no-preference" });
-    const labels = page.locator(".archive-swimlane-label");
-    const popover = page.locator("#archiveFeaturePopover");
-    const content = page.locator(".archive-content");
-    for (const index of [0, 3, 8]) {
-      await labels.nth(index).click();
-      const [anchor, bounds] = await Promise.all([labels.nth(index).boundingBox(), popover.boundingBox()]);
-      // The popover starts level with its lane while its complete content fits below. A lower lane
-      // moves it up just far enough instead of squeezing the content into a scroll area.
-      if (anchor.y + bounds.height <= 588.02) expect(bounds.y).toBeCloseTo(anchor.y, 5);
-      else expect(bounds.y + bounds.height).toBeCloseTo(588, 1);
-      expect(await popover.locator(".archive-feature-popover-content").evaluate(node => node.scrollHeight - node.clientHeight)).toBeLessThanOrEqual(0);
-      expect(bounds.y + bounds.height).toBeLessThanOrEqual(588.02);
-      expect(await popover.evaluate(node => document.getAnimations().filter(animation => animation.effect instanceof KeyframeEffect && animation.effect.target === node).every(animation => /** @type {KeyframeEffect} */ (animation.effect).getKeyframes().every(frame => frame.transform === undefined)))).toBe(true);
-      await popover.locator(".archive-feature-popover-close").click();
-    }
-    await labels.first().click();
-    await content.evaluate(node => { node.scrollTop = 30; });
-    await settle(page);
-    await expect(popover.locator("h3")).toHaveText("Row 000");
-    expect((await popover.boundingBox()).y).toBeCloseTo((await page.locator(".archive-date-axis").boundingBox()).y + (await page.locator(".archive-date-axis").boundingBox()).height, 5);
-    await content.evaluate(node => { node.scrollTop = 0; });
-    await popover.locator(".archive-feature-popover-close").click();
-    for (const left of [0, 110]) {
-      await content.evaluate((node, value) => { node.scrollLeft = value; }, left);
-      await settle(page);
-      const geometry = await labels.first().evaluate(node => {
-        const label = node.getBoundingClientRect();
-        const corner = document.querySelector(".archive-axis-corner").getBoundingClientRect();
-        const plot = node.closest(".archive-swimlane-row").querySelector(".archive-swimlane-plot").getBoundingClientRect();
-        return {labelRight:label.right,cornerRight:corner.right,plotLeft:plot.left};
-      });
-      expect(geometry.labelRight).toBeCloseTo(geometry.cornerRight, 5);
-      if (!left) expect(geometry.labelRight).toBeCloseTo(geometry.plotLeft, 5);
-      expect(geometry.labelRight).toBeGreaterThanOrEqual(geometry.plotLeft);
-    }
+    test("crosshair overlays minor, major and endpoint strokes with identical pixel coverage", async ({ page }) => {
+      await page.setViewportSize({ width: 1441, height: 900 });
+      await open(page, geometrySource);
+      await page.addStyleTag({ content: ".archive-date-grid .archive-grid-path{stroke:#fff!important}.archive-swimlane-plot{background:transparent!important}.archive-crosshair-line{stroke:#fff!important;stroke-dasharray:none!important}.archive-swimlane-rows.pixel-grid-hidden>.archive-date-grid:not(.archive-crosshair-track){visibility:hidden}" });
+      const timeline = page.locator(".archive-date-timeline");
+      const rows = page.locator(".archive-swimlane-rows");
+      for (const viewportWidth of [1441, 1231]) {
+        await page.setViewportSize({ width: viewportWidth, height: 900 });
+        await settleLayout(page);
+        const targets = await timeline.evaluate(node => {
+          const plot = node.querySelector(".archive-swimlane-plot").getBoundingClientRect();
+          const axis = /** @type {HTMLElement} */ (node.querySelector(".archive-date-axis"));
+          return ["endpoint", "minor", "major"].map(level => {
+            const path = /** @type {SVGPathElement} */ (node.querySelector(`.archive-swimlane-rows>.archive-date-grid .archive-grid-path-${level}`));
+            const x = Number(path.getAttribute("d")?.match(/M([\d.]+)/)?.[1]);
+            const day = level === "endpoint" ? 0 : Math.round(x / plot.width * Number(axis.dataset.archivePlotSpan));
+            return { level, x: plot.left + x, pointerX: plot.left + day / Number(axis.dataset.archivePlotSpan) * plot.width, y: plot.bottom - 5, width: parseFloat(getComputedStyle(path).strokeWidth) };
+          });
+        });
+        for (const target of targets) {
+          await rows.evaluate(node => node.classList.remove("pixel-grid-hidden"));
+          await page.mouse.move(0, 0);
+          const sample = { x: Math.floor(target.x * ratio) - 5, y: Math.floor(target.y * ratio), width: 12, height: 1, color: [255, 255, 255] };
+          const [gridMask] = await pixelMasks(page, await page.screenshot({ animations: "disabled" }), [sample]);
+          await page.mouse.move(target.pointerX + .01, target.y);
+          await expect(timeline).toHaveClass(/archive-crosshair-active/);
+          const line = timeline.locator(".archive-crosshair-line");
+          await expect(line).toHaveCSS("stroke-width", `${target.width}px`);
+          const bounds = await line.boundingBox();
+          expect(Math.abs(bounds.x + bounds.width / 2 - target.x)).toBeLessThan(.04);
+          await rows.evaluate(node => node.classList.add("pixel-grid-hidden"));
+          const [lineMask] = await pixelMasks(page, await page.screenshot({ animations: "disabled" }), [sample]);
+          expect(lineMask, target.level).toEqual(gridMask);
+          expect(lineMask[0].replaceAll("0", "")).toHaveLength(Math.round(target.width * ratio));
+        }
+      }
+    });
   });
 }
+
+test("Archive popover remains vertically aligned and labels reach the divider", async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 600 });
+  await open(page, large(48));
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  const labels = page.locator(".archive-swimlane-label");
+  const popover = page.locator("#archiveFeaturePopover");
+  const content = page.locator(".archive-content");
+  for (const index of [0, 3, 8]) {
+    await labels.nth(index).click();
+    const [anchor, bounds] = await Promise.all([labels.nth(index).boundingBox(), popover.boundingBox()]);
+    // The popover starts level with its lane while its complete content fits below. A lower lane
+    // moves it up just far enough instead of squeezing the content into a scroll area.
+    if (anchor.y + bounds.height <= 588.02) expect(bounds.y).toBeCloseTo(anchor.y, 5);
+    else expect(bounds.y + bounds.height).toBeCloseTo(588, 1);
+    expect(await popover.locator(".archive-feature-popover-content").evaluate(node => node.scrollHeight - node.clientHeight)).toBeLessThanOrEqual(0);
+    expect(bounds.y + bounds.height).toBeLessThanOrEqual(588.02);
+    expect(await popover.evaluate(node => document.getAnimations().filter(animation => animation.effect instanceof KeyframeEffect && animation.effect.target === node).every(animation => /** @type {KeyframeEffect} */ (animation.effect).getKeyframes().every(frame => frame.transform === undefined)))).toBe(true);
+    await popover.locator(".archive-feature-popover-close").click();
+  }
+  await labels.first().click();
+  await content.evaluate(node => { node.scrollTop = 30; });
+  await settleLayout(page);
+  await expect(popover.locator("h3")).toHaveText("Row 000");
+  expect((await popover.boundingBox()).y).toBeCloseTo((await page.locator(".archive-date-axis").boundingBox()).y + (await page.locator(".archive-date-axis").boundingBox()).height, 5);
+  await content.evaluate(node => { node.scrollTop = 0; });
+  await popover.locator(".archive-feature-popover-close").click();
+  for (const left of [0, 110]) {
+    await content.evaluate((node, value) => { node.scrollLeft = value; }, left);
+    await settleLayout(page);
+    const geometry = await labels.first().evaluate(node => {
+      const label = node.getBoundingClientRect();
+      const corner = document.querySelector(".archive-axis-corner").getBoundingClientRect();
+      const plot = node.closest(".archive-swimlane-row").querySelector(".archive-swimlane-plot").getBoundingClientRect();
+      return {labelRight:label.right,cornerRight:corner.right,plotLeft:plot.left};
+    });
+    expect(geometry.labelRight).toBeCloseTo(geometry.cornerRight, 5);
+    if (!left) expect(geometry.labelRight).toBeCloseTo(geometry.plotLeft, 5);
+    expect(geometry.labelRight).toBeGreaterThanOrEqual(geometry.plotLeft);
+  }
+});
 
 /** @param {import("@playwright/test").Page} page @param {string} source */
 async function open(page, source) {
@@ -273,15 +262,7 @@ async function open(page, source) {
   }, source);
   await page.locator("#openFile").click();
   await page.locator("#showArchiveView").click();
-  await settle(page);
-}
-
-/** @param {import("@playwright/test").Page} page */
-async function settle(page) {
-  await page.evaluate(async () => {
-    await document.fonts.ready;
-    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-  });
+  await settleLayout(page);
 }
 
 /** @param {import("@playwright/test").Page} page @param {string} theme */
@@ -327,68 +308,70 @@ async function contrasts(page) {
   });
 }
 
-for (const theme of ["dark", "light"]) {
-  for (const ratio of [1, 2]) {
-    test.describe(`${theme}, DPR ${ratio}`, () => {
-      test.use({ deviceScaleFactor: ratio });
-      test("Archive edge coordinates, labels, caps and secondary text agree", async ({ page }, testInfo) => {
-        await open(page, edges);
-        await setTheme(page, theme);
-        const content = page.locator(".archive-content");
-        expect(await content.evaluate(node => Math.max(0, node.scrollWidth - /** @type {HTMLElement} */ (node).offsetWidth))).toBe(0);
-        const extent = await content.evaluate(node => node.scrollWidth);
-        const points = page.locator(".archive-date-point");
-        for (let index = 0; index < 2; index++) {
-          const point = points.nth(index);
-          const before = await point.boundingBox();
-          const geometry = await point.evaluate(node => {
-            const mark = node.getBoundingClientRect();
-            const plot = node.closest(".archive-swimlane-plot").getBoundingClientRect();
-            return { actual: mark.left + mark.width / 2, expected: plot.left + parseFloat(node.style.getPropertyValue("--archive-position")) / 100 * plot.width };
-          });
-          expect(Math.abs(geometry.actual - geometry.expected)).toBeLessThanOrEqual(index ? .51 / ratio : 1.02);
-          await page.mouse.move(geometry.actual, before.y + before.height / 2 + 16);
-          await expect(page.locator(".archive-crosshair-readout")).toHaveText(index ? "31.12.2026" : "01.01.2026");
-          await point.hover();
-          const label = point.locator(".archive-object-label");
-          await expect(label).not.toHaveClass(/is-positioned/);
-          await expect(label).toHaveText(index ? "31.12.2026" : "01.01.2026");
-          await expect(label).toBeHidden();
-          const readout = page.locator(".archive-crosshair-readout");
-          await expect(readout).toHaveCSS("opacity", "1");
-          await expect(readout).toHaveText(index ? "31.12.2026" : "01.01.2026");
-          expect(await readout.evaluate(node => {
-            const canvas = document.createElement("canvas");
-            const context = /** @type {CanvasRenderingContext2D} */ (canvas.getContext("2d"));
-            context.fillStyle = getComputedStyle(node).getPropertyValue("--orange");
-            return context.fillStyle;
-          })).toBe(await readout.evaluate(node => {
-            const context = /** @type {CanvasRenderingContext2D} */ (document.createElement("canvas").getContext("2d"));
-            context.fillStyle = getComputedStyle(node).borderTopColor;
-            return context.fillStyle;
-          }));
-          const bounds = await readout.boundingBox();
-          const frozen = await point.locator("xpath=ancestor::article").locator(".archive-swimlane-label").boundingBox();
-          expect(bounds.x).toBeGreaterThanOrEqual(frozen.x + frozen.width);
-          expect(bounds.x + bounds.width).toBeLessThanOrEqual(page.viewportSize().width - 11);
-          expect(await point.boundingBox()).toEqual(before);
-          expect(await content.evaluate(node => node.scrollWidth)).toBe(extent);
-          await page.screenshot({ path: testInfo.outputPath(`edge-${index}.png`), animations: "disabled" });
-        }
-        const full = page.locator(".archive-swimlane-feature").filter({ hasText: "Full range" }).locator(".archive-active-segment");
-        expect(await full.evaluate(node => [getComputedStyle(node, "::before").width, getComputedStyle(node, "::after").width])).toEqual(["3px", "3px"]);
-        for (const value of await contrasts(page)) expect(value.ratio, value.selector).toBeGreaterThanOrEqual(4.5);
-        const first = page.locator(".archive-swimlane-label").first();
-        await first.hover();
-        await settleTransitions(page);
-        for (const value of await contrasts(page)) expect(value.ratio, `hover ${value.selector}`).toBeGreaterThanOrEqual(4.5);
-        await first.click();
-        await settleTransitions(page);
-        for (const value of await contrasts(page)) expect(value.ratio, `selected ${value.selector}`).toBeGreaterThanOrEqual(4.5);
-      });
+// Contrast depends on the theme and edge geometry on the device pixel ratio; these two combinations
+// cover every theme and every ratio once.
+for (const [theme, ratio] of /** @type {const} */ ([["dark", 1], ["light", 2]])) {
+  test.describe(`${theme}, DPR ${ratio}`, () => {
+    test.use({ deviceScaleFactor: ratio });
+    test("Archive edge coordinates, labels, caps and secondary text agree", async ({ page }) => {
+      await open(page, edges);
+      await setTheme(page, theme);
+      const content = page.locator(".archive-content");
+      expect(await content.evaluate(node => Math.max(0, node.scrollWidth - /** @type {HTMLElement} */ (node).offsetWidth))).toBe(0);
+      const extent = await content.evaluate(node => node.scrollWidth);
+      const points = page.locator(".archive-date-point");
+      for (let index = 0; index < 2; index++) {
+        const point = points.nth(index);
+        const before = await point.boundingBox();
+        const geometry = await point.evaluate(node => {
+          const mark = node.getBoundingClientRect();
+          const plot = node.closest(".archive-swimlane-plot").getBoundingClientRect();
+          return { actual: mark.left + mark.width / 2, expected: plot.left + parseFloat(node.style.getPropertyValue("--archive-position")) / 100 * plot.width };
+        });
+        expect(Math.abs(geometry.actual - geometry.expected)).toBeLessThanOrEqual(index ? .51 / ratio : 1.02);
+        await page.mouse.move(geometry.actual, before.y + before.height / 2 + 16);
+        await expect(page.locator(".archive-crosshair-readout")).toHaveText(index ? "31.12.2026" : "01.01.2026");
+        await point.hover();
+        const label = point.locator(".archive-object-label");
+        await expect(label).not.toHaveClass(/is-positioned/);
+        await expect(label).toHaveText(index ? "31.12.2026" : "01.01.2026");
+        await expect(label).toBeHidden();
+        const readout = page.locator(".archive-crosshair-readout");
+        await expect(readout).toHaveCSS("opacity", "1");
+        await expect(readout).toHaveText(index ? "31.12.2026" : "01.01.2026");
+        expect(await readout.evaluate(node => {
+          const canvas = document.createElement("canvas");
+          const context = /** @type {CanvasRenderingContext2D} */ (canvas.getContext("2d"));
+          context.fillStyle = getComputedStyle(node).getPropertyValue("--orange");
+          return context.fillStyle;
+        })).toBe(await readout.evaluate(node => {
+          const context = /** @type {CanvasRenderingContext2D} */ (document.createElement("canvas").getContext("2d"));
+          context.fillStyle = getComputedStyle(node).borderTopColor;
+          return context.fillStyle;
+        }));
+        const bounds = await readout.boundingBox();
+        const frozen = await point.locator("xpath=ancestor::article").locator(".archive-swimlane-label").boundingBox();
+        expect(bounds.x).toBeGreaterThanOrEqual(frozen.x + frozen.width);
+        expect(bounds.x + bounds.width).toBeLessThanOrEqual(page.viewportSize().width - 11);
+        expect(await point.boundingBox()).toEqual(before);
+        expect(await content.evaluate(node => node.scrollWidth)).toBe(extent);
+      }
+      const full = page.locator(".archive-swimlane-feature").filter({ hasText: "Full range" }).locator(".archive-active-segment");
+      expect(await full.evaluate(node => [getComputedStyle(node, "::before").width, getComputedStyle(node, "::after").width])).toEqual(["3px", "3px"]);
+      for (const value of await contrasts(page)) expect(value.ratio, value.selector).toBeGreaterThanOrEqual(4.5);
+      const first = page.locator(".archive-swimlane-label").first();
+      await first.hover();
+      await settleTransitions(page);
+      for (const value of await contrasts(page)) expect(value.ratio, `hover ${value.selector}`).toBeGreaterThanOrEqual(4.5);
+      await first.click();
+      await settleTransitions(page);
+      for (const value of await contrasts(page)) expect(value.ratio, `selected ${value.selector}`).toBeGreaterThanOrEqual(4.5);
     });
-  }
-  test(`Archive frozen cells retain opaque paint through horizontal scrolling (${theme})`, async ({ page }, testInfo) => {
+  });
+}
+
+for (const theme of ["dark", "light"]) {
+  test(`Archive frozen cells retain opaque paint through horizontal scrolling (${theme})`, async ({ page }) => {
     await page.setViewportSize({ width: 800, height: 600 });
     await open(page, large(48));
     await setTheme(page, theme);
@@ -397,18 +380,17 @@ for (const theme of ["dark", "light"]) {
     const corner = page.locator(".archive-axis-corner");
     const [beforeLabel, beforeCorner] = await Promise.all([label.screenshot({ animations: "disabled" }), corner.screenshot({ animations: "disabled" })]);
     await page.locator(".archive-content").evaluate(node => { node.scrollLeft = 110; });
-    await settle(page);
+    await settleLayout(page);
     expect(await label.screenshot({ animations: "disabled" })).toEqual(beforeLabel);
     expect(await corner.screenshot({ animations: "disabled" })).toEqual(beforeCorner);
     await page.locator(".archive-content").evaluate(node => { node.scrollTop = 450; });
-    await page.screenshot({ path: testInfo.outputPath("scrolled.png"), animations: "disabled" });
     const visible = page.locator(".archive-swimlane-label").nth(10);
     await visible.hover();
     expect(await visible.evaluate(node => getComputedStyle(node).backgroundColor)).not.toMatch(/\/|rgba/);
   });
 }
 
-test("Archive collision hover names all dense dates and restores isolated marks after resize", async ({ page }, testInfo) => {
+test("Archive collision hover names all dense dates and restores isolated marks after resize", async ({ page }) => {
   await open(page, `# Dense\n#Archive\n# Archive\n${entry("Span", ["2020-01-01 - 2030-12-31"])}\n\n${entry("Dense", ["2026-01-01 - 2026-01-02", "2026-01-03 - 2026-01-04", "2026-01-05", "2026-01-06", "2026-01-07"])}\n${entry("Following", ["2026-01-01 - 2030-12-31"])}`);
   const group = page.locator(".archive-collision-group");
   await expect(group).toHaveCount(1);
@@ -422,7 +404,6 @@ test("Archive collision hover names all dense dates and restores isolated marks 
     expect(await label.evaluate(node => getComputedStyle(node).backgroundColor)).not.toMatch(/\/|rgba/);
     for (const value of await contrasts(page)) expect(value.ratio, `${theme} ${value.selector}`).toBeGreaterThanOrEqual(4.5);
   }
-  await page.screenshot({ path: testInfo.outputPath("dense.png"), animations: "disabled" });
   const extent = await page.locator(".archive-content").evaluate(node => node.scrollWidth);
   await label.hover();
   expect(await page.locator(".archive-content").evaluate(node => node.scrollWidth)).toBe(extent);
@@ -488,7 +469,7 @@ test("Archive scrolling retains partial anchors and closes fully hidden rows wit
   const title = page.locator(".archive-popover-title");
   await toggles.first().click();
   await content.evaluate(node => { node.scrollTop = 51; });
-  await settle(page);
+  await settleLayout(page);
   await expect(title).toHaveText("Row 000");
   await content.evaluate(node => { node.scrollTop = 52; });
   await expect(page.locator("#archiveFeaturePopover")).toBeHidden();
@@ -547,7 +528,7 @@ test("Archive scrolling closes undated anchors and closes when no row can be vis
   await open(page, `# Undated\n#Archive\n# Archive\n${Array.from({ length: 96 }, (_, index) => entry(`Card ${String(index).padStart(3, "0")}`, ["TBD"])).join("\n\n")}`);
   await page.locator(".archive-feature-toggle").first().click();
   await page.locator(".archive-content").evaluate(node => { node.scrollTop = 1000; });
-  await settle(page);
+  await settleLayout(page);
   await expect(page.locator("#archiveFeaturePopover")).toBeHidden();
   await expect(page.locator('.archive-feature-toggle[aria-expanded="true"]')).toHaveCount(0);
   await page.locator(".archive-content").evaluate(node => { node.scrollTop = 0; });

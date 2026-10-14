@@ -118,6 +118,7 @@ Stats und Backlog bleiben davon unberührt.
 - [x] ~Timeline: Start- und Endkappen haben manchmal unterschiedliche Breiten~
 - [x] ~Timeline: Zeiträume vor und nach Pausen haben manchmal Glow und manchmal nicht~
 - [x] ~Texte und Beschreibungen der View-Buttons aktualisieren~
+- [x] ~Testing streamlinen~
 
 ### Release
 

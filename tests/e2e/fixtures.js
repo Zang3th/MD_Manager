@@ -1,5 +1,7 @@
 "use strict";
 
+const path = require("node:path");
+const { pathToFileURL } = require("node:url");
 const { test: base, expect } = require("@playwright/test");
 
 const test = base.extend({
@@ -28,4 +30,27 @@ const test = base.extend({
   }
 });
 
-module.exports = { test, expect };
+const appUrl = pathToFileURL(path.resolve(__dirname, "../../MD_Manager.html")).href;
+
+/**
+ * Waits until no layout pass is still pending. Font loading schedules one more pass of its own, so
+ * a geometry baseline taken before this can be invalidated by a relayout the test never triggered.
+ * @param {import("@playwright/test").Page} page
+ */
+function settleLayout(page) {
+  return page.evaluate(async () => {
+    await document.fonts.ready;
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  });
+}
+
+/**
+ * Notifications sit above the bottom-right controls until they dismiss themselves, so a test that
+ * operates those controls clears them instead of waiting.
+ * @param {import("@playwright/test").Page} page
+ */
+function dismissNotifications(page) {
+  return page.locator("#notifications").evaluate(node => node.replaceChildren());
+}
+
+module.exports = { test, expect, appUrl, settleLayout, dismissNotifications };

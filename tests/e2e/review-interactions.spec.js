@@ -1,7 +1,5 @@
-const { test, expect } = require("./fixtures");
-const path = require("node:path");
+const { test, expect, appUrl } = require("./fixtures");
 
-const appUrl = `file:///${path.resolve(__dirname, "../../MD_Manager.html").replaceAll("\\", "/")}`;
 const editorFixture = "# A\n\n## Feature\n### Task\n- [ ] A item";
 
 /** @param {import("@playwright/test").Page} page @param {string} source */
