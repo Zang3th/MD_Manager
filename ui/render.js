@@ -11,7 +11,8 @@ window.MDManager = window.MDManager || {};
   const pinIcon = '<svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-pin"></use></svg>';
   const featureWidths = [380, 460, 540];
   let taskContentCache = new WeakMap();
-  let statisticsTable = "";
+  /** @type {MDStatisticsCounts | null} */
+  let statisticsCounts = null;
   /** @type {WeakMap<MDFeature, MDArchiveTimelineLane>} */
   let archiveLaneByFeature = new WeakMap();
 
@@ -383,24 +384,53 @@ window.MDManager = window.MDManager || {};
   /** @param {MDProject} project */
   function statisticsMarkup(project) {
     const counts = app.status.statistics(project.features, todos);
+    statisticsCounts = counts;
     /** @param {string} label @param {{done: number, active: number, open: number, backlog: number, archive: number}} counts */
     const row = (label, counts) => `<tr><th scope="row">${label}</th><td class="archive-stat">${counts.archive}</td><td class="done">${counts.done}</td><td class="active">${counts.active}</td><td class="open">${counts.open}</td><td class="backlog-stat">${counts.backlog}</td></tr>`;
-    statisticsTable = `<table><thead><tr><th></th><th class="archive-stat" scope="col">Archive</th><th class="done" scope="col">Done</th><th class="active" scope="col">Active</th><th class="open" scope="col">Open</th><th class="backlog-stat" scope="col">Backlog</th></tr></thead><tbody>${row("Features", counts.features)}${row("Tasks", counts.tasks)}${row("Todos", counts.entries)}</tbody></table>`;
+    const statisticsTable = `<table><thead><tr><th></th><th class="archive-stat" scope="col">Archive</th><th class="done" scope="col">Done</th><th class="active" scope="col">Active</th><th class="open" scope="col">Open</th><th class="backlog-stat" scope="col">Backlog</th></tr></thead><tbody>${row("Features", counts.features)}${row("Tasks", counts.tasks)}${row("Todos", counts.entries)}</tbody></table>`;
     return `<div class="stats-header"><span class="stats-title">Statistics</span><div class="stats-actions"><button class="stats-expand" type="button" aria-label="Expand statistics" aria-haspopup="dialog" aria-controls="statisticsDialog" data-tooltip="Expand statistics"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-zoom"></use></svg></button><button class="stats-close" type="button" aria-label="Close statistics" data-tooltip="Close statistics">${deleteIcon}</button></div></div>${statisticsTable}`;
   }
 
   /** @param {MDProject} project @param {MDStatisticsCharts} data */
   function renderStatistics(project, data) {
     document.getElementById("statisticsProject").textContent = project.title;
-    const sample = `${data.count} ${data.count === 1 ? "feature" : "features"} analyzed`;
-    const excluded = data.excluded ? `<span class="statistics-excluded">${data.excluded} excluded: missing or invalid dates</span>` : "";
+    const overview = app.status.overview(/** @type {MDStatisticsCounts} */ (statisticsCounts));
+    const { features, tasks, entries } = overview;
+    const states = /** @type {const} */ (["archive", "done", "active", "open", "backlog"]);
+    /** @param {number} count @param {string} word */
+    const plural = (count, word) => `${count} ${count === 1 ? word : `${word}s`}`;
+    /** @param {MDStatusSegments} segments @param {Array<"archive" | "done">} parts @param {number} total */
+    const meter = (segments, parts, total) => `<span class="statistics-meter" aria-hidden="true">${parts.map(state => `<i data-state="${state}" style="width:${total ? segments[state] / total * 100 : 0}%"></i>`).join("")}</span>`;
+    /** @param {string} label @param {string} value @param {string} unit @param {string} details */
+    const tile = (label, value, unit, details) => `<div class="statistics-kpi"><span class="statistics-kpi-label">${label}</span><span class="statistics-kpi-value">${value}${unit ? `<small>${unit}</small>` : ""}</span>${details}</div>`;
+    const note = (/** @type {string} */ text) => `<span class="statistics-kpi-note">${text}</span>`;
+    const { minDays, maxDays } = data;
+    const meanDays = data.meanDays === null ? null : Math.round(data.meanDays * 10) / 10;
+    /** @param {number} days */
+    const position = days => minDays === null || maxDays === null || minDays === maxDays ? 50 : (days - minDays) / (maxDays - minDays) * 100;
+    const strip = meanDays === null ? "" : `<span class="statistics-duration-strip" aria-hidden="true">${Array.from(new Set(data.points.map(point => point.days)), days => `<i class="statistics-duration-dot" style="left:${position(days)}%"></i>`).join("")}<i class="statistics-duration-mean" style="left:${position(meanDays)}%"></i></span>`;
+    const span = minDays === null || maxDays === null ? note("No completed feature with valid dates") : minDays === maxDays ? note(`Every feature took ${plural(minDays, "day")}`) : `<span class="statistics-kpi-note statistics-duration-ends"><span>Shortest <b>${plural(minDays, "day")}</b></span><span>Longest <b>${plural(maxDays, "day")}</b></span></span>`;
+    const kpis = `<div class="statistics-kpis">
+      ${tile("Features completed", String(overview.completedFeatures), `/ ${features.total}`, `${meter(features, ["archive", "done"], features.total)}${note(`${features.archive} archived · ${features.done} done`)}`)}
+      ${tile("Todos done", String(overview.todoPercentage), "%", `${meter(entries, ["archive", "done"], overview.plannedTodos)}${note(`${overview.doneTodos} of ${overview.plannedTodos} · backlog excluded`)}`)}
+      ${tile("Average duration", meanDays === null ? "—" : String(meanDays), meanDays === null ? "" : meanDays === 1 ? "day" : "days", `${strip}${span}`)}
+    </div>`;
+    /** @param {string} label @param {MDStatusSegments} segments @param {boolean} [hasBacklog] */
+    const row = (label, segments, hasBacklog = true) => {
+      const parts = states.filter(state => segments[state] > 0).map(state => `<span class="statistics-segment" data-state="${state}" style="flex-basis:${segments[state] / segments.total * 100}%">${segments[state]}</span>`).join("");
+      const summary = states.filter(state => hasBacklog || state !== "backlog").map(state => `${segments[state]} ${state}`).join(", ");
+      return `<span class="statistics-status-label">${label}</span><span class="statistics-bar" role="img" aria-label="${label}: ${summary}">${parts}</span><span class="statistics-status-total">${segments.total}</span>`;
+    };
+    const legend = `<ul class="statistics-legend" aria-hidden="true">${states.map(state => `<li data-state="${state}">${state[0].toUpperCase()}${state.slice(1)}</li>`).join("")}</ul>`;
+    const excluded = data.excluded ? `<span class="statistics-excluded">${plural(data.excluded, "feature")} without valid dates</span>` : "";
     const empty = '<div class="statistics-chart-empty"><span>No duration data yet</span><p>Complete a feature with valid dates to see it here.</p></div>';
-    document.getElementById("statisticsContent").innerHTML = `<section class="statistics-overview" aria-labelledby="statisticsOverviewTitle"><div class="statistics-section-heading"><h3 id="statisticsOverviewTitle">Project overview</h3></div><div class="statistics-table">${statisticsTable}</div></section>
-      <div class="statistics-sample"><span class="statistics-sample-count">${sample}</span>${excluded}</div>
+    document.getElementById("statisticsContent").innerHTML = `${kpis}
+      <section class="statistics-section statistics-status" aria-labelledby="statisticsStatusTitle"><div class="statistics-section-heading"><h3 id="statisticsStatusTitle">Status</h3>${legend}</div><div class="statistics-distribution">${row("Features", features, false)}${row("Tasks", tasks)}${row("Todos", entries)}</div></section>
+      <section class="statistics-section statistics-duration" aria-labelledby="statisticsDurationTitle"><div class="statistics-section-heading"><h3 id="statisticsDurationTitle">Feature duration</h3>${excluded}</div>
       <div class="statistics-chart-scroll"><div class="statistics-charts">
-        <section class="statistics-chart statistics-scatter" aria-labelledby="scatterTitle"><header><h3 id="scatterTitle">Todo Count vs. Recorded Days</h3></header>${data.count ? '<div class="statistics-plot" data-chart="scatter"></div>' : empty}</section>
-        <section class="statistics-chart statistics-histogram" aria-labelledby="histogramTitle"><header><h3 id="histogramTitle">Number of features by duration</h3></header>${data.count ? '<div class="statistics-plot" data-chart="histogram"></div>' : empty}</section>
-      </div></div>`;
+        <section class="statistics-chart statistics-scatter" aria-labelledby="scatterTitle"><header><h4 id="scatterTitle">Todos vs. recorded days</h4></header>${data.count ? '<div class="statistics-plot" data-chart="scatter"></div>' : empty}</section>
+        <section class="statistics-chart statistics-histogram" aria-labelledby="histogramTitle"><header><h4 id="histogramTitle">Features by duration</h4></header>${data.count ? '<div class="statistics-plot" data-chart="histogram"></div>' : empty}</section>
+      </div></div></section>`;
   }
 
   /** @param {MDStatisticsCharts} data @param {"scatter" | "histogram"} kind @param {number} width @param {number} height @param {Element} container */
@@ -417,7 +447,7 @@ window.MDManager = window.MDManager || {};
     let markup = scale.ticks.map(tick => `<g aria-hidden="true"><line class="chart-grid" x1="${left}" y1="${y(tick)}" x2="${right}" y2="${y(tick)}"/><text class="chart-tick" x="${left - 12}" y="${y(tick)}" text-anchor="end" dominant-baseline="central">${tick}</text></g>`).join("");
     if (scatter) {
       const x = (/** @type {number} */ value) => left + value / data.durationScale.max * plotWidth;
-      markup += data.durationScale.ticks.map(tick => `<g aria-hidden="true"><line class="chart-grid chart-grid-vertical" x1="${x(tick)}" y1="${top}" x2="${x(tick)}" y2="${bottom}"/><text class="chart-tick" x="${x(tick)}" y="${bottom + 24}" text-anchor="middle">${tick}</text></g>`).join("");
+      markup += data.durationScale.ticks.map(tick => `<g aria-hidden="true"><text class="chart-tick" x="${x(tick)}" y="${bottom + 24}" text-anchor="middle">${tick}</text></g>`).join("");
       markup += data.points.map((point, index) => {
         const count = point.titles.length;
         const radius = count > 1 ? Math.max(9, String(count).length * 3.5 + 3) : 6;
@@ -434,11 +464,11 @@ window.MDManager = window.MDManager || {};
         return `<g class="chart-mark chart-bar" role="img" tabindex="0" aria-label="${label} ${bin.to === 1 ? "day" : "days"}: ${bin.count} ${bin.count === 1 ? "feature" : "features"}" data-chart-bin="${index}"><rect class="chart-hit" x="${start}" y="${top}" width="${column}" height="${plotHeight}"/><rect class="chart-bar-fill" x="${start + 2}" y="${y(bin.count)}" width="${Math.max(1, column - 4)}" height="${bottom - y(bin.count)}" rx="3"/>${bin.count && String(bin.count).length * 7.5 < column - 4 ? `<text class="chart-bar-count" x="${start + column / 2}" y="${y(bin.count) - 9}" text-anchor="middle">${bin.count}</text>` : ""}${index % labelStride === 0 ? `<text class="chart-tick chart-bin-label" x="${start + column / 2}" y="${bottom + 24}" text-anchor="middle">${label}</text>` : ""}</g>`;
       }).join("");
     }
-    markup += `<g aria-hidden="true"><path class="chart-axis" d="M${left} ${top}V${bottom}H${right}"/><text class="chart-axis-label" x="${left + plotWidth / 2}" y="${height - 10}" text-anchor="middle">${scatter ? "Recorded Days" : "Duration (days)"}</text><text class="chart-axis-label" text-anchor="middle" transform="translate(16 ${top + plotHeight / 2}) rotate(-90)">${scatter ? "Todo Count" : "Features"}</text></g>`;
+    markup += `<g aria-hidden="true"><path class="chart-axis" d="M${left} ${top}V${bottom}H${right}"/><text class="chart-axis-label" x="${left + plotWidth / 2}" y="${height - 10}" text-anchor="middle">${scatter ? "Recorded days" : "Duration (days)"}</text><text class="chart-axis-label" text-anchor="middle" transform="translate(16 ${top + plotHeight / 2}) rotate(-90)">${scatter ? "Todos" : "Features"}</text></g>`;
     const focused = container.contains(document.activeElement) ? document.activeElement : null;
     const point = focused?.getAttribute("data-chart-point");
     const bin = focused?.getAttribute("data-chart-bin");
-    container.innerHTML = `<svg class="statistics-chart-svg" viewBox="0 0 ${width} ${height}" aria-label="${scatter ? "Todo Count vs. Recorded Days" : "Number of features by duration"}">${markup}</svg>`;
+    container.innerHTML = `<svg class="statistics-chart-svg" viewBox="0 0 ${width} ${height}" aria-label="${scatter ? "Todos vs. recorded days" : "Features by duration"}">${markup}</svg>`;
     if (focused) {
       const replacement = /** @type {SVGElement | null} */ (container.querySelector(point !== null ? `[data-chart-point="${point}"]` : `[data-chart-bin="${bin}"]`));
       replacement?.focus({ preventScroll: true });

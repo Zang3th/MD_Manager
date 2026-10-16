@@ -85,7 +85,7 @@ Stats und Backlog bleiben davon unberührt.
 - [x] ~Lane-Highlighting~
 - [x] ~Datums-Crosshair~
 
-### Diagramme
+### Statistik-Fenster
 
 - [x] ~Separater Button öffnet Fullscreen-Anzeige der Statistiken~
 - [x] ~Zeigt übersichtlich alle Infos des Stats-Fensters an~
@@ -103,7 +103,7 @@ Stats und Backlog bleiben davon unberührt.
 - [x] ~Release fertig machen (via Actions)~
 
 #Pin
-## Feintuning
+## UI-Verbesserungen und Feintuning
 
 #Version
 - 0.9.1
@@ -115,10 +115,18 @@ Stats und Backlog bleiben davon unberührt.
 
 - [x] ~Projektweiter Toggle: Archivierte Boards bleiben im Workspace sichtbar => spezielle Darstellung~
 - [x] ~Projektweiter Toggle: Fertiggestellte, nicht-archivierte Boards können in der Timeline sichtbar geschaltet werden => spezielle Darstellung~
-- [x] ~Timeline: Start- und Endkappen haben manchmal unterschiedliche Breiten~
-- [x] ~Timeline: Zeiträume vor und nach Pausen haben manchmal Glow und manchmal nicht~
 - [x] ~Texte und Beschreibungen der View-Buttons aktualisieren~
 - [x] ~Testing streamlinen~
+
+### Archiv-Zeitstrahl
+
+- [x] ~Start- und Endkappen haben manchmal unterschiedliche Breiten~
+- [x] ~Zeiträume vor und nach Pausen haben manchmal Glow und manchmal nicht~
+- [ ] Farben anpassen
+
+### Statistik-Fenster
+
+- [x] ~Visualisierung der Daten verbessern~
 
 ### Release
 

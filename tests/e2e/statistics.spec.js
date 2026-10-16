@@ -91,7 +91,7 @@ async function closeStatistics(page) {
   await expect(page.locator("#statisticsDialog")).toBeHidden();
 }
 
-test("statistics expands beside its close control, preserves the matrix and follows the existing modal schema", async ({ page }) => {
+test("statistics expands beside its close control, summarizes the matrix as tiles and disjoint bars and follows the existing modal schema", async ({ page }) => {
   await openFixture(page);
   const matrix = await page.locator("#projectStats table").innerText();
   const controls = await page.locator(".stats-actions button").evaluateAll(buttons => buttons.map(button => ({ name: button.getAttribute("aria-label"), x: button.getBoundingClientRect().x, width: button.getBoundingClientRect().width, height: button.getBoundingClientRect().height })));
@@ -99,15 +99,31 @@ test("statistics expands beside its close control, preserves the matrix and foll
   expect(controls[0].x).toBeLessThan(controls[1].x);
   expect(controls.map(control => [control.width, control.height])).toEqual([[24, 24], [24, 24]]);
   await openStatistics(page);
-  expect(await page.locator(".statistics-table table").innerText()).toBe(matrix);
-  await expect(page.locator(".statistics-section-heading")).toHaveText("Project overview");
-  await expect(page.locator(".statistics-section-heading>span")).toHaveCount(0);
-  await expect(page.locator(".statistics-sample-count")).toHaveText("4 features analyzed");
-  await expect(page.locator(".statistics-sample > span:not([class])")).toHaveCount(0);
-  await expect(page.locator(".statistics-excluded")).toHaveText("2 excluded: missing or invalid dates");
+  await expect(page.locator(".statistics-kpi-label")).toHaveText(["Features completed", "Todos done", "Average duration"]);
+  await expect(page.locator(".statistics-kpi-value")).toHaveText(["6/ 7", "92%", "6.5days"]);
+  await expect(page.locator(".statistics-kpi-note")).toHaveText(["2 archived · 4 done", "11 of 12 · backlog excluded", "Shortest 3 daysLongest 17 days"]);
+  await expect(page.locator(".statistics-duration-ends>span")).toHaveText(["Shortest 3 days", "Longest 17 days"]);
+  expect(await page.locator(".statistics-duration-strip i").evaluateAll(marks => marks.map(mark => `${mark.className}:${(/** @type {HTMLElement} */ (mark)).style.left}`))).toEqual(["statistics-duration-dot:0%", "statistics-duration-dot:100%", "statistics-duration-mean:25%"]);
+  await expect(page.locator(".statistics-section-heading h3")).toHaveText(["Status", "Feature duration"]);
+  await expect(page.locator(".statistics-legend li")).toHaveText(["Archive", "Done", "Active", "Open", "Backlog"]);
+  await expect(page.locator(".statistics-status-label")).toHaveText(["Features", "Tasks", "Todos"]);
+  await expect(page.locator(".statistics-status-total")).toHaveText(["7", "8", "13"]);
+  expect(await page.locator(".statistics-bar").evaluateAll(bars => bars.map(bar => bar.getAttribute("aria-label")))).toEqual([
+    "Features: 2 archive, 4 done, 1 active, 0 open",
+    "Tasks: 2 archive, 4 done, 1 active, 0 open, 1 backlog",
+    "Todos: 4 archive, 7 done, 1 active, 0 open, 1 backlog"
+  ]);
+  expect(await page.locator(".statistics-bar").evaluateAll(bars => bars.map(bar => Array.from(bar.children, segment => `${segment.getAttribute("data-state")}:${segment.textContent}`)))).toEqual([
+    ["archive:2", "done:4", "active:1"],
+    ["archive:2", "done:4", "active:1", "backlog:1"],
+    ["archive:4", "done:7", "active:1", "backlog:1"]
+  ]);
+  await expect(page.locator(".statistics-excluded")).toHaveText("2 features without valid dates");
+  expect(await page.locator(".statistics-status,.statistics-duration,.statistics-chart").evaluateAll(sections => sections.map(section => [getComputedStyle(section).borderTopWidth, getComputedStyle(section).backgroundColor]))).toEqual([["0px", "rgba(0, 0, 0, 0)"], ["0px", "rgba(0, 0, 0, 0)"], ["0px", "rgba(0, 0, 0, 0)"], ["0px", "rgba(0, 0, 0, 0)"]]);
   await expect(page.locator(".chart-point")).toHaveCount(3);
-  await expect(page.locator("#scatterTitle")).toHaveText("Todo Count vs. Recorded Days");
-  await expect(page.locator("#histogramTitle")).toHaveText("Number of features by duration");
+  await expect(page.locator(".chart-grid")).toHaveCount(8);
+  await expect(page.locator("#scatterTitle")).toHaveText("Todos vs. recorded days");
+  await expect(page.locator("#histogramTitle")).toHaveText("Features by duration");
   const geometry = await page.locator("#statisticsDialog").evaluate(dialog => {
     const bounds = dialog.getBoundingClientRect();
     const style = getComputedStyle(dialog, "::backdrop");
@@ -115,8 +131,10 @@ test("statistics expands beside its close control, preserves the matrix and foll
   });
   expect(geometry).toEqual({ x: 288, y: 99, width: 864, height: 702, radius: "12px", blur: "blur(2px)", backdrop: "rgba(0, 0, 0, 0.54)", focused: true });
   await expect(page.locator(".statistics-chart footer")).toHaveCount(0);
-  await expect(page.locator('.statistics-scatter .chart-axis-label:not([transform])')).toHaveText("Recorded Days");
-  await expect(page.locator('.statistics-scatter .chart-axis-label[transform]')).toHaveText("Todo Count");
+  await expect(page.locator('.statistics-scatter .chart-axis-label:not([transform])')).toHaveText("Recorded days");
+  await expect(page.locator('.statistics-scatter .chart-axis-label[transform]')).toHaveText("Todos");
+  await expect(page.locator('.statistics-histogram .chart-axis-label:not([transform])')).toHaveText("Duration (days)");
+  await expect(page.locator('.statistics-histogram .chart-axis-label[transform]')).toHaveText("Features");
   const positions = await page.locator(".chart-point").evaluateAll(points => points.map(point => {
     const matrix = (/** @type {SVGGElement} */ (point)).transform.baseVal.consolidate()?.matrix;
     return { x: matrix?.e || 0, y: matrix?.f || 0 };
@@ -133,6 +151,7 @@ test("statistics expands beside its close control, preserves the matrix and foll
   await expect(page.locator("#statisticsDialog")).toBeHidden();
   await expect(page.locator(".stats-expand")).toBeFocused();
   await expect(page.locator("#projectStats")).toBeVisible();
+  expect(await page.locator("#projectStats table").innerText()).toBe(matrix);
   const task = page.locator('#content .release[data-feature="0"] .card');
   await task.hover();
   await task.locator(".edit-btn").click();
@@ -179,7 +198,7 @@ test("chart headings and feature detail headers are concise and match their valu
   await openFixture(page);
   await openStatistics(page);
   await expect(page.locator(".statistics-chart header p")).toHaveCount(0);
-  await expect(page.locator(".statistics-histogram svg")).toHaveAttribute("aria-label", "Number of features by duration");
+  await expect(page.locator(".statistics-histogram svg")).toHaveAttribute("aria-label", "Features by duration");
   const details = page.locator("#chartDetails");
   await page.locator('[data-chart-point="1"]').hover();
   await expect(details.locator("header")).toHaveText("Archived feature");
@@ -264,7 +283,7 @@ test("clicking the statistics backdrop closes without activating the project and
     await openStatistics(page);
     await page.locator("#statisticsTitle").click();
     await expect(page.locator("#statisticsDialog")).toBeVisible();
-    await page.locator(".statistics-table tbody th").first().click();
+    await page.locator(".statistics-status-label").first().click();
     await expect(page.locator("#statisticsDialog")).toBeVisible();
     await page.mouse.click(4, 4);
     await expect(page.locator("#statisticsDialog")).toBeHidden();
@@ -323,24 +342,27 @@ test("chart aggregation is lazy, reused across reopen and resize, and invalidate
   await active.locator(".card-header").click();
   await active.locator('.checkbox[data-checked="false"]').click();
   await openStatistics(page);
-  await expect(page.locator(".statistics-sample-count")).toHaveText("5 features analyzed");
+  await expect(page.locator(".statistics-kpi-value").nth(2)).toHaveText("5.4days");
   expect(await calls()).toBe(2);
   await closeStatistics(page);
   await page.locator("#undoChange").click();
   await openStatistics(page);
-  await expect(page.locator(".statistics-sample-count")).toHaveText("4 features analyzed");
+  await expect(page.locator(".statistics-kpi-value").nth(2)).toHaveText("6.5days");
   expect(await calls()).toBe(3);
   await closeStatistics(page);
   await page.locator("#redoChange").click();
   await openStatistics(page);
-  await expect(page.locator(".statistics-sample-count")).toHaveText("5 features analyzed");
+  await expect(page.locator(".statistics-kpi-value").nth(2)).toHaveText("5.4days");
   expect(await calls()).toBe(4);
 });
 
 test("empty, single-date and unsafe long feature titles render without invented duration or HTML", async ({ page }) => {
   await openFixture(page, "# Empty sample\n\n## Done without date\n### Task\n- [x] ~done~");
   await openStatistics(page);
-  await expect(page.locator(".statistics-sample-count")).toHaveText("0 features analyzed");
+  await expect(page.locator(".statistics-kpi-value").nth(2)).toHaveText("—");
+  await expect(page.locator(".statistics-kpi-note").nth(2)).toHaveText("No completed feature with valid dates");
+  await expect(page.locator(".statistics-duration-strip")).toHaveCount(0);
+  await expect(page.locator(".statistics-excluded")).toHaveText("1 feature without valid dates");
   await expect(page.locator(".statistics-chart-empty")).toHaveCount(2);
   await expect(page.locator(".statistics-chart-svg")).toHaveCount(0);
   await closeStatistics(page);
@@ -349,7 +371,9 @@ test("empty, single-date and unsafe long feature titles render without invented 
   await page.keyboard.press("Control+o");
   await expect(page.locator("#projectTitle")).toHaveText("One feature");
   await openStatistics(page);
-  await expect(page.locator(".statistics-sample-count")).toHaveText("1 feature analyzed");
+  await expect(page.locator(".statistics-kpi-value").nth(2)).toHaveText("1day");
+  await expect(page.locator(".statistics-kpi-note").nth(2)).toHaveText("Every feature took 1 day");
+  expect(await page.locator(".statistics-duration-strip i").evaluateAll(marks => marks.map(mark => (/** @type {HTMLElement} */ (mark)).style.left))).toEqual(["50%", "50%"]);
   await page.mouse.move(1000, 150);
   await page.locator(".chart-point").focus();
   await expect(page.locator("#chartDetails li")).toHaveText(title.trim());
@@ -374,7 +398,7 @@ test("external reload replaces the cached project and re-evaluates feature durat
   await page.locator("#reloadExternal").click();
   await expect(page.locator("#projectTitle")).toHaveText("Reloaded");
   await openStatistics(page);
-  await expect(page.locator(".statistics-sample-count")).toHaveText("1 feature analyzed");
+  await expect(page.locator(".statistics-kpi-value").nth(2)).toHaveText("4days");
   await page.mouse.move(1000, 150);
   await page.locator(".chart-point").focus();
   await expect(page.locator("#chartDetails dd")).toHaveText(["1 todo", "4 days"]);
@@ -462,7 +486,7 @@ test("histogram hover has no bottom outline, including an empty duration interva
   }
 });
 
-test("1080p portrait statistics fits both charts and the table without unnecessary scrollbars", async ({ page }) => {
+test("1080p portrait statistics fits both charts and the overview without unnecessary scrollbars", async ({ page }) => {
   await page.setViewportSize({ width: 1080, height: 1920 });
   await openFixture(page);
   await openStatistics(page);
@@ -476,7 +500,7 @@ test("1080p portrait statistics fits both charts and the table without unnecessa
       const dialog = document.getElementById("statisticsDialog").getBoundingClientRect();
       const edit = getComputedStyle(document.getElementById("taskEditor"));
       const plots = Array.from(document.querySelectorAll(".statistics-plot"), plot => plot.getBoundingClientRect().toJSON());
-      const overflow = Array.from(document.querySelectorAll("#statisticsDialog,#statisticsContent,.statistics-table,.statistics-chart-scroll,.statistics-charts,.statistics-chart,.statistics-plot"), element => ({ horizontal: element.scrollWidth - element.clientWidth, vertical: element.scrollHeight - element.clientHeight }));
+      const overflow = Array.from(document.querySelectorAll("#statisticsDialog,#statisticsContent,.statistics-kpis,.statistics-distribution,.statistics-chart-scroll,.statistics-charts,.statistics-chart,.statistics-plot"), element => ({ horizontal: element.scrollWidth - element.clientWidth, vertical: element.scrollHeight - element.clientHeight }));
       return { width: dialog.width, height: dialog.height, edit: { width: parseFloat(edit.width), height: parseFloat(edit.height) }, plots, overflow };
     });
     expect(layout.width).toBe(layout.edit.width);
@@ -484,8 +508,8 @@ test("1080p portrait statistics fits both charts and the table without unnecessa
     expect(layout.overflow).toEqual(layout.overflow.map(() => ({ horizontal: 0, vertical: 0 })));
     expect(layout.plots[0].top).toBe(layout.plots[1].top);
     expect(layout.plots[0].height).toBe(layout.plots[1].height);
-    const countersFit = await page.locator(".statistics-table").evaluate(table => {
-      const cells = Array.from(table.querySelectorAll("tbody td"));
+    const countersFit = await page.locator(".statistics-distribution").evaluate(distribution => {
+      const cells = Array.from(distribution.querySelectorAll(".statistics-segment,.statistics-status-total"));
       const original = cells.map(cell => cell.textContent);
       cells.forEach(cell => { cell.textContent = "99999"; });
       const fits = cells.every(cell => {
@@ -493,7 +517,8 @@ test("1080p portrait statistics fits both charts and the table without unnecessa
         range.selectNodeContents(cell);
         const text = range.getBoundingClientRect();
         const bounds = cell.getBoundingClientRect();
-        return text.left >= bounds.left && text.right <= bounds.right;
+        const bar = cell.closest(".statistics-bar")?.getBoundingClientRect() || bounds;
+        return text.left >= bounds.left && text.right <= bounds.right && bounds.right <= bar.right;
       });
       cells.forEach((cell, index) => { cell.textContent = original[index]; });
       return fits;

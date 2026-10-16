@@ -67,6 +67,17 @@ test("charts count only complete workspace and archive features and ignore tasks
   assert.deepEqual(plain(result.bins), [{ from: 2, to: 2, count: 2 }]);
 });
 
+test("charts report mean and range of the recorded days and null without samples", () => {
+  /** @param {string[]} ends */
+  const sample = ends => ends.map((end, index) => feature(`F${index}`, [{ from: "2026-01-01", to: end }]));
+  const odd = app.status.charts(sample(["2026-01-03", "2026-01-01", "2026-01-17"]), entries);
+  assert.deepEqual([odd.meanDays, odd.minDays, odd.maxDays], [7, 1, 17]);
+  const even = app.status.charts(sample(["2026-01-03", "2026-01-04", "2026-01-01", "2026-01-17"]), entries);
+  assert.deepEqual([even.meanDays, even.minDays, even.maxDays], [6.25, 1, 17]);
+  const none = app.status.charts([feature("Missing", [])], entries);
+  assert.deepEqual([none.meanDays, none.minDays, none.maxDays], [null, null, null]);
+});
+
 test("histogram uses equal integer classes, unambiguous boundaries and at most ten bins", () => {
   for (const durations of [[1], [7, 7, 7], [1, 2, 3, 4], [1, 4, 5, 8, 9, 12], [1, 1000000], Array.from({ length: 225 }, (_, index) => index * 19 + 1)]) {
     const sources = durations.map((days, index) => feature(String(index), [{ from: "2020-01-01", to: new Date(Date.UTC(2020, 0, days)).toISOString().slice(0, 10) }]));

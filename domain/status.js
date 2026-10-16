@@ -26,7 +26,7 @@ window.MDManager = window.MDManager || {};
     return result;
   }
 
-  /** @param {MDFeature[]} features @param {(task: MDTask) => MDTodo[]} entriesForTask */
+  /** @param {MDFeature[]} features @param {(task: MDTask) => MDTodo[]} entriesForTask @returns {MDStatisticsCounts} */
   function statistics(features, entriesForTask) {
     const regularFeatures = features.filter(feature => !feature.isBacklog && !feature.isArchived && !feature.ignored);
     const backlog = features.find(feature => feature.isBacklog && !feature.ignored);
@@ -50,6 +50,24 @@ window.MDManager = window.MDManager || {};
     };
   }
 
+  /** @param {MDStatisticsCounts} statistics @returns {MDStatisticsOverview} */
+  function overview(statistics) {
+    /** @param {MDStatusCounts & {backlog: number | string}} counts @param {number} open */
+    const segments = (counts, open) => {
+      const backlog = typeof counts.backlog === "number" ? counts.backlog : 0;
+      return { archive: counts.archive, done: counts.done, active: counts.active, open, backlog, total: counts.archive + counts.done + counts.active + open + backlog };
+    };
+    const features = segments(statistics.features, statistics.features.open);
+    const tasks = segments(statistics.tasks, statistics.tasks.open);
+    // Todo "open" includes the open todos of active features; the distribution needs disjoint parts.
+    const entries = segments(statistics.entries, statistics.entries.open - statistics.entries.active);
+    const doneTodos = entries.archive + entries.done;
+    const plannedTodos = entries.total - entries.backlog;
+    // Rounding must not report 100 % while a planned todo is still open.
+    const todoPercentage = doneTodos === plannedTodos ? (plannedTodos ? 100 : 0) : Math.min(99, Math.round(doneTodos / plannedTodos * 100));
+    return { features, tasks, entries, completedFeatures: features.archive + features.done, doneTodos, plannedTodos, todoPercentage };
+  }
+
   /** @param {number} maximum @returns {MDChartScale} */
   function chartScale(maximum) {
     const rawStep = Math.max(1, maximum / 5);
@@ -69,6 +87,7 @@ window.MDManager = window.MDManager || {};
     let maxSize = 0;
     let minDays = Number.POSITIVE_INFINITY;
     let maxDays = 0;
+    let totalDays = 0;
     for (const feature of features) {
       if (feature.ignored || feature.isBacklog) continue;
       let size = 0;
@@ -88,6 +107,7 @@ window.MDManager = window.MDManager || {};
       if (!point) { point = { size, days, titles: [] }; points.set(key, point); }
       point.titles.push(feature.title);
       durations.push(days);
+      totalDays += days;
       maxSize = Math.max(maxSize, size);
       minDays = Math.min(minDays, days);
       maxDays = Math.max(maxDays, days);
@@ -105,8 +125,9 @@ window.MDManager = window.MDManager || {};
         maxFrequency = Math.max(maxFrequency, bin.count);
       }
     }
-    return { count: durations.length, excluded, points: Array.from(points.values()), bins, sizeScale: chartScale(maxSize), durationScale: chartScale(maxDays), frequencyScale: chartScale(maxFrequency) };
+    const sample = durations.length;
+    return { count: sample, excluded, meanDays: sample ? totalDays / sample : null, minDays: sample ? minDays : null, maxDays: sample ? maxDays : null, points: Array.from(points.values()), bins, sizeScale: chartScale(maxSize), durationScale: chartScale(maxDays), frequencyScale: chartScale(maxFrequency) };
   }
 
-  app.status = { progress, counts, statistics, charts };
+  app.status = { progress, counts, statistics, overview, charts };
 })(window.MDManager);
