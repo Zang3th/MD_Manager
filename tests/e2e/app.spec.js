@@ -2656,7 +2656,12 @@ test("notifications keep errors actionable while transient severities disappear 
   await page.clock.fastForward(4000);
   await expect(page.locator(".notification-info,.notification-warning")).toHaveCount(0);
   await expect(page.locator(".notification-error")).toHaveCount(2);
-  for (let index = 0; index < 2; index += 1) await page.locator('.notification-error [aria-label="Close error"]').first().click();
+  // A closed error stays in the DOM until its exit animation ends, so each close waits for that
+  // removal before the next click instead of hitting the leaving notification a second time.
+  for (let remaining = 1; remaining >= 0; remaining -= 1) {
+    await page.locator('.notification-error [aria-label="Close error"]').first().click();
+    await expect(page.locator(".notification-error")).toHaveCount(remaining);
+  }
   await expect(notifications).toHaveCount(0);
 
   await page.evaluate(() => {
