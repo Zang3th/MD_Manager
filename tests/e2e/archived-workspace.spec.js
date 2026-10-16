@@ -303,12 +303,12 @@ test("done lanes appear in the archive timeline in green and can be archived fro
       return getComputedStyle(probe).color;
     };
     const activity = (/** @type {string} */ selector) => resolve(getComputedStyle(/** @type {Element} */ (document.querySelector(selector))).getPropertyValue("--archive-activity"));
-    const result = { done: activity(".archive-done-feature"), archived: activity(".archive-swimlane-feature:not(.archive-done-feature)"), success: resolve("var(--success)") };
+    const result = { done: activity(".archive-done-feature"), archived: activity(".archive-swimlane-feature:not(.archive-done-feature)"), success: resolve("var(--success)"), link: resolve("var(--link)") };
     probe.remove();
     return result;
   });
   expect(colors.done).toBe(colors.success);
-  expect(colors.archived).not.toBe(colors.success);
+  expect(colors.archived).toBe(colors.link);
   expect(await page.evaluate(() => /** @type {any} */ (window).__remembered.at(-1))).toEqual({ showArchived: false, showDone: true });
 
   await lane.locator(".archive-feature-toggle").click();

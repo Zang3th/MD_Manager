@@ -122,7 +122,7 @@ Stats und Backlog bleiben davon unberührt.
 
 - [x] ~Start- und Endkappen haben manchmal unterschiedliche Breiten~
 - [x] ~Zeiträume vor und nach Pausen haben manchmal Glow und manchmal nicht~
-- [ ] Farben anpassen
+- [x] ~Farben anpassen~
 
 ### Statistik-Fenster
 

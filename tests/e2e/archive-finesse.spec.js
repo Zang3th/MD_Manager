@@ -339,10 +339,10 @@ for (const [theme, ratio] of /** @type {const} */ ([["dark", 1], ["light", 2]]))
         const readout = page.locator(".archive-crosshair-readout");
         await expect(readout).toHaveCSS("opacity", "1");
         await expect(readout).toHaveText(index ? "31.12.2026" : "01.01.2026");
-        expect(await readout.evaluate(node => {
+        expect(await point.evaluate(node => {
           const canvas = document.createElement("canvas");
           const context = /** @type {CanvasRenderingContext2D} */ (canvas.getContext("2d"));
-          context.fillStyle = getComputedStyle(node).getPropertyValue("--orange");
+          context.fillStyle = getComputedStyle(node).getPropertyValue("--archive-activity");
           return context.fillStyle;
         })).toBe(await readout.evaluate(node => {
           const context = /** @type {CanvasRenderingContext2D} */ (document.createElement("canvas").getContext("2d"));
