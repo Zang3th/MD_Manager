@@ -117,6 +117,7 @@ Stats und Backlog bleiben davon unberührt.
 - [x] ~Projektweiter Toggle: Fertiggestellte, nicht-archivierte Boards können in der Timeline sichtbar geschaltet werden => spezielle Darstellung~
 - [x] ~Texte und Beschreibungen der View-Buttons aktualisieren~
 - [x] ~Testing streamlinen~
+- [x] ~Animation für das Highlighting von Suchergebnissen reparieren~
 
 ### Archiv-Zeitstrahl
 

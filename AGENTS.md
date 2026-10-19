@@ -54,7 +54,7 @@
 - Red-team the specification before changing code: check unhappy paths, missing contracts, scope creep, oversized steps, test gaps, cross-platform effects, accessibility, persistence, undo/redo, and repeated-work or layout costs.
 - Implement the specification in small ordered steps that each leave the project working. Update the specification before expanding scope; never improvise unrecorded product behavior.
 - Map every acceptance criterion to deterministic evidence at the cheapest layer that can prove it, as defined in the Tests section, and use explicit measurements for material performance claims.
-- Finish with a review packet containing changed files and reasons, acceptance evidence, regression coverage, removed or merged tests with the coverage that replaces them, exact commands and results, manual verification when relevant, and remaining risks or skipped evidence.
+- Finish with a review packet containing changed files and reasons, acceptance evidence, regression coverage, every added end-to-end test with the existing tests that were considered and why none could be extended, removed or merged tests with the coverage that replaces them, exact commands and results, manual verification when relevant, and remaining risks or skipped evidence.
 - After completion, reset `docs/work/current.md` to its defined empty state. `docs/Roadmap.md` remains user-owned and changes only on explicit request.
 
 ## User Experience
@@ -95,8 +95,9 @@ Tests are maintained code with a runtime cost on every local run, agent iteratio
 ### Adding coverage
 
 - Give a behavior change the smallest coverage that fails without the change.
-- Before writing a test, search the existing tests for the flow, selector, action, or message. Extend an existing test of the same flow before adding a new one; a new end-to-end test needs a flow that no existing test exercises.
-- One test covers one flow, and its name states that flow. Do not combine unrelated concerns in one test.
+- A flow is a sequence of user actions, such as activating a search result. Timing, target, expansion, or animation of that sequence are aspects of the same flow, not new flows.
+- Before writing a test, search the existing tests for the flow, selector, action, or message. Add a new aspect of an already exercised flow to the existing test and adjust its name; a new end-to-end test needs a flow that no existing test exercises.
+- One test covers one flow, and its name states that flow. Do not combine different flows in one test.
 - Keep helpers shared by several spec files in `tests/e2e/fixtures.js` and reuse them instead of copying them into a spec file.
 - Parameterize over themes, device pixel ratios, or viewport sizes only where the behavior differs between them.
 

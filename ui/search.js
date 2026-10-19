@@ -4,6 +4,8 @@ window.MDManager = window.MDManager || {};
   const resultLimit = 50;
   const excerptLimit = 88;
   const highlightDuration = 1800;
+  const settleFrames = 3;
+  const settleLimit = 120;
   /** @type {Record<MDSearchBadge, string>} */
   const badgeLabels = { feature: "Feature", task: "Task", group: "Group", todo: "ToDo", info: "Info", warn: "Warn", text: "Text" };
   /** @type {Record<MDSearchState, string>} */
@@ -31,6 +33,7 @@ window.MDManager = window.MDManager || {};
   /** @type {Element | null} */
   let highlighted = null;
   let highlightTimer = 0;
+  let settleFrame = 0;
   /** @type {Element | null} */
   let opener = null;
 
@@ -260,15 +263,38 @@ window.MDManager = window.MDManager || {};
 
   /** @param {Element | null} target */
   function markTarget(target) {
+    window.cancelAnimationFrame(settleFrame);
     window.clearTimeout(highlightTimer);
     highlighted?.classList.remove("search-hit");
-    highlighted = target;
+    highlighted = null;
     if (!target) return;
-    target.classList.add("search-hit");
-    highlightTimer = window.setTimeout(() => {
-      target.classList.remove("search-hit");
-      if (highlighted === target) highlighted = null;
-    }, highlightDuration);
+
+    // A smooth scroll to a distant target, such as an archived card at the far left of
+    // the Workspace, can take most of the animation. The highlight therefore starts only
+    // once the target has stopped moving, so it plays in full where the user looks.
+    let left = NaN;
+    let top = NaN;
+    let still = 0;
+    let frames = 0;
+    const settle = () => {
+      settleFrame = 0;
+      if (!target.isConnected) return;
+      const bounds = target.getBoundingClientRect();
+      still = bounds.left === left && bounds.top === top ? still + 1 : 0;
+      left = bounds.left;
+      top = bounds.top;
+      if (still < settleFrames && ++frames < settleLimit) {
+        settleFrame = window.requestAnimationFrame(settle);
+        return;
+      }
+      highlighted = target;
+      target.classList.add("search-hit");
+      highlightTimer = window.setTimeout(() => {
+        target.classList.remove("search-hit");
+        if (highlighted === target) highlighted = null;
+      }, highlightDuration);
+    };
+    settleFrame = window.requestAnimationFrame(settle);
   }
 
   /** @param {Element} root @returns {Element | null} */

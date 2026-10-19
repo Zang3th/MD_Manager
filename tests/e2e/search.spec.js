@@ -292,14 +292,30 @@ test("Enter reveals a workspace todo by expanding its card and highlighting the 
   });
 });
 
-test("a row highlight stays faded between animation completion and class cleanup", async ({ page }) => {
+test("a row highlight starts once its scrolled target is in view and stays faded until class cleanup", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "no-preference" });
-  await openFixture(page, ["# P", "", "## F", "", "### T", "", "- [ ] alpha target"].join("\n"));
+  const features = Array.from({ length: 8 }, (_, index) => `## Feature ${index}\n\n### Task ${index}\n\n- [ ] ${index === 7 ? "alpha target" : `todo ${index}`}`);
+  await openFixture(page, ["# P", "", ...features].join("\n"));
   await search(page, "alpha target");
+  await page.evaluate(() => {
+    const record = /** @type {any} */ (window);
+    const observer = new MutationObserver(() => {
+      const hit = document.querySelector(".search-hit");
+      if (!hit) return;
+      const bounds = hit.getBoundingClientRect();
+      record.__hitBounds = { left: bounds.left, right: bounds.right, width: innerWidth };
+      observer.disconnect();
+    });
+    observer.observe(document.getElementById("content"), { attributes: true, attributeFilter: ["class"], subtree: true });
+  });
   await page.keyboard.press("Enter");
 
   const target = page.locator(".todo-item.search-hit");
   await expect(target).toBeVisible();
+  const bounds = await page.evaluate(() => /** @type {any} */ (window).__hitBounds);
+  expect(bounds.left).toBeGreaterThanOrEqual(0);
+  expect(bounds.right).toBeLessThanOrEqual(bounds.width);
+  expect(await page.locator("#content").evaluate(content => content.scrollLeft)).toBeGreaterThan(0);
   const finalState = await target.evaluate(element => {
     const animation = element.getAnimations({ subtree: true }).find(candidate => candidate instanceof CSSAnimation && candidate.animationName === "search-hit-row");
     if (!animation) return null;
