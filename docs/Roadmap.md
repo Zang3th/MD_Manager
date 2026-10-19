@@ -103,7 +103,7 @@ Stats und Backlog bleiben davon unberührt.
 - [x] ~Release fertig machen (via Actions)~
 
 #Pin
-## UI-Verbesserungen und Feintuning
+## Diverse Verbesserungen
 
 #Version
 - 0.9.1
@@ -148,6 +148,16 @@ Stats und Backlog bleiben davon unberührt.
 
 ### Bugs und Verbesserungen
 
+### .md Erweiterungen
+
+#### Linting
+- [ ] Formale Format-Spezifikation und Linter
+- [ ] Live-Parsing mit Fehlermeldungen
+
+#### Features
+- [ ] Weitere ToDo-Zustände: [/] für „in Arbeit“ und [-] für „abgebrochen“
+- [ ] Bilder unterstützen
+
 ### Filtern
 
 ### Keyboard-Controls
@@ -167,15 +177,6 @@ Stats und Backlog bleiben davon unberührt.
 #Backlog
 ## Backlog
 
-### Hosting und Deployment
-
-- [ ] Anwendung zentral hosten
-
-### Monetarisierung
-
-- [ ] Coffee auf der Startseite
-- [ ] Hosting/Deployment in der Premiumversion
-
 ### Mobile
 
 - [ ] Mobilunterstützung ausarbeiten
@@ -185,7 +186,7 @@ Stats und Backlog bleiben davon unberührt.
 - [ ] Status
 - [ ] Side-by-Side Diff
 
-### Markdown-Erweiterungen
+### Weitere .md Erweiterungen
 
 #Info
 Markdown-Standard: Gängig, aber weiterhin funktional in unserem *Spirit* und gut lesbar/editierbar im Editor.
@@ -193,13 +194,8 @@ Markdown-Standard: Gängig, aber weiterhin funktional in unserem *Spirit* und gu
 #Warn
 Kompatibilität mit anderen Tools? Enforcement bei uns?
 
-#### Linting
-- [ ] Nach Linting-Regeln importieren/exportieren
-- [ ] Live-Parsing mit Fehlermeldungen
-
 #### Features
 - [ ] Referenzen herstellen, hervorheben + navigieren
-- [ ] Bilder unterstützen
 - [ ] Umgang mit weiteren Markdown-Features + Inline-HTML finden
 
 #Archive
