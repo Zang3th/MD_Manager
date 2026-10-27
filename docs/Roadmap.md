@@ -118,6 +118,7 @@ Stats und Backlog bleiben davon unberührt.
 - [x] ~Texte und Beschreibungen der View-Buttons aktualisieren~
 - [x] ~Testing streamlinen~
 - [x] ~Animation für das Highlighting von Suchergebnissen reparieren~
+- [x] ~ToDo-Reihenfolge unter #Info-Block reparieren~
 
 ### Archiv-Zeitstrahl
 

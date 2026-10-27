@@ -146,8 +146,36 @@ test("setTodo normalizes checked and unchecked Markdown", () => {
 
 test("todos move into the requested group without crossing boundaries", () => {
   const value = project();
-  domain.moveTodo(value, 1, 0, 0, 0, 0, 1, 0);
+  domain.moveTodo(value, 1, 0, 0, 0, 0, 1, 2, null);
   assert.deepEqual(value.features[0].tasks[0].lines, ["- [ ] one", "#### Next", "- [ ] three", "- [ ] two"]);
+});
+
+test("todos move between neighbours below an #Info block without passing it", () => {
+  const lines = () => ["#Info", "- note", "", "- [ ] first", "- [ ] second", "- [ ] moved"];
+  const value = { features: [{ title: "A", tasks: [{ title: "A1", lines: lines() }] }] };
+  domain.moveTodo(value, 0, 0, 5, 0, 0, -1, 3, null);
+  assert.deepEqual(value.features[0].tasks[0].lines, ["#Info", "- note", "", "- [ ] moved", "- [ ] first", "- [ ] second"]);
+  domain.moveTodo(value, 0, 0, 3, 0, 0, -1, null, 5);
+  assert.deepEqual(value.features[0].tasks[0].lines, lines());
+});
+
+test("todos dropped into an empty group follow the anchor or end preceding notes", () => {
+  const { markdown } = load("io/markdown.js");
+  const value = { features: [{ title: "A", tasks: [
+    { title: "Source", lines: ["- [ ] one", "- [ ] two", "- [ ] three"] },
+    { title: "Notes", lines: ["#Info", "- note", "#Warn", "careful"] },
+    { title: "Spaced", lines: ["#Info", "- note", "", "#### Group"] },
+    { title: "Empty", lines: [] }
+  ] }] };
+  domain.moveTodo(value, 0, 0, 0, 0, 1, -1, null, null);
+  assert.deepEqual(value.features[0].tasks[1].lines, ["#Info", "- note", "#Warn", "careful", "", "- [ ] one"]);
+  assert.deepEqual(Array.from(markdown.taskContent(value.features[0].tasks[1]).todos, todo => todo.text), ["one"]);
+  domain.moveTodo(value, 0, 0, 0, 0, 2, -1, null, null);
+  assert.deepEqual(value.features[0].tasks[2].lines, ["#Info", "- note", "", "- [ ] two", "#### Group"]);
+  domain.moveTodo(value, 0, 2, 3, 0, 2, 3, null, null);
+  assert.deepEqual(value.features[0].tasks[2].lines, ["#Info", "- note", "", "#### Group", "- [ ] two"]);
+  domain.moveTodo(value, 0, 0, 0, 0, 3, -1, null, null);
+  assert.deepEqual(value.features[0].tasks[3].lines, ["- [ ] three"]);
 });
 
 test("workspace order puts visible archived features first in archive order only when enabled", () => {

@@ -1314,6 +1314,10 @@ window.MDManager = window.MDManager || {};
           const target = project.features[toFeatureIndex].tasks[toTaskIndex];
           const sourceBefore = source.lines.slice();
           const targetBefore = target === source ? sourceBefore : target.lines.slice();
+          const nextTodo = event.item.nextElementSibling;
+          const previousTodo = event.item.previousElementSibling;
+          const nextLine = nextTodo ? Number(nextTodo.dataset.line) : null;
+          const previousLine = previousTodo ? Number(previousTodo.dataset.line) : null;
           /** @type {string[] | null} */
           let sourceAfter = null;
           /** @type {string[] | null} */
@@ -1324,7 +1328,7 @@ window.MDManager = window.MDManager || {};
               if (target !== source) target.lines = targetAfter.slice();
               return true;
             }
-            app.domain.moveTodo(project, fromFeatureIndex, fromTaskIndex, Number(event.item.dataset.line), toFeatureIndex, toTaskIndex, Number(event.to.dataset.anchorLine), event.newIndex);
+            app.domain.moveTodo(project, fromFeatureIndex, fromTaskIndex, Number(event.item.dataset.line), toFeatureIndex, toTaskIndex, Number(event.to.dataset.anchorLine), nextLine, previousLine);
             sourceAfter = source.lines.slice();
             targetAfter = target === source ? sourceAfter : target.lines.slice();
             return sourceBefore.join("\n") !== sourceAfter.join("\n") || targetBefore.join("\n") !== targetAfter.join("\n");

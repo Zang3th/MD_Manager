@@ -641,22 +641,29 @@ window.MDManager = window.MDManager || {};
       task.lines.splice(lineIndex, 0, line);
       return true;
     },
-    /** @param {MDProject} project @param {number} fromFeature @param {number} fromTask @param {number} fromLine @param {number} toFeature @param {number} toTask @param {number} toAnchorLine @param {number} toIndex */
-    moveTodo(project, fromFeature, fromTask, fromLine, toFeature, toTask, toAnchorLine, toIndex) {
+    // The drop position is given by the source lines of the neighbouring rendered todos, so the
+    // extent of #Info and #Warn blocks stays decided by the Markdown parser alone. Without
+    // neighbours the todo follows the anchor; the unnamed group (anchor -1) appends after the
+    // task content, separated by a blank line that ends a preceding note block.
+    /** @param {MDProject} project @param {number} fromFeature @param {number} fromTask @param {number} fromLine @param {number} toFeature @param {number} toTask @param {number} toAnchorLine @param {number | null} nextLine @param {number | null} previousLine */
+    moveTodo(project, fromFeature, fromTask, fromLine, toFeature, toTask, toAnchorLine, nextLine, previousLine) {
       const source = project.features[fromFeature].tasks[fromTask];
       const target = project.features[toFeature].tasks[toTask];
       const todo = source.lines.splice(fromLine, 1)[0];
       if (todo === undefined) return false;
-      if (source === target && fromLine < toAnchorLine) toAnchorLine--;
-      const nextBoundary = target.lines.findIndex((line, index) => index > toAnchorLine && /^(?:\s*#(?:Info|Warn)\s*|####\s+.+?\s*#*\s*)$/i.test(line));
-      const groupEnd = nextBoundary >= 0 ? nextBoundary : target.lines.length;
-      const targetLines = target.lines.map((line, index) => index > toAnchorLine && index < groupEnd && /^\s*[-*+]\s+/.test(line) ? index : -1)
-        .filter(index => index >= 0);
-      let insertionLine;
-      if (toIndex < targetLines.length) insertionLine = targetLines[toIndex];
-      else if (targetLines.length) insertionLine = targetLines[targetLines.length - 1] + 1;
-      else insertionLine = toAnchorLine + 1;
-      target.lines.splice(insertionLine, 0, todo);
+      /** @param {number} line */
+      const shifted = line => source === target && fromLine < line ? line - 1 : line;
+      if (nextLine !== null) target.lines.splice(shifted(nextLine), 0, todo);
+      else if (previousLine !== null) target.lines.splice(shifted(previousLine) + 1, 0, todo);
+      else if (toAnchorLine >= 0) target.lines.splice(shifted(toAnchorLine) + 1, 0, todo);
+      else {
+        const heading = target.lines.findIndex(line => /^####\s+.+?\s*#*\s*$/.test(line));
+        let end = heading >= 0 ? heading : target.lines.length;
+        while (end > 0 && !target.lines[end - 1].trim()) end--;
+        if (!end) target.lines.splice(0, 0, todo);
+        else if (end < target.lines.length && !target.lines[end].trim()) target.lines.splice(end + 1, 0, todo);
+        else target.lines.splice(end, 0, "", todo);
+      }
       return true;
     },
     /** @param {MDTask} task @param {number} lineIndex @param {boolean} checked */
