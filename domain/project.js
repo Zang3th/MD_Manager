@@ -452,9 +452,10 @@ window.MDManager = window.MDManager || {};
     // margin instead, because rounding out to a whole month would visibly shrink the work.
     const wholeCells = cell.unit === "week" || cell.unit === "quarter" || cell.unit === "year";
     const padding = Math.max(1, Math.round(dataSpan * 0.04));
-    const plotStartDay = wholeCells
-      ? archiveUnitStart(cell.unit, cell.step, domainStartDay * dayMs) / dayMs
-      : domainStartDay - padding;
+    const cellStartDay = archiveUnitStart(cell.unit, cell.step, domainStartDay * dayMs) / dayMs;
+    // Work that starts on the first day of its cell would sit on the table edge, where its opening
+    // mark and label are cut off. Only then does the plot keep the proportional margin instead.
+    const plotStartDay = wholeCells && cellStartDay < domainStartDay ? cellStartDay : domainStartDay - padding;
     const plotEndExclusive = wholeCells
       ? archiveUnitNext(cell.unit, cell.step, archiveUnitStart(cell.unit, cell.step, (domainEndExclusive - 1) * dayMs)) / dayMs
       : domainEndExclusive + padding;

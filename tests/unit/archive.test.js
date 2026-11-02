@@ -152,6 +152,12 @@ test("a day view rules every day and names every week", () => {
   const positions = Array.from(ticks, (/** @type {any} */ tick) => tick.position).sort((a, b) => a - b);
   const gaps = positions.slice(1).map((value, index) => value - positions[index]);
   for (const gap of gaps) assert.ok(Math.abs(gap - gaps[0]) < 1e-9, `uneven day step ${gap}`);
+
+  // Work that starts on a Monday keeps one day of margin rather than sitting on the table edge,
+  // where its mark and label would be cut off.
+  const monday = archive.timeline([feature("Point", [{ from: "26.10.2026", to: "" }]), feature("Range", [{ from: "27.10.2026", to: "02.11.2026" }])]);
+  assert.equal(monday.plotStartDay, Date.UTC(2026, 9, 25) / (24 * 60 * 60 * 1000));
+  assert.ok(/** @type {any[]} */ (monday.lanes)[0].points[0].position > 0);
 });
 
 test("date metadata becomes ranges, points, or unmatched lanes deterministically", () => {

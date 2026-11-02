@@ -119,6 +119,7 @@ Stats und Backlog bleiben davon unberührt.
 - [x] ~Testing streamlinen~
 - [x] ~Animation für das Highlighting von Suchergebnissen reparieren~
 - [x] ~ToDo-Reihenfolge unter #Info-Block reparieren~
+- [x] ~Archiv-Visualisierung: Arbeit die Montags beginnt braucht Margin~
 
 ### Archiv-Zeitstrahl
 
