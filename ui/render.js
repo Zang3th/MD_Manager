@@ -565,17 +565,12 @@ window.MDManager = window.MDManager || {};
     const backlog = document.getElementById("backlog");
     const backlogButton = document.getElementById("toggleBacklog");
     const backlogOpen = viewState ? viewState.backlogOpen : false;
-    backlogButton.disabled = !backlogFeature;
-    backlogButton.setAttribute("aria-pressed", String(Boolean(backlogFeature && backlogOpen)));
-    if (backlogFeature) {
-      backlog.dataset.feature = String(project.features.indexOf(backlogFeature));
-      backlog.innerHTML = backlogContents(backlogFeature);
-      backlog.hidden = archiveActive || !backlogOpen;
-    } else {
-      backlog.removeAttribute("data-feature");
-      backlog.innerHTML = "";
-      backlog.hidden = true;
-    }
+    backlogButton.disabled = false;
+    backlogButton.setAttribute("aria-pressed", String(backlogOpen));
+    if (backlogFeature) backlog.dataset.feature = String(project.features.indexOf(backlogFeature));
+    else backlog.removeAttribute("data-feature");
+    backlog.innerHTML = backlogContents(backlogFeature || app.domain.emptyBacklog());
+    backlog.hidden = archiveActive || !backlogOpen;
     restoreViewState(viewState);
     app.layout.equalizeReleaseHeaders();
     app.layout.layout();

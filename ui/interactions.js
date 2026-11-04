@@ -326,6 +326,25 @@ window.MDManager = window.MDManager || {};
     return changed?.({ label, redo, undo, beforeViewState, afterViewState, size }, options) || false;
   }
 
+  /**
+   * The backlog placeholder has no feature yet: its first task change creates the backlog, and undo removes it again.
+   * @param {MDProject} target @param {Element} featureElement @param {(featureIndex: number) => boolean} redo @param {(featureIndex: number) => void} undo
+   */
+  function featureTaskChange(target, featureElement, redo, undo) {
+    const placeholder = !featureElement.hasAttribute("data-feature");
+    let featureIndex = Number(featureElement.getAttribute("data-feature"));
+    return {
+      redo() {
+        if (placeholder) featureIndex = app.domain.createBacklog(target);
+        return redo(featureIndex);
+      },
+      undo() {
+        undo(featureIndex);
+        if (placeholder) app.domain.deleteFeature(target, featureIndex);
+      }
+    };
+  }
+
   /** @param {MDTask} task */
   function taskComplete(task) {
     return app.status.progress(app.markdown.taskContent(task).todos).complete;
@@ -637,23 +656,23 @@ window.MDManager = window.MDManager || {};
     if (!featureElement || featureElement.classList.contains("archived")) return false;
     const featureIndex = Number(featureElement.dataset.feature);
     const board = featureElement.querySelector(".board");
-    if (!board || !project.features[featureIndex]) return false;
+    if (!board || featureElement.hasAttribute("data-feature") && !project.features[featureIndex]) return false;
     const cards = [...board.querySelectorAll(":scope > .card")];
     const beforeCard = /** @type {HTMLElement | null} */ (cards.find(card => {
       const rect = card.getBoundingClientRect();
       return position.y < rect.top + rect.height / 2;
     }) || null);
-    const taskIndex = beforeCard ? Number(beforeCard.dataset.task) : project.features[featureIndex].tasks.length;
+    const taskIndex = beforeCard ? Number(beforeCard.dataset.task) : project.features[featureIndex]?.tasks.length || 0;
     viewState.tasks.splice(taskViewIndex(/** @type {HTMLElement} */ (featureElement), beforeCard), 0, ...entries.map(entry => entry.expanded));
-    const redo = () => {
-      entries.forEach((entry, offset) => app.domain.insertTask(project, featureIndex, taskIndex + offset, entry.value));
+    const activeProject = project;
+    const change = featureTaskChange(activeProject, featureElement, targetFeature => {
+      entries.forEach((entry, offset) => app.domain.insertTask(activeProject, targetFeature, taskIndex + offset, entry.value));
       return true;
-    };
-    const undoAction = () => {
-      for (let offset = entries.length - 1; offset >= 0; offset -= 1) app.domain.deleteTask(project, featureIndex, taskIndex + offset);
-    };
+    }, targetFeature => {
+      for (let offset = entries.length - 1; offset >= 0; offset -= 1) app.domain.deleteTask(activeProject, targetFeature, taskIndex + offset);
+    });
     const size = entries.reduce((total, entry) => total + entry.value.title.length + entry.value.lines.join("\n").length, 0);
-    if (!perform(entries.length === 1 ? "Task pasted" : "Tasks pasted", redo, undoAction, beforeViewState, viewState, undefined, size)) return false;
+    if (!perform(entries.length === 1 ? "Task pasted" : "Tasks pasted", change.redo, change.undo, beforeViewState, viewState, undefined, size)) return false;
     setClipboard([]);
     hoveredElement = null;
     window.requestAnimationFrame(() => {
@@ -1266,12 +1285,14 @@ window.MDManager = window.MDManager || {};
           const fromIndex = Number(event.item.dataset.task);
           const next = event.item.nextElementSibling;
           const previous = event.item.previousElementSibling;
-          const insertionIndex = next ? Number(next.dataset.task) : previous ? Number(previous.dataset.task) + 1 : project.features[toFeature].tasks.length;
+          const insertionIndex = next ? Number(next.dataset.task) : previous ? Number(previous.dataset.task) + 1 : project.features[toFeature]?.tasks.length || 0;
           const toIndex = insertionIndex - (fromFeature === toFeature && fromIndex < insertionIndex ? 1 : 0);
           const beforeViewState = dragViewState || captureViewState();
           const afterViewState = captureViewState();
           dragViewState = null;
-          perform("Task moved", () => app.domain.moveTask(project, fromFeature, fromIndex, toFeature, toIndex), () => { app.domain.moveTask(project, toFeature, toIndex, fromFeature, fromIndex); }, beforeViewState, afterViewState);
+          const activeProject = project;
+          const change = featureTaskChange(activeProject, event.to.closest(".release"), targetFeature => app.domain.moveTask(activeProject, fromFeature, fromIndex, targetFeature, toIndex), targetFeature => { app.domain.moveTask(activeProject, targetFeature, toIndex, fromFeature, fromIndex); });
+          perform("Task moved", change.redo, change.undo, beforeViewState, afterViewState);
         }
       }));
     });
@@ -1505,8 +1526,7 @@ window.MDManager = window.MDManager || {};
       event.stopPropagation();
       const activeProject = project;
       const featureElement = requiredClosest(addTaskButton, ".release");
-      const featureIndex = Number(featureElement.dataset.feature);
-      const feature = activeProject.features[featureIndex];
+      const feature = activeProject.features[Number(featureElement.dataset.feature)] || app.domain.emptyBacklog();
       const beforeViewState = captureViewState();
       const seed = app.templates.task();
       app.editor.open(seed, { project: activeProject.title, feature: feature.title }, (/** @type {{title: string, lines: string[]}} */ draft) => {
@@ -1517,7 +1537,8 @@ window.MDManager = window.MDManager || {};
         const featureCards = [...featureElement.querySelectorAll(".card")];
         const viewIndex = featureCards.length ? [...document.querySelectorAll(viewSelectors.tasks)].indexOf(/** @type {Element} */ (featureCards.at(-1))) + 1 : taskViewIndex(featureElement, null);
         afterViewState.tasks.splice(viewIndex, 0, false);
-        perform("Task added", () => app.domain.insertTask(activeProject, featureIndex, taskIndex, task), () => { app.domain.deleteTask(activeProject, featureIndex, taskIndex); }, beforeViewState, afterViewState, undefined, task.title.length + task.lines.join("\n").length);
+        const change = featureTaskChange(activeProject, featureElement, featureIndex => app.domain.insertTask(activeProject, featureIndex, taskIndex, task), featureIndex => { app.domain.deleteTask(activeProject, featureIndex, taskIndex); });
+        perform("Task added", change.redo, change.undo, beforeViewState, afterViewState, undefined, task.title.length + task.lines.join("\n").length);
         app.notifications.show("info", "Task added", [{ value: draft.title }, " added to ", { value: feature.title }, "."]);
       }, true);
       return;

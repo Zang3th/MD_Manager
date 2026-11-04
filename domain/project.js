@@ -512,6 +512,11 @@ window.MDManager = window.MDManager || {};
     return boundary < 0 ? project.features.length : boundary;
   }
 
+  /** @returns {MDFeature} */
+  function emptyBacklog() {
+    return { title: "Backlog", headerLines: [], version: "", dates: [], notes: [], tasks: [], isBacklog: true, isArchived: false, isPinned: false, ignored: false };
+  }
+
   app.archive = { timeline: archiveTimeline, displayDate: archiveDisplayDate, dayLabel: archiveDayLabel, recordedDays: recordedFeatureDays };
   app.domain = {
     featureComplete,
@@ -618,6 +623,14 @@ window.MDManager = window.MDManager || {};
       if (!task) return false;
       project.features[toFeature].tasks.splice(toIndex, 0, task);
       return true;
+    },
+    emptyBacklog,
+    /** @param {MDProject} project @returns {number} */
+    createBacklog(project) {
+      const archived = project.features.findIndex(item => item.isArchived);
+      const index = archived < 0 ? project.features.length : archived;
+      project.features.splice(index, 0, emptyBacklog());
+      return index;
     },
     /** @param {MDProject} project @param {number} featureIndex */
     deleteFeature(project, featureIndex) {

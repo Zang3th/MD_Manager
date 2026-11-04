@@ -138,6 +138,16 @@ test("delete operations remove only their target", () => {
   assert.deepEqual(value.features.map(x => x.title), ["A", "Backlog"]);
 });
 
+test("a created backlog is empty and placed before the archive", () => {
+  /** @type {{features: any[]}} */
+  const value = { features: [{ title: "A", tasks: [] }, { title: "Old", isArchived: true, tasks: [] }] };
+  assert.equal(domain.createBacklog(value), 1);
+  assert.deepEqual(value.features.map(x => [x.title, Boolean(x.isBacklog), x.tasks.length]), [["A", false, 0], ["Backlog", true, 0], ["Old", false, 0]]);
+  const withoutArchive = { features: [{ title: "A", tasks: [] }] };
+  assert.equal(domain.createBacklog(withoutArchive), 1);
+  assert.notEqual(domain.emptyBacklog(), domain.emptyBacklog());
+});
+
 test("setTodo normalizes checked and unchecked Markdown", () => {
   const task = { lines: ["- item", "* [x] ~done~"] };
   domain.setTodo(task, 0, true); domain.setTodo(task, 1, false);

@@ -1711,6 +1711,25 @@ test("backlog opens as a separate pane and closes from its framed button", async
   await expect(page.locator("#backlog")).toBeHidden();
 });
 
+test("backlog toggle opens an unsaved placeholder that its first task creates", async ({ page }) => {
+  await openFixture(page, "# No Backlog\n\n## Feature\n### Task\n- [ ] pending\n\n#Archive\n# Archive\n## Old\n### Done\n- [x] ~finished~");
+  await toggleBacklogFromView(page);
+  await expect(page.locator("#backlog")).toBeVisible();
+  await expect(page.locator(".backlog-title")).toHaveText("Backlog");
+  await expect(page.locator("#backlog .card")).toHaveCount(0);
+  await expect(page.locator("#saveFile")).not.toHaveClass(/dirty/);
+  await page.locator("#backlog .backlog-add-task").click();
+  await page.locator("#saveTaskEditor").click();
+  await expect(page.locator("#backlog .card-title")).toHaveText("New Task");
+  await page.locator("#saveFile").click();
+  await expect.poll(() => page.evaluate(() => window.__savedMarkdown)).toMatch(/- \[ \] pending\n+#Backlog\n## Backlog\n+### New Task\n[\s\S]*#Archive\n/);
+  await page.locator("#undoChange").click();
+  await expect(page.locator("#backlog")).toBeVisible();
+  await expect(page.locator("#backlog .card")).toHaveCount(0);
+  await page.locator("#saveFile").click();
+  await expect.poll(() => page.evaluate(() => window.__savedMarkdown)).not.toContain("#Backlog");
+});
+
 test("last Workspace feature remains reachable while Backlog is visible", async ({ page }) => {
   const features = Array.from({ length: 5 }, (_, index) => `## Feature ${index + 1}\n### Task ${index + 1}\n- [ ] pending`).join("\n\n");
   await page.setViewportSize({ width: 1000, height: 720 });

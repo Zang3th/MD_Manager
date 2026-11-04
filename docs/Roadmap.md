@@ -120,6 +120,7 @@ Stats und Backlog bleiben davon unberührt.
 - [x] ~Animation für das Highlighting von Suchergebnissen reparieren~
 - [x] ~ToDo-Reihenfolge unter #Info-Block reparieren~
 - [x] ~Archiv-Visualisierung: Arbeit die Montags beginnt braucht Margin~
+- [x] ~Backlog: Toggle funktioniert nicht bei leerem Backlog~
 
 ### Archiv-Zeitstrahl
 
