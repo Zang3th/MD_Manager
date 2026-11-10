@@ -510,7 +510,7 @@ window.MDManager = window.MDManager || {};
     const stats = document.getElementById("projectStats");
     stats.hidden = false;
     stats.innerHTML = statisticsMarkup(project);
-    document.title = `MD_Manager - ${fileName}`;
+    document.title = `${project.title} - ${fileName}`;
     const content = document.getElementById("content");
     if (!regularFeatures.length) {
       content.innerHTML = '<div class="empty start-screen"><p class="recent-files-empty">No features found. At least one level <code>##</code> heading is required.</p></div>';

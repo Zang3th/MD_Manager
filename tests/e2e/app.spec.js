@@ -483,9 +483,9 @@ test("theme toggle switches Gruvbox themes on the start screen and in the app", 
   await expect(toggle).toHaveAttribute("aria-label", "Switch to Light Mode");
 });
 
-test("Markdown import renders features, tasks, progress states, and filename title", async ({ page }) => {
+test("Markdown import renders features, tasks, progress states, and project title", async ({ page }) => {
   await openFixture(page);
-  await expect(page).toHaveTitle("MD_Manager - Fixture.md");
+  await expect(page).toHaveTitle("Test Project - Fixture.md");
   await expect(page.locator("#content > .release")).toHaveCount(2);
   await expect(page.locator("#content .card")).toHaveCount(3);
   await expect(page.locator('.task-in-progress .ui-icon use[href="#icon-progress"]')).toBeVisible();

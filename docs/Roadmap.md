@@ -121,6 +121,7 @@ Stats und Backlog bleiben davon unberührt.
 - [x] ~ToDo-Reihenfolge unter #Info-Block reparieren~
 - [x] ~Archiv-Visualisierung: Arbeit die Montags beginnt braucht Margin~
 - [x] ~Backlog: Toggle funktioniert nicht bei leerem Backlog~
+- [x] ~Titel der Datei anstelle von MD_Manager in Browser-Tab~
 
 ### Archiv-Zeitstrahl
 
