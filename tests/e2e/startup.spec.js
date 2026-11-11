@@ -66,15 +66,15 @@ test("missing local resources block startup with the affected path", async ({ pa
       value: { writeText: async (/** @type {string} */ value) => { window.__copiedStartupError = value; } }
     });
   });
-  await page.route("**/res/logo/Logo.svg", route => route.abort("failed"));
+  await page.route("**/res/logo/icon.svg", route => route.abort("failed"));
   await page.goto(appUrl);
 
   const error = page.locator(".notification-error");
   await expect(error.locator(".notification-title")).toHaveText("Application resources missing");
   await expect(error.locator(".notification-text")).toHaveText("Required application resources are missing. Restore the complete release folder and reload MD_Manager.");
-  await expect(error.locator(".notification-body")).not.toContainText("res/logo/Logo.svg");
+  await expect(error.locator(".notification-body")).not.toContainText("res/logo/icon.svg");
   await error.getByRole("button", { name: "Copy error" }).click();
-  await expect.poll(() => page.evaluate(() => window.__copiedStartupError)).toContain("res/logo/Logo.svg");
+  await expect.poll(() => page.evaluate(() => window.__copiedStartupError)).toContain("res/logo/icon.svg");
   await expect(page.locator("body")).toHaveAttribute("data-startup-state", "blocked");
   await expect(page.locator("#openFile")).toBeDisabled();
 });

@@ -80,7 +80,7 @@ window.MDManager = window.MDManager || {};
     if (!interLoaded) missingResources.push("res/fonts/InterVariable.woff2");
     if (!monoLoaded) missingResources.push("res/fonts/JetBrainsMonoVariable.woff2");
     const logo = document.querySelector(".app-logo");
-    if (!(logo instanceof HTMLImageElement) || !(await imageLoaded(logo))) missingResources.push("res/logo/Logo.svg");
+    if (!(logo instanceof HTMLImageElement) || !(await imageLoaded(logo))) missingResources.push("res/logo/icon.svg");
     document.body.classList.add("fonts-ready");
     if (missingResources.length) {
       startupFailure("Application resources missing", "Required application resources are missing. Restore the complete release folder and reload MD_Manager.", `Required local resources did not load. Restore the complete release folder and open MD_Manager.html directly from that folder. MD_Manager was blocked to prevent inconsistent layout or behavior. Keep the original directory structure unchanged. Missing resources: ${missingResources.join(", ")}.`, "MDM-003");

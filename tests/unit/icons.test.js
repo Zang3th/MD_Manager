@@ -50,17 +50,30 @@ test("local SVG files exactly match every inline icon symbol", () => {
 
 test("all logo references use the local logo directory", () => {
   const render = fs.readFileSync(path.join(root, "ui", "render.js"), "utf8");
-  assert.ok(fs.existsSync(path.join(root, "res", "logo", "Logo.svg")));
-  assert.doesNotMatch(`${html}\n${render}`, /res\/Logo\.svg/);
-  assert.match(html, /res\/logo\/Logo\.svg/);
-  assert.doesNotMatch(render, /res\/logo\/Logo\.svg/);
+  const logoDirectory = path.join(root, "res", "logo");
+  const referenced = [...html.matchAll(/(?:href|src)="(res\/logo\/[^"]+)"/g)].map(match => match[1]);
+  assert.deepEqual(referenced.sort(), [
+    "res/logo/apple-touch-icon.png",
+    "res/logo/favicon.ico",
+    "res/logo/icon.svg",
+    "res/logo/icon.svg",
+    "res/logo/mask-icon.svg",
+    "res/logo/site.webmanifest"
+  ]);
+  for (const file of referenced) assert.ok(fs.existsSync(path.join(root, file)), `${file} exists`);
+  assert.match(html, /<img class="app-logo" src="res\/logo\/icon\.svg"/);
+  assert.doesNotMatch(render, /res\/logo\//);
+  const manifest = JSON.parse(fs.readFileSync(path.join(logoDirectory, "site.webmanifest"), "utf8"));
+  for (const icon of manifest.icons) assert.ok(fs.existsSync(path.join(logoDirectory, icon.src)), `${icon.src} exists`);
 });
 
-test("application logo uses the dark theme palette", () => {
+test("application logo uses the Gruvbox palette", () => {
   const logoDirectory = path.join(root, "res", "logo");
-  const logo = fs.readFileSync(path.join(logoDirectory, "Logo.svg"), "utf8");
-  assert.match(logo, /viewBox="0 0 32 32"/);
-  assert.match(logo, /fill="#282828"/);
-  assert.match(logo, /stroke="#b8bb26"/);
-  assert.match(logo, /stroke="#d79921"/);
+  for (const name of ["icon.svg", "mark.svg", "logo.svg"]) {
+    const logo = fs.readFileSync(path.join(logoDirectory, name), "utf8");
+    assert.match(logo, /<rect[^>]*fill="#fe8019"\/>/, `${name} draws the open cards in Gruvbox orange`);
+    assert.match(logo, /<rect[^>]*fill="#b8bb26" mask=/, `${name} draws the done card in Gruvbox green`);
+  }
+  assert.match(fs.readFileSync(path.join(logoDirectory, "logo.svg"), "utf8"), /fill="#1d2021"/);
+  assert.match(fs.readFileSync(path.join(logoDirectory, "mask-icon.svg"), "utf8"), /currentColor/);
 });

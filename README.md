@@ -1,4 +1,4 @@
-# MD_Manager
+# <img src="res/logo/icon.svg" alt="" height="36"> MD_Manager
 
 <a href="https://github.com/Zang3th/MD_Manager/actions/workflows/verify.yml"><img src="https://img.shields.io/github/actions/workflow/status/Zang3th/MD_Manager/verify.yml?branch=master&amp;label=Build&amp;logo=github" alt="Build status"></a>
 <a href="https://github.com/Zang3th/MD_Manager/releases/latest"><img src="https://img.shields.io/github/v/release/Zang3th/MD_Manager?display_name=tag&amp;sort=semver&amp;label=Latest%20release&amp;logo=markdown&amp;color=blue" alt="Latest release"></a>
@@ -98,7 +98,7 @@ MD_Manager/
 ├── res/
 │   ├── fonts/               # Local interface fonts
 │   ├── icons/               # Deterministic UI symbols
-│   ├── logo/                # Application logo assets
+│   ├── logo/                # Application logo and web icon set
 │   └── screenshots/         # Automated captures and composites
 ├── tests/
 │   ├── e2e/                 # Playwright interaction and layout tests
