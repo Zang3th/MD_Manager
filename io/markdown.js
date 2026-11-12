@@ -1,3 +1,5 @@
+import { dates, markdown as markdownText } from "@zang3th/md-libs/core";
+
 window.MDManager = window.MDManager || {};
 
 (function (app) {
@@ -12,20 +14,8 @@ window.MDManager = window.MDManager || {};
   /** @param {string} markdown */
   function validate(markdown) {
     if (!markdown.trim()) formatError("File contains no Markdown content.");
-    let invalidCharacterIndex = -1;
-    for (let index = 0; index < markdown.length; index += 1) {
-      const code = markdown.charCodeAt(index);
-      if (code <= 8 || code === 11 || code === 12 || (code >= 14 && code <= 31) || code === 127 || code === 0xFFFD) {
-        invalidCharacterIndex = index;
-        break;
-      }
-    }
-    if (invalidCharacterIndex >= 0) {
-      const before = markdown.slice(0, invalidCharacterIndex).replace(/\r\n?/g, "\n");
-      const line = before.split("\n").length;
-      const column = before.length - before.lastIndexOf("\n");
-      formatError(`Unreadable character at column ${column}.`, line);
-    }
+    const invalid = markdownText.invalidCharacter(markdown);
+    if (invalid) formatError(`Unreadable character at column ${invalid.column}.`, invalid.line);
 
     const lines = markdown.replace(/\r\n?/g, "\n").split("\n");
     let projectHeading = 0;
@@ -415,17 +405,7 @@ window.MDManager = window.MDManager || {};
 
   /** @param {string} value @returns {number | null} */
   function archiveDateValue(value) {
-    const source = value.trim();
-    const iso = source.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    const european = source.match(/^(\d{2})\.(\d{2})\.(\d{2}|\d{4})$/);
-    if (!iso && !european) return null;
-    const europeanYear = european?.[3] || "";
-    const year = Number(iso?.[1] || (europeanYear.length === 2 ? `20${europeanYear}` : europeanYear));
-    const month = Number(iso?.[2] || european?.[2]);
-    const day = Number(iso?.[3] || european?.[1]);
-    const time = Date.UTC(year, month - 1, day);
-    const date = new Date(time);
-    return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day ? time : null;
+    return dates.parse(value)?.time ?? null;
   }
 
   /** @param {MDFeature} left @param {MDFeature} right */

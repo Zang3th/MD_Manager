@@ -1,13 +1,10 @@
 {
+  "extends": "./node_modules/@zang3th/md-libs/config/jsconfig.harness.json",
   "compilerOptions": {
-    "allowJs": true,
-    "checkJs": true,
-    "strict": true,
-    "noEmit": true,
-    "target": "ES2022",
-    "module": "CommonJS",
-    "moduleResolution": "Node",
-    "types": ["node", "@playwright/test"]
+    "types": [
+      "node",
+      "@playwright/test"
+    ]
   },
   "include": [
     "tests/**/*.js",
@@ -15,6 +12,5 @@
     "types/harness.d.ts",
     "playwright.config.js",
     "eslint.config.js"
-  ],
-  "exclude": ["vendor", "node_modules", "playwright-report", "test-results", "ai-blueprint"]
+  ]
 }

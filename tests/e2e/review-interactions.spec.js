@@ -119,20 +119,48 @@ const sortingFixture = `# Sorting
 
 /** @param {import("@playwright/test").Page} page @param {{kind: "task" | "feature", sourceFeature: number, task?: number, targetFeature?: number, beforeFeature?: number, beforeTask?: number}} move */
 async function sortableMove(page, move) {
-  await page.evaluate(move => {
-    const feature = document.querySelector(`.release[data-feature="${move.sourceFeature}"]`);
-    const source = move.kind === "feature" ? document.getElementById("content") : feature.querySelector(".board");
-    const item = move.kind === "feature" ? feature : source.querySelector(`.card[data-task="${move.task}"]`);
-    const target = move.kind === "feature" ? source : document.querySelector(`.release[data-feature="${move.targetFeature}"] .board`);
-    const before = move.kind === "feature" ? target.querySelector(`.release[data-feature="${move.beforeFeature}"]`) : move.beforeTask === undefined ? null : target.querySelector(`.card[data-task="${move.beforeTask}"]`);
-    const oldIndex = [...source.children].indexOf(item);
-    /** @type {any} */
-    const sortable = /** @type {any} */ (window).Sortable.get(source);
-    sortable.option("onStart")({ item, from: source });
-    target.insertBefore(item, before);
-    const newIndex = [...target.children].indexOf(item);
-    sortable.option("onEnd")({ item, from: source, to: target, oldIndex, newIndex });
-  }, move);
+  const feature = page.locator(`.release[data-feature="${move.sourceFeature}"]`);
+  const itemSelector = move.kind === "feature" ? "release" : "card";
+  const item = move.kind === "feature" ? feature : feature.locator(`.card[data-task="${move.task}"]`);
+  const handle = move.kind === "feature" ? item.locator(".release-header") : item.locator(".card-header");
+  const target = move.kind === "feature" ? page.locator("#content") : page.locator(`.release[data-feature="${move.targetFeature}"] .board`);
+  const beforeIndex = move.kind === "feature" ? move.beforeFeature : move.beforeTask;
+  const indexAttribute = move.kind === "feature" ? "data-feature" : "data-task";
+  // An item that already sits right before its target, or last in its own list, is dragged away and back.
+  const alreadyPlaced = await item.evaluate((element, beforeIndex) => {
+    const next = element.nextElementSibling;
+    return beforeIndex === null ? false : next?.getAttribute(element.classList.contains("release") ? "data-feature" : "data-task") === String(beforeIndex);
+  }, beforeIndex ?? null);
+  // Moving towards the start of a list places the item before the element under the pointer, moving towards
+  // the end places it after. So the pointer goes onto `before` when moving back, onto the element in front of
+  // `before` when moving forward, and onto the last element (or the empty list) when appending.
+  const destination = await target.evaluate((list, { itemSelector, indexAttribute, beforeIndex, sourceIndex, sameList }) => {
+    const items = [...list.querySelectorAll(`:scope > .${itemSelector}:not(.archived)`)];
+    const beforeElement = beforeIndex === null ? null : items.find(element => element.getAttribute(indexAttribute) === String(beforeIndex)) || null;
+    const source = items.findIndex(element => element.getAttribute(indexAttribute) === String(sourceIndex));
+    const others = items.filter((_, index) => !(sameList && index === source));
+    let element = beforeElement;
+    if (!beforeElement) element = others.at(-1) || null;
+    else if (sameList && source >= 0 && source < items.indexOf(beforeElement)) element = items[items.indexOf(beforeElement) - 1];
+    const box = (element || list).getBoundingClientRect();
+    return { x: box.left + box.width / 2, y: box.top + Math.min(box.height / 2, 40) };
+  }, {
+    itemSelector,
+    indexAttribute,
+    beforeIndex: beforeIndex ?? null,
+    sourceIndex: move.kind === "feature" ? move.sourceFeature : move.task,
+    sameList: move.kind === "feature" || move.sourceFeature === move.targetFeature
+  });
+  const start = await handle.boundingBox();
+  await page.mouse.move(start.x + 12, start.y + start.height / 2);
+  await page.mouse.down();
+  if (alreadyPlaced) {
+    await page.mouse.move(start.x + 12, start.y + start.height / 2 + 20, { steps: 4 });
+    await page.mouse.move(start.x + 12, start.y + start.height / 2, { steps: 4 });
+  } else {
+    await page.mouse.move(destination.x, destination.y, { steps: 16 });
+  }
+  await page.mouse.up();
 }
 
 /** @param {import("@playwright/test").Page} page */

@@ -5,10 +5,12 @@
 - Implement only what is explicitly requested, using the smallest localized solution.
 - Preserve existing and unrelated behavior.
 - Use plain HTML, CSS, and JavaScript.
-- No production frameworks, build tools, package managers, web server, or CDN.
-- Everything must run directly from the local filesystem.
-- SortableJS is the only permitted production dependency and must be stored locally under `vendor/`.
+- No production frameworks, web server, or CDN.
+- The application must run directly from the local filesystem (`file://`).
+- The JavaScript is bundled: esbuild turns `app.js` and everything it imports into one classic script, `dist/app.js`, which is generated and not committed; `npm run build` creates it. No other build tooling, watch mode, or launcher scripts. The move to the shared library MD_Libs (`../MD_Libs`) follows `../MD_Libs/docs/Plan.md`.
+- Production dependencies are SortableJS (its UMD build `sortablejs/Sortable.min.js`) and MD_Libs, both installed through npm. SortableJS has an exact version. MD_Libs always follows its master (`github:Zang3th/MD_Libs#master`); `package-lock.json` pins the commit that `npm ci` installs, so after every MD_Libs push run `npm update @zang3th/md-libs` and commit the lock file.
 - Test-only dependencies and package-manager tooling are permitted.
+- Nothing the user can see or experience may change when code moves into MD_Libs or when the build step is introduced: appearance, texts, interaction, timing, keyboard and drag-and-drop behavior, search results, and the content and handling of files stay identical. Internal structure, interfaces, generalizations, and improvements are allowed as long as that holds. End-to-end assertions and visual baselines stay unchanged and prove it; only test helpers that reached into removed internals may be rewritten to act like a user. Unit tests may follow changed internal interfaces or move into MD_Libs, provided the covered behavior stays covered. End-to-end tests are reduced only with the user's approval.
 - Do not add unrequested features, abstractions, fallbacks, documentation, configuration, or polish.
 - Regression tests for requested product behavior are part of that behavior and do not require a separate request. Add or update the smallest deterministic regression coverage needed for every behavior change, following the Tests section.
 - Follow requirements literally; when ambiguous, choose the simplest interpretation.
@@ -24,7 +26,7 @@
 - `io/` handles local file access and Markdown parsing or serialization only and must not access the DOM.
 - `io/markdown.js` must also remain independent of files and browser APIs.
 - `app.js` wires the layers together.
-- Use classic deferred scripts and one global namespace. Do not introduce ES modules unless explicitly requested.
+- Production files are ES modules that share one global namespace, `window.MDManager`, instead of exporting. Only `app.js` imports production modules, once each, in the order domain, IO, UI; SortableJS is imported only by `app.js` (first, to keep its load order) and `ui/interactions.js`. MD_Libs entry points follow the layers: `domain/` imports `@zang3th/md-libs/core`, `io/` also `/platform`, `ui/` also `/ui`.
 
 ## Layout
 
@@ -73,12 +75,12 @@
 ## Development Harness
 
 - The harness consists of strict TypeScript checking for production and harness JavaScript with JSDoc, ESLint with zero warnings, the workflow doctor, the architecture checker and its regression tests, `node:test`, and Playwright Test.
-- `npm run verify` runs all checks in that order, fails fast, and is the only Definition of Done for local development, agents, and CI.
+- `npm run verify` builds the bundle, runs all checks in that order, fails fast, and is the only Definition of Done for local development, agents, and CI.
 - Keep the harness deterministic, isolated, non-interactive, offline during verification, and independent of machine-specific paths or user state.
 - Treat `data/parsing/Layout.md` as the parsing golden file and preserve the architecture rules.
 - Extend checks and regression coverage with behavior changes; never weaken the harness or remove coverage of intended behavior to make a change pass.
 - Keep production-file discovery recursive so new nested files cannot escape architecture checks or script-wiring validation.
-- Keep production code directly runnable from the local filesystem without installing test dependencies or running a build step.
+- Keep the application runnable from the local filesystem without a server. `npm run build` is the only step needed to build it.
 
 ## Tests
 

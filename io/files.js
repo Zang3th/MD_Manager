@@ -1,117 +1,76 @@
+import { handles, startup, storage } from "@zang3th/md-libs/platform";
+
 window.MDManager = window.MDManager || {};
 
+// Local file access on top of MD_Libs platform/storage (version check, write queue) and
+// platform/handles (recent files in IndexedDB). app.js reaches the files only through this module.
 (function (app) {
-  let writeQueue = Promise.resolve();
-  /** @type {Promise<unknown>} */
-  let recentWriteQueue = Promise.resolve();
+  /** One adapter per handle, so that the writes to a file share one queue. @type {WeakMap<object, import("@zang3th/md-libs/platform").storage.MDLStorageAdapter>} */
+  const adapters = new WeakMap();
+  /** @type {import("@zang3th/md-libs/platform").handles.MDLHandleStore<Omit<MDRecentFile, "id" | "name" | "openedAt" | "handle">> | null} */
+  let recentStore = null;
 
-  /** @param {{lastModified?: number, size?: number}} file */
-  function fileStamp(file) {
-    return `${file.lastModified || 0}:${file.size || 0}`;
+  /** @param {MDFileHandle} handle */
+  function adapter(handle) {
+    let existing = adapters.get(handle);
+    if (!existing) {
+      existing = storage.file(/** @type {any} */ (handle));
+      adapters.set(handle, existing);
+    }
+    return existing;
   }
 
-  /** @returns {Promise<IDBDatabase>} */
-  function openRecentDatabase() {
-    return new Promise((resolve, reject) => {
-      const request = indexedDB.open("MD_Manager", 1);
-      request.onupgradeneeded = () => request.result.createObjectStore("recentFiles", { keyPath: "id" });
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
+  function recentFiles() {
+    recentStore ||= handles.create({ indexedDB, database: "MD_Manager", store: "recentFiles", limit: 5 });
+    return recentStore;
   }
 
   /** @returns {Promise<MDRecentFile[]>} */
   async function recent() {
-    const database = await openRecentDatabase();
-    const entries = await new Promise((resolve, reject) => {
-      const request = database.transaction("recentFiles").objectStore("recentFiles").getAll();
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
-    database.close();
-    return /** @type {MDRecentFile[]} */ (entries).sort((left, right) => right.openedAt - left.openedAt).slice(0, 5);
+    return /** @type {Promise<MDRecentFile[]>} */ (recentFiles().list());
   }
 
   /** @param {MDFileHandle} handle @param {string} [projectTitle] @param {number} [featureWidth] @param {MDViewOptions} [options] @returns {Promise<MDRecentFile>} */
-  async function rememberRecord(handle, projectTitle, featureWidth, options = {}) {
-    const entries = await recent();
-    let existing = null;
-    for (const entry of entries) {
-      if (await entry.handle.isSameEntry(handle)) {
-        existing = entry;
-        break;
-      }
-    }
-    const selectedFeatureWidth = [380, 460, 540].includes(featureWidth || 0) ? featureWidth : existing?.featureWidth;
-    const record = /** @type {MDRecentFile} */ ({
-      id: existing?.id || `${Date.now()}-${Math.random()}`,
-      name: handle.name,
-      projectTitle: projectTitle || existing?.projectTitle || "",
-      openedAt: Date.now(),
-      handle,
-      ...(selectedFeatureWidth ? { featureWidth: selectedFeatureWidth } : {}),
-      showArchived: options.showArchived ?? existing?.showArchived ?? false,
-      showDone: options.showDone ?? existing?.showDone ?? false
-    });
-    const database = await openRecentDatabase();
-    await new Promise((resolve, reject) => {
-      const transaction = database.transaction("recentFiles", "readwrite");
-      const store = transaction.objectStore("recentFiles");
-      store.put(record);
-      entries.filter(entry => entry.id !== record.id).concat(record)
-        .sort((left, right) => right.openedAt - left.openedAt)
-        .slice(5).forEach(entry => store.delete(entry.id));
-      transaction.oncomplete = resolve;
-      transaction.onerror = () => reject(transaction.error);
-    });
-    database.close();
-    return record;
-  }
-
-  /** @param {MDFileHandle} handle @param {string} [projectTitle] @param {number} [featureWidth] @param {MDViewOptions} [options] @returns {Promise<MDRecentFile>} */
-  function remember(handle, projectTitle, featureWidth, options) {
-    const operation = recentWriteQueue.catch(() => {}).then(() => rememberRecord(handle, projectTitle, featureWidth, options));
-    recentWriteQueue = operation.catch(() => {});
-    return operation;
+  function remember(handle, projectTitle, featureWidth, options = {}) {
+    return /** @type {Promise<MDRecentFile>} */ (recentFiles().remember(/** @type {any} */ (handle), existing => {
+      const selectedFeatureWidth = [380, 460, 540].includes(featureWidth || 0) ? featureWidth : existing?.featureWidth;
+      return {
+        projectTitle: projectTitle || existing?.projectTitle || "",
+        ...(selectedFeatureWidth ? { featureWidth: /** @type {380 | 460 | 540} */ (selectedFeatureWidth) } : {}),
+        showArchived: options.showArchived ?? existing?.showArchived ?? false,
+        showDone: options.showDone ?? existing?.showDone ?? false
+      };
+    }));
   }
 
   /** @param {string} id */
-  async function forget(id) {
-    const database = await openRecentDatabase();
-    await new Promise((resolve, reject) => {
-      const transaction = database.transaction("recentFiles", "readwrite");
-      transaction.objectStore("recentFiles").delete(id);
-      transaction.oncomplete = resolve;
-      transaction.onerror = () => reject(transaction.error);
-    });
-    database.close();
+  function forget(id) {
+    return recentFiles().forget(id);
   }
 
   /** @param {MDFileHandle} handle @returns {Promise<MDOpenedFile | null>} */
   async function read(handle) {
-    if (await handle.requestPermission({ mode: "readwrite" }) !== "granted") return null;
-    const file = await handle.getFile();
-    return { handle, markdown: await file.text(), stamp: fileStamp(file) };
+    if (!await storage.ensurePermission(handle, "readwrite", { query: false })) return null;
+    const file = /** @type {{text: string, stamp: string}} */ (await adapter(handle).read(handle.name));
+    return { handle, markdown: file.text, stamp: file.stamp };
   }
 
-  /** @param {MDFileHandle} handle @returns {Promise<{markdown: string, stamp: string}>} */
-  async function inspect(handle) {
-    const file = await handle.getFile();
-    return { markdown: await file.text(), stamp: fileStamp(file) };
+  /** @param {MDFileHandle} handle @returns {Promise<{text: string, stamp: string} | null>} */
+  function inspect(handle) {
+    return adapter(handle).read(handle.name);
   }
 
-  /** @param {MDFileHandle} handle @returns {Promise<string>} */
-  async function stat(handle) {
-    const file = await handle.getFile();
-    return fileStamp(file);
+  /** @param {MDFileHandle} handle @returns {Promise<string | null>} */
+  function stat(handle) {
+    return adapter(handle).stat(handle.name);
   }
 
   async function open() {
-    const handles = await window.showOpenFilePicker({
+    const picked = await window.showOpenFilePicker({
       types: [{ description: "Markdown", accept: { "text/markdown": [".md"] } }],
       multiple: false
     });
-    return read(handles[0]);
+    return read(picked[0]);
   }
 
   /** @returns {Promise<MDOpenedFile>} */
@@ -122,34 +81,22 @@ window.MDManager = window.MDManager || {};
       types: [{ description: "Markdown", accept: { "text/markdown": [".md"] } }]
     });
     const markdown = "# New Project\n";
-    await save(handle, markdown);
-    const file = await handle.getFile();
-    return { handle, markdown, stamp: fileStamp(file) };
+    const stamp = await save(handle, markdown);
+    return { handle, markdown, stamp };
   }
 
-  /** @param {MDFileHandle | null} handle @param {string} markdown @param {string} [expectedMarkdown] */
+  /**
+   * Writes the file; with `expectedMarkdown` only while the file still has that content, otherwise
+   * it rejects with MDLStorageConflictError carrying the content on disk.
+   * @param {MDFileHandle | null} handle @param {string} markdown @param {string} [expectedMarkdown] @returns {Promise<string>}
+   */
   function save(handle, markdown, expectedMarkdown) {
-    if (!handle) return Promise.resolve();
-    const operation = writeQueue.catch(() => {}).then(async () => {
-      if (expectedMarkdown !== undefined) {
-        const inspected = await inspect(handle);
-        if (inspected.markdown !== expectedMarkdown) {
-          throw Object.assign(new Error("The file changed before it could be saved."), { name: "FileConflictError", ...inspected });
-        }
-      }
-      const writable = await handle.createWritable();
-      await writable.write(markdown);
-      await writable.close();
-    });
-    writeQueue = operation.catch(() => {});
-    return operation;
+    if (!handle) return Promise.resolve("");
+    return adapter(handle).write(handle.name, markdown, expectedMarkdown);
   }
 
   function missingFileSystemApis() {
-    const missing = [];
-    if (typeof window.showOpenFilePicker !== "function") missing.push("window.showOpenFilePicker()");
-    if (typeof window.showSaveFilePicker !== "function") missing.push("window.showSaveFilePicker()");
-    return missing;
+    return startup.missingApis({ window, apis: ["showOpenFilePicker()", "showSaveFilePicker()"] });
   }
 
   app.files = { open, createProject, read, stat, inspect, save, recent, remember, forget, missingFileSystemApis };

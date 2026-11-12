@@ -29,9 +29,6 @@ interface Element {
   querySelector<E extends Element = Element>(selectors: string): E;
 }
 
-declare const Sortable: {
-  create(element: Element, options: any): { destroy(): void };
-};
 
 type MDTodo = { type: "todo"; lineIndex: number; checked: boolean; text: string };
 type MDNoteItem = { text: string; indent?: number; paragraph?: boolean };
@@ -57,6 +54,7 @@ type MDFeature = {
 type MDMarkdownWarning = { lineNumber: number; message: string };
 type MDProject = { title: string; newline: string; beforeFeatures: string[]; features: MDFeature[]; warnings: MDMarkdownWarning[]; hasArchive?: boolean; archiveTitle?: string };
 type MDArchiveScale = "day" | "week" | "month" | "year";
+type MDArchiveUnit = import("@zang3th/md-libs/core").dates.MDLPeriodUnit;
 type MDArchiveDate = { value: string; time: number; year: number; month: number; day: number };
 type MDArchiveTickLevel = "major" | "minor";
 type MDArchiveHeaderCell = { label: string; position: number; width: number };
@@ -83,7 +81,6 @@ type MDUndoAction = {
   beforeViewState?: MDViewState;
   afterViewState?: MDViewState;
 };
-type MDUndoEntry = MDUndoAction & { size: number };
 type MDSearchKind = "feature" | "task" | "group" | "todo" | "note" | "text";
 type MDSearchBadge = "feature" | "task" | "group" | "todo" | "info" | "warn" | "text";
 type MDSearchNoteType = "info" | "warn";
@@ -93,7 +90,6 @@ type MDSearchItem = {
   kind: MDSearchKind;
   badge: MDSearchBadge;
   text: string;
-  lower: string;
   featureIndex: number;
   taskIndex: number;
   taskPosition: number;
@@ -104,10 +100,10 @@ type MDSearchItem = {
   state: MDSearchState;
   breadcrumb: string[];
 };
-type MDSearchResult = { item: MDSearchItem; score: number; positions: number[] };
-type MDSearchIndex = { items: MDSearchItem[]; narrow: { query: string; items: MDSearchItem[] } | null };
-type MDUndoSystem = { entries: MDUndoEntry[]; index: number; totalSize: number };
-type MDUndoResult = { label: string; viewState?: MDViewState };
+type MDSearchResult = import("@zang3th/md-libs/core").search.MDLSearchResult<MDSearchItem>;
+type MDSearchIndex = import("@zang3th/md-libs/core").search.MDLSearchIndex<MDSearchItem>;
+type MDHistory = import("@zang3th/md-libs/core").history.MDLHistory<MDUndoAction>;
+type MDSession = import("@zang3th/md-libs/platform").session.MDLSession;
 type MDFileHandle = {
   name: string;
   getFile(): Promise<{text(): Promise<string>; lastModified?: number; size?: number}>;

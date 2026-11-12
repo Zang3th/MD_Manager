@@ -1,3 +1,5 @@
+import { markdown } from "@zang3th/md-libs/core";
+
 window.MDManager = window.MDManager || {};
 
 (function (app) {
@@ -33,14 +35,7 @@ window.MDManager = window.MDManager || {};
     return selectedWidth;
   }
 
-  /** @param {string} value */
-  function escapeHtml(value) {
-    /** @type {Record<string, string>} */
-    const entities = {
-      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;"
-    };
-    return value.replace(/[&<>"']/g, character => entities[character]);
-  }
+  const escapeHtml = markdown.escapeHtml;
 
   /** @param {string} value */
   function inlineCode(value) {
@@ -65,19 +60,12 @@ window.MDManager = window.MDManager || {};
 
   /** @param {string} value */
   function inlineMarkdown(value) {
-    const tokens = /(`([^`\n]+)`|\[([^\]\n]+)]\((https?:\/\/[^\s)]+)\)|\*\*([^*\n]+)\*\*|~([^~\n]+)~|\*([^*\n]+)\*)/g;
-    let markup = "";
-    let offset = 0;
-    for (const match of value.matchAll(tokens)) {
-      markup += escapeHtml(value.slice(offset, match.index));
-      if (match[2] !== undefined) markup += `<code>${inlineCode(match[2])}</code>`;
-      else if (match[3] !== undefined) markup += `<a href="${escapeHtml(match[4])}" target="_blank" rel="noopener noreferrer">${escapeHtml(match[3])}</a>`;
-      else if (match[5] !== undefined) markup += `<strong>${escapeHtml(match[5])}</strong>`;
-      else if (match[6] !== undefined) markup += `<s>${escapeHtml(match[6])}</s>`;
-      else markup += `<em>${escapeHtml(match[7])}</em>`;
-      offset = (match.index || 0) + match[0].length;
-    }
-    return markup + escapeHtml(value.slice(offset));
+    return markdown.inline(value).map(token => {
+      if (token.type === "code") return `<code>${inlineCode(token.text)}</code>`;
+      if (token.type === "link") return `<a href="${escapeHtml(token.href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(token.text)}</a>`;
+      const content = escapeHtml(token.text);
+      return token.type === "strong" ? `<strong>${content}</strong>` : token.type === "strike" ? `<s>${content}</s>` : token.type === "em" ? `<em>${content}</em>` : content;
+    }).join("");
   }
 
   /** @param {{text: string, indent: number, children: Array<*>}[]} items */

@@ -488,7 +488,7 @@ test("Archive scrolling retains partial anchors and closes fully hidden rows wit
   await expect(page.locator('.archive-feature-toggle[aria-expanded="true"]')).toHaveCount(0);
 });
 
-test("Archive is mouse-operated while Workspace shortcuts still work", async ({ page }) => {
+test("Archive is mouse-operated, reports unarchiving and keeps Workspace shortcuts working", async ({ page }) => {
   await open(page, large(48));
   await page.evaluate(() => {
     window.__archiveOpenCalls = window.__archiveSaveCalls = 0;
@@ -497,6 +497,8 @@ test("Archive is mouse-operated while Workspace shortcuts still work", async ({ 
   });
   await page.locator(".archive-swimlane-label").first().click();
   await page.locator(".archive-popover-unarchive").click();
+  await expect(page.locator(".notification-title").last()).toHaveText("Feature unarchived");
+  await expect(page.locator(".notification-body").last()).toHaveText(/^Row \d{3} moved to Workspace\.$/);
   await expect(page.locator(".archive-swimlane-label")).toHaveCount(47);
   await page.locator(".archive-swimlane-label").first().click();
   const popover = page.locator("#archiveFeaturePopover");

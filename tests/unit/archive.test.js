@@ -8,10 +8,11 @@ const span = (from, to) => [{ title: "Span", version: "", dates: [{ from, to }],
 /** @param {string} title @param {Array<{from: string, to: string}>} dates */
 const feature = (title, dates) => ({ title, version: "", dates, tasks: [] });
 
-test("display dates normalize supported source formats without changing metadata", () => {
-  for (const value of ["2026-01-05", "05.01.26", "05.01.2026", " 05.01.26 "]) assert.equal(archive.displayDate(value), "05.01.2026");
-  assert.equal(archive.displayDate("2024-02-29"), "29.02.2024");
-  for (const value of ["2026-02-29", "31.04.26", "TBD", "", "not a date"]) assert.equal(archive.displayDate(value), value);
+// Which formats parse is tested with MD_Libs dates; the archive only shows a parsed date as DD.MM.YYYY
+// and anything else as written.
+test("display dates normalize parsed dates, keep the rest as written and leave metadata unchanged", () => {
+  assert.equal(archive.displayDate("05.01.26"), "05.01.2026");
+  assert.equal(archive.displayDate("TBD"), "TBD");
   const source = feature("Source", [{ from: "05.01.26", to: "2026-01-07" }, { from: "2026-01-08", to: "" }]);
   const before = JSON.stringify(source);
   const timeline = archive.timeline([source]);

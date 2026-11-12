@@ -51,7 +51,8 @@ function checkHarness(root) {
     "tests/e2e/fixtures.js",
     "data/parsing/Layout.md",
     "docs/work/current.md",
-    ".github/workflows/verify.yml"
+    ".github/workflows/verify.yml",
+    ".github/workflows/visual-baselines.yml"
   ];
   /** @param {string} file @param {string} rule @param {string} detail */
   function report(file, rule, detail) {
@@ -69,11 +70,11 @@ function checkHarness(root) {
 
   const packageJson = JSON.parse(source("package.json"));
   const scripts = packageJson.scripts || {};
-  const expectedScripts = ["check:types", "check:types:production", "check:types:harness", "check:lint", "check:doctor", "check:architecture", "test:unit", "test:e2e", "verify"];
+  const expectedScripts = ["build", "check:types", "check:types:production", "check:types:harness", "check:lint", "check:doctor", "check:architecture", "test:unit", "test:e2e", "verify"];
   for (const name of expectedScripts) {
     if (typeof scripts[name] !== "string" || !scripts[name].trim()) report("package.json", "HARNESS-SCRIPTS-001", `required script '${name}' is missing`);
   }
-  const verifyStages = ["npm run check:types", "npm run check:lint", "npm run check:doctor", "npm run check:architecture", "npm run test:unit", "npm run test:e2e"];
+  const verifyStages = ["npm run build", "npm run check:types", "npm run check:lint", "npm run check:doctor", "npm run check:architecture", "npm run test:unit", "npm run test:e2e"];
   let previous = -1;
   for (const stage of verifyStages) {
     const index = String(scripts.verify || "").indexOf(stage);
@@ -94,6 +95,14 @@ function checkHarness(root) {
   const workflow = source(".github/workflows/verify.yml");
   for (const required of ["workflow_call:", "contents: read", "ubuntu-latest", "windows-latest", "macos-latest", "node tools/check-harness.js", "npm ci", "npm run verify"]) {
     if (!workflow.includes(required)) report(".github/workflows/verify.yml", "HARNESS-CI-001", `verification workflow is missing '${required}'`);
+  }
+  // The end-to-end tests load dist/app.js, so the workflow that renders the baselines builds it first.
+  const baselines = source(".github/workflows/visual-baselines.yml");
+  const installStep = baselines.indexOf("npm ci");
+  const buildStep = baselines.indexOf("npm run build");
+  const testStep = baselines.indexOf("npx playwright test");
+  if (installStep === -1 || buildStep < installStep || testStep < buildStep) {
+    report(".github/workflows/visual-baselines.yml", "HARNESS-CI-003", "the visual-baselines workflow must run 'npm ci' and 'npm run build' before Playwright");
   }
   if (/hashFiles\([^\n]*tests\/e2e\/snapshots/.test(workflow)) {
     report(".github/workflows/verify.yml", "HARNESS-CI-002", "snapshot baselines must be validated through tools/check-harness.js instead of a duplicated workflow manifest");

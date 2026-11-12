@@ -1,6 +1,18 @@
+import Sortable from "sortablejs/Sortable.min.js";
+import { keymap, popover as floating, sortable } from "@zang3th/md-libs/ui";
+
 window.MDManager = window.MDManager || {};
 
 (function (app) {
+  /** @param {string} id */
+  const byId = id => /** @type {HTMLElement} */ (document.getElementById(id));
+  /** @param {string} selector */
+  const container = selector => /** @type {HTMLElement} */ (document.querySelector(selector));
+  // Header menus close on a click outside their container; Escape stays in the keymap below, so the
+  // statistics guard applies to it.
+  const viewMenu = floating.create({ window, element: byId("viewOptions"), button: byId("toggleViewMenu"), inside: [container(".view-menu")], escape: false });
+  const saveMenu = floating.create({ window, element: byId("externalActions"), button: byId("saveFile"), inside: [container(".save-menu")], escape: false });
+  const helpMenu = floating.create({ window, element: byId("helpPopover"), button: byId("toggleHelp"), inside: [container(".help-menu")], escape: false });
   /** @typedef {{kind: "task", value: MDTask, source: MDTask, expanded: boolean} | {kind: "feature", value: MDFeature, source: MDFeature, taskExpanded: boolean[], noteExpanded: boolean[]}} ClipboardEntry */
   /** @type {MDProject | null} */
   let project = null;
@@ -113,9 +125,7 @@ window.MDManager = window.MDManager || {};
     const anchor = chartMark.getBoundingClientRect();
     const popup = chartDetails.getBoundingClientRect();
     const bounds = statisticsDialog.getBoundingClientRect();
-    const margin = 12;
-    const left = Math.max(bounds.left + margin, Math.min(anchor.right + 10, bounds.right - popup.width - margin));
-    const top = Math.max(bounds.top + margin, Math.min(anchor.top, bounds.bottom - popup.height - margin));
+    const { left, top } = floating.place(anchor, popup, bounds, { side: "right", gap: 10, margin: 12 });
     chartDetails.style.left = `${Math.round(left)}px`;
     chartDetails.style.top = `${Math.round(top)}px`;
     chartDetails.classList.add("is-positioned");
@@ -696,8 +706,7 @@ window.MDManager = window.MDManager || {};
   }
 
   function closeViewMenu() {
-    document.getElementById("viewOptions").hidden = true;
-    document.getElementById("toggleViewMenu").setAttribute("aria-expanded", "false");
+    viewMenu.close();
   }
 
   /** @param {HTMLElement | null} [except] */
@@ -711,13 +720,11 @@ window.MDManager = window.MDManager || {};
   }
 
   function closeSaveMenu() {
-    document.getElementById("externalActions").hidden = true;
-    document.getElementById("saveFile").setAttribute("aria-expanded", "false");
+    saveMenu.close();
   }
 
   function closeHelp() {
-    document.getElementById("helpPopover").hidden = true;
-    document.getElementById("toggleHelp").setAttribute("aria-expanded", "false");
+    helpMenu.close();
   }
 
   /** @param {boolean} open */
@@ -861,14 +868,12 @@ window.MDManager = window.MDManager || {};
     const popoverContent = popover.querySelector(".archive-feature-popover-content");
     const naturalHeight = popoverBounds.height + (popoverContent ? popoverContent.scrollHeight - popoverContent.clientHeight : 0);
     const margin = 12;
-    const gap = 10;
-    let left = anchorBounds.right + gap;
-    if (left + popoverBounds.width > window.innerWidth - margin) left = anchorBounds.left - popoverBounds.width - gap;
-    left = Math.max(margin, Math.min(left, window.innerWidth - popoverBounds.width - margin));
     // A lane near the bottom has little room below it, so the popover moves up as far as its
     // complete content needs instead of shrinking into a scroll area.
     const fittedHeight = Math.min(naturalHeight, visibleBottom - visibleTop - margin);
-    const top = Math.max(visibleTop, Math.min(anchorBounds.top, visibleBottom - margin - fittedHeight));
+    const { left, top } = floating.place(anchorBounds, { width: popoverBounds.width, height: fittedHeight },
+      { left: 0, right: window.innerWidth, top: visibleTop, bottom: visibleBottom },
+      { side: "right", gap: 10, flip: true, margin: { left: margin, right: margin, bottom: margin } });
     const maximumHeight = Math.max(0, visibleBottom - top - margin);
     popover.style.setProperty("--archive-popover-left", `${Math.round(left)}px`);
     popover.style.setProperty("--archive-popover-top", `${top}px`);
@@ -1210,22 +1215,21 @@ window.MDManager = window.MDManager || {};
     }, 150);
   }
 
+  /** A sortable list with the shared defaults of MD_Libs. @param {Element} element @param {object} options */
+  function createSortable(element, options) {
+    return sortable.create({ Sortable, window, element, options });
+  }
+
   function connectSortable() {
     resetSortables();
     if (!project || document.body.classList.contains("archive-view-active")) return;
     const content = document.getElementById("content");
 
-    sortables.push(Sortable.create(content, {
+    sortables.push(createSortable(content, {
       group: "features",
-      animation: reducedMotion.matches ? 0 : 150,
-      easing: "cubic-bezier(.2,0,0,1)",
       draggable: "> .release:not(.archived)",
       handle: ".release-header",
       filter: ".action-btn",
-      preventOnFilter: false,
-      ghostClass: "sortable-ghost",
-      chosenClass: "sortable-chosen",
-      dragClass: "sortable-drag",
       forceFallback: true,
       fallbackOnBody: true,
       /** @param {any} event */
@@ -1247,8 +1251,7 @@ window.MDManager = window.MDManager || {};
         const fromIndex = Number(event.item.dataset.feature);
         const next = event.item.nextElementSibling;
         const previous = event.item.previousElementSibling;
-        const insertionIndex = next ? Number(next.dataset.feature) : previous ? Number(previous.dataset.feature) + 1 : fromIndex;
-        const toIndex = insertionIndex - (fromIndex < insertionIndex ? 1 : 0);
+        const toIndex = sortable.dropIndex({ fromIndex, next: next ? Number(next.dataset.feature) : null, previous: previous ? Number(previous.dataset.feature) : null, fallback: fromIndex, sameList: true });
         const beforeViewState = dragViewState || captureViewState();
         const afterViewState = captureViewState();
         dragViewState = null;
@@ -1257,18 +1260,12 @@ window.MDManager = window.MDManager || {};
     }));
 
     document.querySelectorAll(`${viewSelectors.releases} .board, #backlog .board`).forEach(board => {
-      sortables.push(Sortable.create(board, {
+      sortables.push(createSortable(board, {
         group: "tasks",
-        animation: reducedMotion.matches ? 0 : 150,
-        easing: "cubic-bezier(.2,0,0,1)",
         draggable: "> .card",
         handle: ".card-header",
         filter: ".action-btn",
-        preventOnFilter: false,
         emptyInsertThreshold: 30,
-        ghostClass: "sortable-ghost",
-        chosenClass: "sortable-chosen",
-        dragClass: "sortable-drag",
         onStart() { dragViewState = captureViewState(); },
         /** @param {any} event */
         onEnd(event) {
@@ -1285,8 +1282,7 @@ window.MDManager = window.MDManager || {};
           const fromIndex = Number(event.item.dataset.task);
           const next = event.item.nextElementSibling;
           const previous = event.item.previousElementSibling;
-          const insertionIndex = next ? Number(next.dataset.task) : previous ? Number(previous.dataset.task) + 1 : project.features[toFeature]?.tasks.length || 0;
-          const toIndex = insertionIndex - (fromFeature === toFeature && fromIndex < insertionIndex ? 1 : 0);
+          const toIndex = sortable.dropIndex({ fromIndex, next: next ? Number(next.dataset.task) : null, previous: previous ? Number(previous.dataset.task) : null, fallback: project.features[toFeature]?.tasks.length || 0, sameList: fromFeature === toFeature });
           const beforeViewState = dragViewState || captureViewState();
           const afterViewState = captureViewState();
           dragViewState = null;
@@ -1298,18 +1294,12 @@ window.MDManager = window.MDManager || {};
     });
 
     document.querySelectorAll(`${viewSelectors.releases} .todo-list, #backlog .todo-list`).forEach(list => {
-      sortables.push(Sortable.create(list, {
+      sortables.push(createSortable(list, {
         group: "todos",
-        animation: reducedMotion.matches ? 0 : 150,
-        easing: "cubic-bezier(.2,0,0,1)",
         draggable: "> .todo-item",
         handle: ".todo-text",
         filter: ".action-btn",
-        preventOnFilter: false,
         emptyInsertThreshold: 30,
-        ghostClass: "sortable-ghost",
-        chosenClass: "sortable-chosen",
-        dragClass: "sortable-drag",
         onStart() {
           setTodoDropPreview(null);
           dragViewState = captureViewState();
@@ -1820,12 +1810,10 @@ window.MDManager = window.MDManager || {};
       app.notifications.show("info", "Feature added", [{ value: draft.title }, " added to \"", { value: projectTitle }, "\"."]);
     }, true);
   });
-  document.getElementById("toggleViewMenu").addEventListener("click", event => {
+  document.getElementById("toggleViewMenu").addEventListener("click", () => {
     closeHelp();
     closeSaveMenu();
-    const options = document.getElementById("viewOptions");
-    options.hidden = !options.hidden;
-    (/** @type {HTMLElement} */ (event.currentTarget)).setAttribute("aria-expanded", String(!options.hidden));
+    viewMenu.toggle();
   });
   document.getElementById("toggleSounds").addEventListener("click", event => {
     const button = /** @type {HTMLButtonElement} */ (event.currentTarget);
@@ -1835,12 +1823,10 @@ window.MDManager = window.MDManager || {};
     button.dataset.tooltip = muted ? "Unmute sounds" : "Mute sounds";
     app.sounds.setMuted(muted);
   });
-  document.getElementById("toggleHelp").addEventListener("click", event => {
+  document.getElementById("toggleHelp").addEventListener("click", () => {
     closeViewMenu();
     closeSaveMenu();
-    const help = document.getElementById("helpPopover");
-    help.hidden = !help.hidden;
-    (/** @type {HTMLElement} */ (event.currentTarget)).setAttribute("aria-expanded", String(!help.hidden));
+    helpMenu.toggle();
   });
   document.getElementById("closeHelp").addEventListener("click", closeHelp);
   const helpTabs = Array.from(document.querySelectorAll("#helpPopover [role='tab']"));
@@ -1898,74 +1884,42 @@ window.MDManager = window.MDManager || {};
       event.stopImmediatePropagation();
     }
   }, true);
-  document.addEventListener("keydown", event => {
-    const shortcut = (event.ctrlKey || event.metaKey) && !event.altKey;
-    if (statisticsDialog.open) {
-      if (shortcut && ["s", "o", "v", "z", "y"].includes(event.key.toLowerCase())) event.preventDefault();
-      return;
-    }
-    const target = eventElement(event);
-    // Focus can linger on a control inside a dialog that has already closed. Such a
-    // control is not an active text field, and treating it as one would swallow every
-    // letter shortcut afterwards.
-    const editsText = target.matches("input,textarea,[contenteditable='true']") && !target.closest("dialog:not([open])");
-    const key = event.key.toLowerCase();
-    const letterShortcut = !event.ctrlKey && !event.metaKey && !event.altKey && !editsText && !document.querySelector("dialog[open]");
-    if (event.key === "Escape") {
-      closeArchiveFeaturePopover(true);
-      closeFeatureMenus();
-      closeViewMenu();
-      closeSaveMenu();
-      closeHelp();
-      closeWorkspaceZoom();
-    }
-    if (shortcut && !event.shiftKey && key === "s") {
-      event.preventDefault();
-      void saveFile();
-    }
-    if (shortcut && !event.shiftKey && key === "o") {
-      event.preventDefault();
-      if (!document.querySelector("#taskEditor[open],#featureEditor[open]")) void openFile?.();
-    }
-    if (shortcut && !editsText && !event.shiftKey && key === "c" && window.getSelection()?.isCollapsed !== false) {
-      if (copyHovered()) event.preventDefault();
-    }
-    if (shortcut && !editsText && !event.shiftKey && key === "v" && clipboard.length && lastPointer) {
-      if (pasteAt(lastPointer)) event.preventDefault();
-    }
-    if (shortcut && !editsText && !event.shiftKey && key === "z") {
-      event.preventDefault();
-      undo?.();
-    }
-    if (shortcut && !editsText && ((event.shiftKey && key === "z") || (!event.metaKey && !event.shiftKey && key === "y"))) {
-      event.preventDefault();
-      redo?.();
-    }
-    if (letterShortcut && key === "a") {
-      event.preventDefault();
-      setView("archive");
-    }
-    if (letterShortcut && key === "w") {
-      event.preventDefault();
-      setView("workspace");
-    }
-    if (letterShortcut && key === "b" && !document.body.classList.contains("archive-view-active") && !document.getElementById("toggleBacklog").disabled) {
-      event.preventDefault();
-      toggleBacklog();
-    }
-    if (letterShortcut && key === "p" && !document.body.classList.contains("archive-view-active")) {
-      event.preventDefault();
-      jumpToPinnedFeature();
-    }
-    if (letterShortcut && key === "s" && !document.body.classList.contains("archive-view-active")) {
-      event.preventDefault();
-      toggleStats();
-    }
-    if (letterShortcut && key === "f") {
-      event.preventDefault();
-      app.searchPalette?.open();
-    }
+  const shortcuts = keymap.create({
+    target: document,
+    // The statistics dialog blocks every shortcut and keeps the browser from acting on the application ones.
+    guard(event) {
+      if (!statisticsDialog.open) return true;
+      if ((event.ctrlKey || event.metaKey) && !event.altKey && ["s", "o", "v", "z", "y"].includes(event.key.toLowerCase())) event.preventDefault();
+      return false;
+    },
+    // Focus can linger on a control inside a dialog that has already closed. Such a control is not an
+    // active text field, and treating it as one would swallow every letter shortcut afterwards.
+    editable: target => keymap.isEditable(target, { selector: "input,textarea,[contenteditable='true']", ignoreClosedDialogs: true })
   });
+  const noDialog = () => !document.querySelector("dialog[open]");
+  const inWorkspace = () => noDialog() && !document.body.classList.contains("archive-view-active");
+  shortcuts.bind("any+escape", () => {
+    closeArchiveFeaturePopover(true);
+    closeFeatureMenus();
+    closeViewMenu();
+    closeSaveMenu();
+    closeHelp();
+    closeWorkspaceZoom();
+  }, { inEditable: true, prevent: false });
+  shortcuts.bind("mod+s", () => { void saveFile(); }, { inEditable: true });
+  shortcuts.bind("mod+o", () => {
+    if (!document.querySelector("#taskEditor[open],#featureEditor[open]")) void openFile?.();
+  }, { inEditable: true });
+  shortcuts.bind("mod+c", () => copyHovered(), { when: () => window.getSelection()?.isCollapsed !== false });
+  shortcuts.bind("mod+v", () => pasteAt(/** @type {{x: number, y: number}} */ (lastPointer)), { when: () => Boolean(clipboard.length && lastPointer) });
+  shortcuts.bind("mod+z", () => { undo?.(); });
+  shortcuts.bind(["mod+shift+z", "ctrl+y"], () => { redo?.(); });
+  shortcuts.bind("shift?+a", () => { setView("archive"); }, { when: noDialog });
+  shortcuts.bind("shift?+w", () => { setView("workspace"); }, { when: noDialog });
+  shortcuts.bind("shift?+b", () => { toggleBacklog(); }, { when: () => inWorkspace() && !(/** @type {HTMLButtonElement} */ (document.getElementById("toggleBacklog"))).disabled });
+  shortcuts.bind("shift?+p", () => { jumpToPinnedFeature(); }, { when: inWorkspace });
+  shortcuts.bind("shift?+s", () => { toggleStats(); }, { when: inWorkspace });
+  shortcuts.bind("shift?+f", () => { app.searchPalette?.open(); }, { when: noDialog });
 
   document.getElementById("toggleMetadata").addEventListener("click", event => {
     const active = document.body.classList.toggle("show-metadata");
@@ -2029,9 +1983,7 @@ window.MDManager = window.MDManager || {};
     }
     closeViewMenu();
     closeHelp();
-    const options = document.getElementById("externalActions");
-    options.hidden = !options.hidden;
-    button.setAttribute("aria-expanded", String(!options.hidden));
+    saveMenu.toggle();
   });
   document.getElementById("undoChange").addEventListener("click", () => undo?.());
   document.getElementById("redoChange").addEventListener("click", () => redo?.());
@@ -2040,9 +1992,6 @@ window.MDManager = window.MDManager || {};
   document.addEventListener("click", event => {
     const target = eventElement(event);
     if (!target.closest(".feature-menu")) closeFeatureMenus();
-    if (!target.closest(".view-menu")) closeViewMenu();
-    if (!target.closest(".save-menu")) closeSaveMenu();
-    if (!target.closest(".help-menu")) closeHelp();
     if (!target.closest(".workspace-zoom")) closeWorkspaceZoom();
     if (!target.closest(".release,.card,.archive-feature,.archive-feature-popover,.task-editor-dialog,.feature-editor-dialog,.statistics-dialog")) {
       hoveredElement = null;
@@ -2051,8 +2000,6 @@ window.MDManager = window.MDManager || {};
   });
 
   app.interactions = {
-    sortableSource: "vendor/Sortable.min.js",
-    sortableReady: typeof Sortable === "function",
     // Reveal helpers the search palette drives. They stay here because this module owns
     // view state, the backlog, and the horizontal scroll arithmetic already.
     navigation: {
@@ -2090,25 +2037,25 @@ window.MDManager = window.MDManager || {};
       reloadExternal = actions.reloadExternal;
       overwriteExternal = actions.overwriteExternal;
     },
-    /** @param {{dirty: boolean, canUndo: boolean, canRedo: boolean, undoLabel: string, redoLabel: string, externalChange: boolean}} state */
+    /** @param {import("@zang3th/md-libs/core").history.MDLControlState} state */
     setUndoSystemState(state) {
       const saveButton = document.getElementById("saveFile");
-      const label = state.externalChange ? "Conflict" : state.dirty ? "Unsaved" : "Saved";
-      const icon = state.externalChange ? "#icon-close" : state.dirty ? "#icon-progress" : "#icon-check";
+      const label = state.save.label;
+      const icon = { conflict: "#icon-close", unsaved: "#icon-progress", saved: "#icon-check" }[state.save.status];
       document.getElementById("saveStateLabel").textContent = label;
       saveButton.querySelector("use").setAttribute("href", icon);
       saveButton.setAttribute("aria-label", label);
       delete saveButton.dataset.tooltip;
-      saveButton.classList.toggle("dirty", state.dirty);
-      saveButton.classList.toggle("conflict", state.externalChange);
+      saveButton.classList.toggle("dirty", state.save.count > 0);
+      saveButton.classList.toggle("conflict", state.save.status === "conflict");
       saveButton.classList.remove("save-error");
       const undoButton = document.getElementById("undoChange");
       const redoButton = document.getElementById("redoChange");
-      undoButton.disabled = !state.canUndo;
-      redoButton.disabled = !state.canRedo;
-      undoButton.dataset.tooltip = state.undoLabel ? `Undo: ${state.undoLabel}` : "Undo";
-      redoButton.dataset.tooltip = state.redoLabel ? `Redo: ${state.redoLabel}` : "Redo";
-      if (!state.externalChange) closeSaveMenu();
+      undoButton.disabled = state.undo.disabled;
+      redoButton.disabled = state.redo.disabled;
+      undoButton.dataset.tooltip = state.undo.label;
+      redoButton.dataset.tooltip = state.redo.label;
+      if (state.save.status !== "conflict") closeSaveMenu();
     }
   };
 })(window.MDManager);

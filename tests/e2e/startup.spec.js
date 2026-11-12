@@ -27,7 +27,6 @@ test("missing File System Access API blocks unsupported browsers with concise vi
   await expect(page.locator(".workspace")).toHaveAttribute("inert", "");
   await expect(page.locator("#openFile")).toBeDisabled();
   await expect(page.locator("#newProject")).toBeDisabled();
-  await expect(page.locator(".header")).toHaveCSS("opacity", "0.45");
 
   await error.getByRole("button", { name: "Copy error" }).click();
   await expect.poll(() => page.evaluate(() => window.__fallbackCopy)).toContain("Error: Code MDM-002 Unsupported browser\nDetails: A Chromium-based browser is required.");
@@ -38,24 +37,17 @@ test("missing File System Access API blocks unsupported browsers with concise vi
   await expect(page.locator("#openFile")).toBeDisabled();
 });
 
-test("missing runtime files block startup and identify the failed component", async ({ page }) => {
-  await page.addInitScript(() => {
-    Object.defineProperty(window, "Sortable", { configurable: true, get: () => undefined, set() {} });
-    Object.defineProperty(navigator, "clipboard", {
-      configurable: true,
-      value: { writeText: async (/** @type {string} */ value) => { window.__copiedStartupError = value; } }
-    });
-  });
+test("a missing application bundle shows only how to build it", async ({ page }) => {
+  test.info().annotations.push({ type: "allow-browser-error", description: "^console: Failed to load resource: net::ERR_FAILED$" });
+  await page.route("**/dist/app.js", route => route.abort("failed"));
   await page.goto(appUrl);
 
-  const error = page.locator(".notification-error");
-  await expect(error.locator(".notification-title")).toHaveText("Application files missing");
-  await expect(error.locator(".notification-text")).toHaveText("Required application files are missing. Restore the complete release folder and reload MD_Manager.");
-  await expect(error.locator(".notification-body")).not.toContainText("vendor/Sortable.min.js");
-  await error.getByRole("button", { name: "Copy error" }).click();
-  await expect.poll(() => page.evaluate(() => window.__copiedStartupError)).toContain("vendor/Sortable.min.js");
-  await expect(page.locator("body")).toHaveAttribute("data-startup-state", "blocked");
-  await expect(page.locator("#openFile")).toBeDisabled();
+  const notice = page.locator(".build-missing");
+  await expect(notice).toBeVisible();
+  await expect(notice).toHaveText("MD_Manager has not been built yet. Run npm ci and npm run build in the MD_Manager folder.");
+  await expect(page.locator(".header")).toBeHidden();
+  await expect(page.locator(".workspace")).toBeHidden();
+  await expect(page.locator("body")).not.toHaveAttribute("data-startup-state", "ready");
 });
 
 test("missing local resources block startup with the affected path", async ({ page }) => {

@@ -1,44 +1,42 @@
+// Entry point of the bundle (see README.md): the imports replace the former script tags and keep
+// their order: SortableJS, domain, IO, UI, then this file.
+import "sortablejs/Sortable.min.js";
+import { history } from "@zang3th/md-libs/core";
+import { audio, session, startup } from "@zang3th/md-libs/platform";
+import { tooltips } from "@zang3th/md-libs/ui";
+import "./domain/project.js";
+import "./domain/status.js";
+import "./domain/search.js";
+import "./io/markdown.js";
+import "./io/templates.js";
+import "./io/files.js";
+import "./ui/theme.js";
+import "./ui/layout.js";
+import "./ui/render.js";
+import "./ui/editor.js";
+import "./ui/notifications.js";
+import "./ui/interactions.js";
+import "./ui/search.js";
+
 window.MDManager = window.MDManager || {};
 
 /** @param {any} app */
 (function (app) {
-  const requiredComponents = /** @type {Array<[string, () => boolean]>} */ ([
-    ...(app.interactions ? [[app.interactions.sortableSource, () => app.interactions.sortableReady === true]] : []),
-    ["domain/project.js", () => Boolean(app.domain)],
-    ["domain/history.js", () => Boolean(app.undoSystem)],
-    ["domain/status.js", () => Boolean(app.status)],
-    ["domain/search.js", () => Boolean(app.search)],
-    ["io/markdown.js", () => Boolean(app.markdown)],
-    ["io/templates.js", () => Boolean(app.templates)],
-    ["io/files.js", () => Boolean(app.files)],
-    ["ui/tooltips.js", () => Boolean(app.tooltips)],
-    ["ui/theme.js", () => Boolean(app.theme)],
-    ["ui/layout.js", () => Boolean(app.layout)],
-    ["ui/render.js", () => Boolean(app.render)],
-    ["ui/editor.js", () => Boolean(app.editor)],
-    ["ui/notifications.js", () => Boolean(app.notifications)],
-    ["ui/sounds.js", () => Boolean(app.sounds)],
-    ["ui/interactions.js", () => Boolean(app.interactions)],
-    ["ui/search.js", () => Boolean(app.searchPalette)]
-  ]);
+  tooltips.create({ window, element: document.getElementById("appTooltip") });
 
-  /** @param {HTMLImageElement} image */
-  function imageLoaded(image) {
-    if (image.complete) return Promise.resolve(image.naturalWidth > 0);
-    return new Promise(resolve => {
-      image.addEventListener("load", () => resolve(true), { once: true });
-      image.addEventListener("error", () => resolve(false), { once: true });
-    });
-  }
-
-  /** @param {string} font */
-  async function fontLoaded(font) {
-    try {
-      return (await document.fonts.load(font)).length > 0;
-    } catch {
-      return false;
-    }
-  }
+  // Completion sound, played with MD_Libs platform/audio: two upward octave sweeps.
+  /** @type {import("@zang3th/md-libs/platform").audio.MDLSound} */
+  const completionSound = {
+    gain: .12,
+    dry: .8,
+    wet: .2,
+    voices: [
+      { start: 0, points: [{ time: 0, frequency: 65.41 }, { time: .085, frequency: 130.81 }], attack: .01, hold: .13, release: .255, gain: .9 },
+      { start: .22, points: [{ time: 0, frequency: 196 }, { time: .07, frequency: 392 }], attack: .02, hold: .16, release: .305, gain: 1 }
+    ]
+  };
+  const synth = audio.create({ window, AudioContext });
+  app.sounds = { play: () => synth.play(completionSound), setMuted: synth.setMuted, isMuted: synth.isMuted };
 
   /** @param {string} title @param {string} message @param {string} copyMessage @param {string} errorCode */
   function startupFailure(title, message, copyMessage, errorCode) {
@@ -57,13 +55,6 @@ window.MDManager = window.MDManager || {};
   }
 
   async function initialize() {
-    const missingComponents = requiredComponents.filter(([, available]) => !available()).map(([file]) => file);
-    if (missingComponents.length) {
-      document.body.classList.add("fonts-ready");
-      startupFailure("Application files missing", "Required application files are missing. Restore the complete release folder and reload MD_Manager.", `Required application files are missing. Restore the complete release folder and open MD_Manager.html directly from that folder. MD_Manager was blocked to prevent incomplete operation. Keep the original directory structure unchanged. Missing components: ${missingComponents.join(", ")}.`, "MDM-001");
-      return;
-    }
-
     const missingApis = app.files.missingFileSystemApis();
     if (missingApis.length) {
       document.body.classList.add("fonts-ready");
@@ -71,16 +62,15 @@ window.MDManager = window.MDManager || {};
       return;
     }
 
-    const missingResources = [];
-    if (!getComputedStyle(document.documentElement).getPropertyValue("--bg-primary").trim()) missingResources.push("styles.css");
-    const [interLoaded, monoLoaded] = await Promise.all([
-      fontLoaded('400 14px "Inter"'),
-      fontLoaded('400 14px "JetBrains Mono"')
-    ]);
-    if (!interLoaded) missingResources.push("res/fonts/InterVariable.woff2");
-    if (!monoLoaded) missingResources.push("res/fonts/JetBrainsMonoVariable.woff2");
-    const logo = document.querySelector(".app-logo");
-    if (!(logo instanceof HTMLImageElement) || !(await imageLoaded(logo))) missingResources.push("res/logo/icon.svg");
+    const missingResources = await startup.missingResources({
+      document,
+      styles: { token: "--bg-primary", file: "styles.css" },
+      fonts: [
+        { font: '400 14px "Inter"', file: "res/fonts/InterVariable.woff2" },
+        { font: '400 14px "JetBrains Mono"', file: "res/fonts/JetBrainsMonoVariable.woff2" }
+      ],
+      images: [{ image: document.querySelector(".app-logo"), file: "res/logo/icon.svg" }]
+    });
     document.body.classList.add("fonts-ready");
     if (missingResources.length) {
       startupFailure("Application resources missing", "Required application resources are missing. Restore the complete release folder and reload MD_Manager.", `Required local resources did not load. Restore the complete release folder and open MD_Manager.html directly from that folder. MD_Manager was blocked to prevent inconsistent layout or behavior. Keep the original directory structure unchanged. Missing resources: ${missingResources.join(", ")}.`, "MDM-003");
@@ -98,26 +88,21 @@ window.MDManager = window.MDManager || {};
   let fileHandle = null;
   /** @type {MDRecentFile[]} */
   let recentFiles = [];
-  /** @type {MDUndoSystem | null} */
+  /** @type {MDHistory | null} */
   let undoSystem = null;
-  let diskMarkdown = "";
-  let diskStamp = "";
+  /** Saving and external-change handling of the open file (MD_Libs platform/session). @type {MDSession | null} */
+  let fileSession = null;
   let serializedMarkdown = "";
-  let savedMarkdown = "";
   let featureWidth = 380;
   /** @type {Required<MDViewOptions>} */
   let viewOptions = { showArchived: false, showDone: false };
-  /** @type {{markdown: string, stamp: string} | null} */
-  let externalChange = null;
-  let fileSession = 0;
-  let fileOperationRevision = 0;
-  /** @type {{session: number, revision: number} | null} */
-  let checkingExternal = null;
-  /** @typedef {{session: number, handle: MDFileHandle, promise: Promise<void>, again: boolean, force: boolean}} SaveRequest */
-  /** @type {SaveRequest | null} */
-  let pendingSave = null;
-  let lastExternalContentCheck = 0;
-  let lastExternalCheckError = "";
+
+  /** @type {import("@zang3th/md-libs/core").history.MDLControlStrings} */
+  const controlStrings = {
+    undo: label => label ? `Undo: ${label}` : "Undo",
+    redo: label => label ? `Redo: ${label}` : "Redo",
+    save: status => status === "conflict" ? "Conflict" : status === "unsaved" ? "Unsaved" : "Saved"
+  };
 
   /** @param {MDViewState} [viewState] */
   function render(viewState) {
@@ -134,14 +119,12 @@ window.MDManager = window.MDManager || {};
   }
 
   function updateUndoSystemControls() {
-    app.interactions.setUndoSystemState({
-      dirty: Boolean(undoSystem) && serializedMarkdown !== savedMarkdown,
-      canUndo: Boolean(undoSystem) && app.undoSystem.canUndo(undoSystem),
-      canRedo: Boolean(undoSystem) && app.undoSystem.canRedo(undoSystem),
-      undoLabel: undoSystem ? app.undoSystem.undoLabel(undoSystem) : "",
-      redoLabel: undoSystem ? app.undoSystem.redoLabel(undoSystem) : "",
-      externalChange: Boolean(externalChange)
-    });
+    app.interactions.setUndoSystemState(history.controls({
+      history: undoSystem,
+      unsaved: fileSession?.unsaved ?? 0,
+      conflict: Boolean(fileSession?.hasConflict),
+      strings: controlStrings
+    }));
   }
 
   /** @param {MDProject} activeProject */
@@ -155,11 +138,6 @@ window.MDManager = window.MDManager || {};
   function formatErrorBody(error) {
     const lineNumber = /** @type {Error & {lineNumber?: number}} */ (error).lineNumber || 1;
     return `Line ${lineNumber}: ${error.message}`;
-  }
-
-  /** @param {unknown} error */
-  function isMissingFile(error) {
-    return typeof error === "object" && error !== null && /** @type {{name?: unknown}} */ (error).name === "NotFoundError";
   }
 
   /** @param {number | undefined} width */
@@ -189,7 +167,7 @@ window.MDManager = window.MDManager || {};
   /** @param {MDUndoAction} action @param {{render?: boolean}} [options] @returns {boolean} */
   function executeAction(action, options = {}) {
     if (!undoSystem) return false;
-    const changed = app.undoSystem.execute(undoSystem, action);
+    const changed = undoSystem.execute(action);
     if (!changed) {
       updateUndoSystemControls();
       return false;
@@ -201,122 +179,74 @@ window.MDManager = window.MDManager || {};
     return true;
   }
 
-  /** @param {{markdown: string, stamp: string}} inspected */
-  function applyExternalInspection(inspected) {
-    if (!fileHandle) return;
-    if (inspected.markdown === diskMarkdown) {
-      diskStamp = inspected.stamp;
-      if (externalChange) {
-        externalChange = null;
-        updateUndoSystemControls();
+  /**
+   * The open file as a storage adapter. It calls app.files at call time, so the file access stays replaceable.
+   * @param {MDFileHandle} handle
+   * @returns {import("@zang3th/md-libs/platform").storage.MDLStorageAdapter}
+   */
+  function fileAdapter(handle) {
+    return {
+      name: handle.name,
+      canCheck: typeof handle.getFile === "function",
+      list: async () => [handle.name],
+      read: () => app.files.inspect(handle),
+      stat: () => app.files.stat(handle),
+      write: async (_name, markdown, expected) => {
+        await app.files.save(handle, markdown, expected);
+        return "";
       }
-      return;
-    }
-    if (externalChange?.markdown === inspected.markdown) return;
-    externalChange = inspected;
-    updateUndoSystemControls();
-    app.notifications.show("warning", "File changed externally", [{ value: fileHandle.name }, " changed on disk. Choose Reload or Overwrite."]);
+    };
   }
 
-  /** @param {unknown} error @param {MDFileHandle} handle */
-  function reportFileCheckError(error, handle) {
-    if (isMissingFile(error)) {
-      const errorKey = `deleted:${handle.name}`;
-      if (errorKey !== lastExternalCheckError) {
-        lastExternalCheckError = errorKey;
-        externalChange = null;
-        updateUndoSystemControls();
-        app.notifications.show("error", "File deleted", [{ value: handle.name }, " was deleted from disk. Your work remains open."], undefined, [{ value: handle.name }, " was deleted from disk. Your work remains open."], "MDM-102");
-      }
-    } else if (error instanceof Error && error.message !== lastExternalCheckError) {
-      lastExternalCheckError = error.message;
-      app.notifications.show("error", "File check", "External file changes could not be checked.", undefined, `External changes could not be checked: ${error.message}`, "MDM-103");
-    }
+  /** Parses changed Markdown from disk into a new project with a new undo system. @param {string | null} markdown */
+  function loadProject(markdown) {
+    const reloadedProject = app.markdown.parse(markdown ?? "");
+    project = reloadedProject;
+    serializedMarkdown = app.markdown.serialize(reloadedProject);
+    undoSystem = history.create();
   }
 
-  /** @param {SaveRequest} request @param {boolean} force */
-  async function saveRevision(request, force) {
-    if (request.session !== fileSession) return;
-    if (externalChange && !force) {
+  /** @param {MDFileHandle} handle @param {{text: string, stamp: string}} opened */
+  function startSession(handle, opened) {
+    fileSession?.destroy();
+    const started = session.create({
+      adapter: fileAdapter(handle),
+      files: { [handle.name]: { serialize: () => serializedMarkdown, load: loadProject } },
+      initial: { [handle.name]: opened },
+      window
+    });
+    started.on("change", updateUndoSystemControls);
+    started.on("conflict", () => {
+      app.notifications.show("warning", "File changed externally", [{ value: handle.name }, " changed on disk. Choose Reload or Overwrite."]);
+    });
+    started.on("blocked", () => {
       app.notifications.show("warning", "File changed externally", "Choose Reload or Overwrite before saving.");
-      return;
-    }
-    if (!force && serializedMarkdown === savedMarkdown) return;
-    const markdown = serializedMarkdown;
-    const handle = request.handle;
-    fileOperationRevision++;
-    try {
-      await app.files.save(handle, markdown, !force && typeof handle.getFile === "function" ? diskMarkdown : undefined);
-    } catch (error) {
-      if (request.session !== fileSession) return;
-      if (error instanceof Error && error.name === "FileConflictError") {
-        applyExternalInspection(/** @type {Error & {markdown: string, stamp: string}} */ (error));
-        return;
-      }
-      throw error;
-    }
-    if (request.session !== fileSession) return;
-    fileOperationRevision++;
-    diskMarkdown = markdown;
-    diskStamp = "";
-    externalChange = null;
-    savedMarkdown = markdown;
-    if (typeof handle.getFile === "function") {
-      try {
-        const inspected = await app.files.inspect(handle);
-        if (request.session !== fileSession) return;
-        lastExternalContentCheck = Date.now();
-        lastExternalCheckError = "";
-        applyExternalInspection(inspected);
-      } catch (error) {
-        if (request.session !== fileSession) return;
-        reportFileCheckError(error, handle);
-      }
-    }
-    updateUndoSystemControls();
-    app.notifications.show("info", "File saved", [{ value: handle.name }, " saved."]);
+    });
+    started.on("saved", ({ files }) => {
+      if (files.length) app.notifications.show("info", "File saved", [{ value: handle.name }, " saved."]);
+    });
+    started.on("checkError", ({ error, deleted }) => {
+      if (deleted) app.notifications.show("error", "File deleted", [{ value: handle.name }, " was deleted from disk. Your work remains open."], undefined, [{ value: handle.name }, " was deleted from disk. Your work remains open."], "MDM-102");
+      else app.notifications.show("error", "File check", "External changes could not be checked.", undefined, `External changes could not be checked: ${/** @type {Error} */ (error).message}`, "MDM-103");
+    });
+    fileSession = started;
   }
 
   /** @param {boolean} [force] @returns {Promise<void>} */
   function save(force = false) {
-    if (!project || !fileHandle || !undoSystem) return Promise.resolve();
-    if (pendingSave?.session === fileSession) {
-      pendingSave.again = true;
-      pendingSave.force ||= force;
-      return pendingSave.promise;
-    }
-    const request = { session: fileSession, handle: fileHandle, promise: Promise.resolve(), again: false, force };
-    pendingSave = request;
-    request.promise = (async () => {
-      do {
-        request.again = false;
-        const overwrite = request.force;
-        request.force = false;
-        await saveRevision(request, overwrite);
-      } while (request.again && request.session === fileSession);
-    })().finally(() => {
-      if (pendingSave === request) pendingSave = null;
-    });
-    return request.promise;
+    if (!project || !fileHandle || !undoSystem || !fileSession) return Promise.resolve();
+    return fileSession.save(force);
   }
 
   /** @param {MDOpenedFile | null} opened @param {MDRecentFile} [remembered] */
   async function useOpenedFile(opened, remembered) {
     if (!opened) return;
     const openedProject = app.markdown.parse(opened.markdown);
-    fileSession++;
-    fileOperationRevision++;
-    checkingExternal = null;
-    lastExternalContentCheck = 0;
-    lastExternalCheckError = "";
     fileHandle = opened.handle;
     project = openedProject;
     serializedMarkdown = app.markdown.serialize(openedProject);
-    savedMarkdown = serializedMarkdown;
-    diskMarkdown = opened.markdown;
-    diskStamp = opened.stamp || "";
-    externalChange = null;
-    undoSystem = app.undoSystem.create();
+    undoSystem = history.create();
+    startSession(opened.handle, { text: opened.markdown, stamp: opened.stamp || "" });
     featureWidth = normalizedFeatureWidth(remembered?.featureWidth);
     viewOptions = { showArchived: Boolean(remembered?.showArchived), showDone: Boolean(remembered?.showDone) };
     render();
@@ -326,48 +256,14 @@ window.MDManager = window.MDManager || {};
     rememberOpenedFile();
   }
 
-  async function checkExternalChange() {
-    if (!fileHandle || typeof fileHandle.getFile !== "function" || checkingExternal?.session === fileSession || pendingSave?.session === fileSession) return;
-    const handle = fileHandle;
-    const check = { session: fileSession, revision: fileOperationRevision };
-    checkingExternal = check;
-    const current = () => check.session === fileSession && check.revision === fileOperationRevision;
-    try {
-      const stamp = await app.files.stat(handle);
-      if (!current()) return;
-      lastExternalCheckError = "";
-      const now = Date.now();
-      if (diskStamp && stamp !== "0:0" && stamp === diskStamp && now - lastExternalContentCheck < 30000) return;
-      const inspected = await app.files.inspect(handle);
-      if (!current()) return;
-      lastExternalContentCheck = now;
-      applyExternalInspection(inspected);
-    } catch (error) {
-      if (current()) reportFileCheckError(error, handle);
-    } finally {
-      if (checkingExternal === check) checkingExternal = null;
-    }
-  }
-
   async function reloadExternal() {
-    if (!externalChange || !fileHandle) return false;
+    if (!fileSession?.hasConflict || !fileHandle) return false;
     try {
       const viewState = app.interactions.getViewState();
-      const reloadedProject = app.markdown.parse(externalChange.markdown);
-      fileSession++;
-      fileOperationRevision++;
-      checkingExternal = null;
-      lastExternalCheckError = "";
-      project = reloadedProject;
-      serializedMarkdown = app.markdown.serialize(reloadedProject);
-      savedMarkdown = serializedMarkdown;
-      diskMarkdown = externalChange.markdown;
-      diskStamp = externalChange.stamp;
-      externalChange = null;
-      undoSystem = app.undoSystem.create();
+      fileSession.reload();
       render(viewState);
       app.notifications.show("info", "File reloaded", [{ value: fileHandle.name }, " reloaded from disk."]);
-      showMarkdownWarnings(reloadedProject);
+      showMarkdownWarnings(/** @type {MDProject} */ (project));
       return true;
     } catch (error) {
       if (!(error instanceof Error)) throw error;
@@ -378,7 +274,7 @@ window.MDManager = window.MDManager || {};
   }
 
   async function overwriteExternal() {
-    if (!externalChange) return false;
+    if (!fileSession?.hasConflict) return false;
     await save(true);
     return true;
   }
@@ -435,7 +331,7 @@ window.MDManager = window.MDManager || {};
     save,
     undo() {
       if (!undoSystem) return;
-      const result = app.undoSystem.undo(undoSystem);
+      const result = undoSystem.undo();
       if (result) {
         serializedMarkdown = currentMarkdown();
         app.interactions.clearClipboard();
@@ -444,7 +340,7 @@ window.MDManager = window.MDManager || {};
     },
     redo() {
       if (!undoSystem) return;
-      const result = app.undoSystem.redo(undoSystem);
+      const result = undoSystem.redo();
       if (result) {
         serializedMarkdown = currentMarkdown();
         render(result.viewState);
@@ -464,12 +360,6 @@ window.MDManager = window.MDManager || {};
     render(viewState);
     rememberOpenedFile();
   });
-
-  window.addEventListener("focus", () => { void checkExternalChange(); });
-  document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) void checkExternalChange();
-  });
-  window.setInterval(() => { if (!document.hidden) void checkExternalChange(); }, 2000);
 
   app.files.recent().then((/** @type {MDRecentFile[]} */ entries) => {
     recentFiles = entries;

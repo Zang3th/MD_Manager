@@ -1,163 +1,70 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const path = require("node:path");
-const vm = require("node:vm");
+const fakes = require("@zang3th/md-libs/harness/testing");
+const { loadWithGlobals } = require("./load-classic");
 
+// Storage, write queue, conflicts and the recent-files store are tested in MD_Libs; these tests cover
+// what MD_Manager adds: pickers, permissions and the per-file data kept with a recent file.
 function loadFiles() {
-  const records = new Map();
-  let now = 0;
-  /** @type {any} */
-  const database = {
-    createObjectStore() {},
-    close() {},
-    transaction() {
-      /** @type {any} */
-      const transaction = {
-        objectStore() {
-          return {
-            getAll() {
-              /** @type {any} */
-              const request = {};
-              queueMicrotask(() => { request.result = [...records.values()]; request.onsuccess(); });
-              return request;
-            },
-            put(/** @type {any} */ record) {
-              records.set(record.id, record);
-              queueMicrotask(() => transaction.oncomplete());
-            },
-            delete(/** @type {string} */ id) {
-              records.delete(id);
-              queueMicrotask(() => transaction.oncomplete());
-            }
-          };
-        }
-      };
-      return transaction;
-    }
-  };
-  /** @type {any} */
-  const indexedDB = {
-    open() {
-      /** @type {any} */
-      const request = {};
-      queueMicrotask(() => {
-        request.result = database;
-        if (records.size === 0) request.onupgradeneeded();
-        request.onsuccess();
-      });
-      return request;
-    }
-  };
-  const context = vm.createContext({ window: { MDManager: {} }, indexedDB, queueMicrotask, Date: { now: () => ++now } });
-  const source = fs.readFileSync(path.join(__dirname, "../../io/files.js"), "utf8");
-  vm.runInContext(source, context, { filename: "io/files.js" });
-  return { files: context.window.MDManager.files, records, window: context.window };
+  const window = loadWithGlobals({ indexedDB: fakes.indexedDB() }, "io/files.js");
+  return { files: window.MDManager.files, window };
 }
 
-test("save serializes writes", async () => {
-  const { files } = loadFiles();
-  /** @type {string[]} */
-  const events = [];
-  const handle = {
-    async createWritable() {
-      return {
-        async write(/** @type {string} */ value) { events.push(`write:${value}`); },
-        async close() { events.push("close"); }
-      };
-    }
-  };
-  await Promise.all([files.save(handle, "one"), files.save(handle, "two")]);
-  assert.deepEqual(events, ["write:one", "close", "write:two", "close"]);
-});
-
-test("a failed save does not block the next save", async () => {
-  const { files } = loadFiles();
-  await assert.rejects(files.save({ async createWritable() { throw new Error("failed"); } }, "one"));
-  let written = "";
-  await files.save({ async createWritable() { return { async write(/** @type {string} */ value) { written = value; }, async close() {} }; } }, "two");
-  assert.equal(written, "two");
-});
-
-test("read and open respect permissions and selected handles", async () => {
+test("read and open request write permission and use the selected handle", async () => {
   const { files, window } = loadFiles();
-  const granted = { async requestPermission() { return "granted"; }, async getFile() { return { async text() { return "# Project"; } }; } };
-  const denied = { async requestPermission() { return "denied"; } };
-  assert.equal(await files.read(denied), null);
+  const disk = fakes.fileSystem({ "Project.md": "# Project" });
+  const granted = disk.fileHandle("Project.md");
+  assert.equal(await files.read({ async requestPermission() { return "denied"; } }), null);
   window.showOpenFilePicker = async () => [granted];
   const opened = await files.open();
   assert.equal(opened.handle, granted);
   assert.equal(opened.markdown, "# Project");
+  assert.equal(disk.hooks.requests, 1);
 });
 
 test("createProject writes a minimal Markdown project through the save picker", async () => {
   const { files, window } = loadFiles();
+  const disk = fakes.fileSystem({ "Project.md": "" });
+  const handle = disk.fileHandle("Project.md");
+  /** @type {any} */
   let pickerOptions = null;
-  let written = "";
-  const handle = {
-    name: "Project.md",
-    async createWritable() {
-      return { async write(/** @type {string} */ value) { written = value; }, async close() {} };
-    },
-    async getFile() { return { lastModified: 7, size: written.length }; }
-  };
   window.showSaveFilePicker = async (/** @type {any} */ options) => { pickerOptions = options; return handle; };
   const opened = await files.createProject();
 
-  assert.equal(/** @type {any} */ (pickerOptions).suggestedName, "Project.md");
-  assert.equal(/** @type {any} */ (pickerOptions).id, "md-manager-files");
-  assert.equal(written, "# New Project\n");
+  assert.equal(pickerOptions.suggestedName, "Project.md");
+  assert.equal(pickerOptions.id, "md-manager-files");
+  assert.equal(disk.text("Project.md"), "# New Project\n");
   assert.equal(opened.handle, handle);
-  assert.equal(opened.markdown, written);
-});
-
-test("recent entries are sorted, deduplicated, limited, and removable", async () => {
-  const { files, records } = loadFiles();
-  for (let index = 0; index < 6; index++) {
-    const handle = { name: `${index}.md`, async isSameEntry(/** @type {{name: string}} */ other) { return other.name === this.name; } };
-    await files.remember(handle);
-  }
-  const recent = await files.recent();
-  assert.equal(recent.length, 5);
-  assert.equal(recent[0].name, "5.md");
-  const newestId = recent[0].id;
-  await files.remember({ name: "5.md", async isSameEntry(/** @type {{name: string}} */ other) { return other.name === this.name; } }, "Project Five");
-  assert.equal(records.size, 5);
-  assert.equal((await files.recent())[0].projectTitle, "Project Five");
-  await files.forget(newestId);
-  assert.equal(records.has(newestId), false);
+  assert.equal(opened.markdown, "# New Project\n");
+  assert.equal(opened.stamp, (await files.inspect(handle)).stamp);
 });
 
 test("recent entries persist the last valid feature-card width per file", async () => {
-  const { files, records } = loadFiles();
-  const handle = { name: "Project.md", async isSameEntry(/** @type {{name: string}} */ other) { return other.name === this.name; } };
+  const { files } = loadFiles();
+  const handle = fakes.fileSystem().fileHandle("Project.md");
 
   const first = await files.remember(handle, "Project", 460);
   assert.equal(first.featureWidth, 460);
   const updated = await files.remember(handle, "Project", 540);
   assert.equal(updated.id, first.id);
   assert.equal(updated.featureWidth, 540);
-  assert.equal(records.size, 1);
+  assert.equal((await files.recent()).length, 1);
 
   await files.remember(handle, "Project", 999);
   assert.equal((await files.recent())[0].featureWidth, 540);
 });
 
-test("recent entries persist archive view options per file and keep them when omitted", async () => {
+test("recent entries persist the project title and archive view options and keep them when omitted", async () => {
   const { files } = loadFiles();
-  const handle = { name: "Project.md", async isSameEntry(/** @type {{name: string}} */ other) { return other.name === this.name; } };
+  const handle = fakes.fileSystem().fileHandle("Project.md");
 
   const initial = await files.remember(handle, "Project");
-  assert.equal(initial.showArchived, false);
-  assert.equal(initial.showDone, false);
-  await files.remember(handle, "Project", 460, { showArchived: true });
+  assert.deepEqual([initial.projectTitle, initial.showArchived, initial.showDone], ["Project", false, false]);
+  await files.remember(handle, "", 460, { showArchived: true });
   await files.remember(handle, "Project", 460, { showDone: true });
-  const kept = await files.remember(handle, "Project");
-  assert.equal(kept.showArchived, true);
-  assert.equal(kept.showDone, true);
+  const kept = await files.remember(handle);
+  assert.deepEqual([kept.projectTitle, kept.showArchived, kept.showDone], ["Project", true, true]);
   await files.remember(handle, "Project", 460, { showArchived: false, showDone: false });
   const [stored] = await files.recent();
-  assert.equal(stored.showArchived, false);
-  assert.equal(stored.showDone, false);
-  assert.equal(stored.featureWidth, 460);
+  assert.deepEqual([stored.showArchived, stored.showDone, stored.featureWidth], [false, false, 460]);
 });

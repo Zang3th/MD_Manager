@@ -15,6 +15,10 @@ body[data-theme="gruvbox-light"] *::-webkit-scrollbar-thumb:hover { background:r
 body { height:100vh; display:flex; flex-direction:column; overflow:hidden; background:var(--bg-primary); color:var(--text); font:400 var(--text-base)/1.5 var(--font-sans); font-optical-sizing:auto; font-feature-settings:"liga" 1,"calt" 1; font-synthesis:none; caret-color:transparent; user-select:none; }
 body:not(.fonts-ready) { visibility:hidden; }
 body.startup-blocked .header,body.startup-blocked .workspace,body.startup-blocked dialog,body.startup-blocked .watermark { opacity:.45; pointer-events:none; }
+.build-missing { display:none; }
+html[data-build="missing"] body > :not(.build-missing) { display:none; }
+html[data-build="missing"] body { visibility:visible; }
+html[data-build="missing"] .build-missing { display:block; max-width:40rem; margin:20vh auto 0; padding:0 24px; color:var(--text); font-family:var(--font-sans); font-size:var(--text-lg); line-height:1.5; }
 .icon-sprite { position:absolute; width:0; height:0; overflow:hidden; pointer-events:none; }
 button,input,textarea,summary { font:inherit; }
 button,input,textarea { border-radius:0; color:inherit; appearance:none; -webkit-appearance:none; }

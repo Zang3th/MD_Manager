@@ -13,26 +13,10 @@
   <link rel="preload" href="res/fonts/InterVariable.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="res/fonts/JetBrainsMonoVariable.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="styles.css">
-  <script defer src="vendor/Sortable.min.js"></script>
-  <script defer src="domain/project.js"></script>
-  <script defer src="domain/history.js"></script>
-  <script defer src="domain/status.js"></script>
-  <script defer src="domain/search.js"></script>
-  <script defer src="io/markdown.js"></script>
-  <script defer src="io/templates.js"></script>
-  <script defer src="io/files.js"></script>
-  <script defer src="ui/tooltips.js"></script>
-  <script defer src="ui/theme.js"></script>
-  <script defer src="ui/layout.js"></script>
-  <script defer src="ui/render.js"></script>
-  <script defer src="ui/editor.js"></script>
-  <script defer src="ui/notifications.js"></script>
-  <script defer src="ui/sounds.js"></script>
-  <script defer src="ui/interactions.js"></script>
-  <script defer src="ui/search.js"></script>
-  <script defer src="app.js"></script>
+  <script defer src="dist/app.js" onerror="document.documentElement.dataset.build = 'missing'"></script>
 </head>
 <body class="show-metadata">
+  <p class="build-missing" role="alert">MD_Manager has not been built yet. Run <code>npm ci</code> and <code>npm run build</code> in the MD_Manager folder.</p>
   <svg class="icon-sprite" aria-hidden="true" focusable="false">
     <symbol id="icon-plus" viewBox="0 0 32 32"
      fill="none">
@@ -480,8 +464,8 @@
         <nav class="task-editor-breadcrumb" aria-label="Task location"><span id="taskEditorProject"></span><span aria-hidden="true">/</span><span id="taskEditorFeature"></span><span aria-hidden="true">/</span><strong id="taskEditorLocation"></strong></nav>
         <div class="editor-header-actions">
           <div class="editor-header-history" aria-label="Dialog edit undo system">
-            <button class="btn control-btn editor-header-tool" type="button" data-editor-undo-system="undo" data-editor-history="undo" aria-label="Undo dialog edit" data-tooltip="Undo dialog edit (Ctrl/Command+Z)" disabled><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-undo"></use></svg></button>
-            <button class="btn control-btn editor-header-tool" type="button" data-editor-undo-system="redo" data-editor-history="redo" aria-label="Redo dialog edit" data-tooltip="Redo dialog edit (Ctrl/Command+Shift+Z)" disabled><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-redo"></use></svg></button>
+            <button class="btn control-btn editor-header-tool" type="button" data-editor-undo-system="undo" aria-label="Undo dialog edit" data-tooltip="Undo dialog edit (Ctrl/Command+Z)" disabled><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-undo"></use></svg></button>
+            <button class="btn control-btn editor-header-tool" type="button" data-editor-undo-system="redo" aria-label="Redo dialog edit" data-tooltip="Redo dialog edit (Ctrl/Command+Shift+Z)" disabled><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-redo"></use></svg></button>
           </div>
           <button class="task-editor-close" id="closeTaskEditor" type="button" aria-label="Cancel editing" data-tooltip="Cancel"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-close"></use></svg></button>
         </div>
@@ -549,8 +533,8 @@
         <nav class="task-editor-breadcrumb" aria-label="Feature location"><span id="featureEditorProject"></span><span aria-hidden="true">/</span><strong id="featureEditorFeature"></strong></nav>
         <div class="editor-header-actions">
           <div class="editor-header-history" aria-label="Dialog edit undo system">
-            <button class="btn control-btn editor-header-tool" type="button" data-editor-undo-system="undo" data-editor-history="undo" aria-label="Undo dialog edit" data-tooltip="Undo dialog edit (Ctrl/Command+Z)" disabled><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-undo"></use></svg></button>
-            <button class="btn control-btn editor-header-tool" type="button" data-editor-undo-system="redo" data-editor-history="redo" aria-label="Redo dialog edit" data-tooltip="Redo dialog edit (Ctrl/Command+Shift+Z)" disabled><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-redo"></use></svg></button>
+            <button class="btn control-btn editor-header-tool" type="button" data-editor-undo-system="undo" aria-label="Undo dialog edit" data-tooltip="Undo dialog edit (Ctrl/Command+Z)" disabled><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-undo"></use></svg></button>
+            <button class="btn control-btn editor-header-tool" type="button" data-editor-undo-system="redo" aria-label="Redo dialog edit" data-tooltip="Redo dialog edit (Ctrl/Command+Shift+Z)" disabled><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-redo"></use></svg></button>
           </div>
           <button class="task-editor-close" id="closeFeatureEditor" type="button" aria-label="Cancel editing" data-tooltip="Cancel"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-close"></use></svg></button>
         </div>

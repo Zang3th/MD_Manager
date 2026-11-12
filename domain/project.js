@@ -1,3 +1,5 @@
+import { dates } from "@zang3th/md-libs/core";
+
 window.MDManager = window.MDManager || {};
 
 (function (app) {
@@ -98,18 +100,8 @@ window.MDManager = window.MDManager || {};
 
   /** @param {string} value @returns {MDArchiveDate | null} */
   function parsedArchiveDate(value) {
-    const source = value.trim();
-    const iso = source.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    const european = source.match(/^(\d{2})\.(\d{2})\.(\d{2}|\d{4})$/);
-    if (!iso && !european) return null;
-    const europeanYear = european?.[3] || "";
-    const year = Number(iso?.[1] || (europeanYear.length === 2 ? `20${europeanYear}` : europeanYear));
-    const month = Number(iso?.[2] || european?.[2]);
-    const day = Number(iso?.[3] || european?.[1]);
-    const time = Date.UTC(year, month - 1, day);
-    const date = new Date(time);
-    if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null;
-    return { value: source, time, year, month, day };
+    const parsed = dates.parse(value);
+    return parsed ? { value: value.trim(), time: parsed.time, year: parsed.year, month: parsed.month, day: parsed.day } : null;
   }
 
   /** @param {Array<{startDay: number, endExclusive: number}>} activity */
@@ -189,8 +181,7 @@ window.MDManager = window.MDManager || {};
 
   /** @param {number} day */
   function archiveDayLabel(day) {
-    const date = new Date(day * dayMs);
-    return `${String(date.getUTCDate()).padStart(2, "0")}.${String(date.getUTCMonth() + 1).padStart(2, "0")}.${String(date.getUTCFullYear()).padStart(4, "0")}`;
+    return dates.format(dates.fromTime(day * dayMs));
   }
 
   /** @param {string} value */
@@ -199,53 +190,26 @@ window.MDManager = window.MDManager || {};
     return parsed ? archiveDayLabel(parsed.time / dayMs) : value;
   }
 
-  /**
-   * ISO-8601 week number. The week runs Monday to Sunday and belongs to the year holding its
-   * Thursday, which is what a reader means by "KW".
-   * @param {number} time
-   */
-  function archiveIsoWeek(time) {
-    const date = new Date(time);
-    const thursday = new Date(time + (4 - (date.getUTCDay() || 7)) * dayMs);
-    const yearStart = Date.UTC(thursday.getUTCFullYear(), 0, 1);
-    return Math.ceil(((thursday.getTime() - yearStart) / dayMs + 1) / 7);
-  }
-
-  /** @param {string} unit @param {number} step @param {number} time @returns {number} */
+  /** @param {MDArchiveUnit} unit @param {number} step @param {number} time @returns {number} */
   function archiveUnitStart(unit, step, time) {
-    const date = new Date(time);
-    const dayStart = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
-    if (unit === "day") return dayStart;
-    if (unit === "week") return dayStart - ((new Date(dayStart).getUTCDay() || 7) - 1) * dayMs;
-    if (unit === "month") return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1);
-    if (unit === "quarter") return Date.UTC(date.getUTCFullYear(), Math.floor(date.getUTCMonth() / 3) * 3, 1);
-    return Date.UTC(Math.floor(date.getUTCFullYear() / step) * step, 0, 1);
+    return dates.periodStart(time, unit, step);
   }
 
-  /** @param {string} unit @param {number} step @param {number} time @returns {number} */
+  /** @param {MDArchiveUnit} unit @param {number} step @param {number} time @returns {number} */
   function archiveUnitNext(unit, step, time) {
-    if (unit === "day") return time + step * dayMs;
-    if (unit === "week") return time + step * 7 * dayMs;
-    const date = new Date(time);
-    if (unit === "month") return Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + step, 1);
-    if (unit === "quarter") return Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + step * 3, 1);
-    return Date.UTC(date.getUTCFullYear() + step, 0, 1);
+    return dates.addPeriod(time, unit, step);
   }
 
-  /** @param {{unit: string, step: number}} interval @param {number} index @param {number} origin @returns {number} */
+  /** @param {{unit: MDArchiveUnit, step: number}} interval @param {number} index @param {number} origin @returns {number} */
   function archiveAnchoredTime(interval, index, origin) {
-    if (interval.unit === "day") return origin + index * interval.step * dayMs;
-    if (interval.unit === "week") return origin + index * interval.step * 7 * dayMs;
-    const date = new Date(origin);
-    const months = interval.unit === "month" ? 1 : interval.unit === "quarter" ? 3 : 12;
-    return Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + index * interval.step * months, date.getUTCDate());
+    return dates.addPeriod(origin, interval.unit, index * interval.step);
   }
 
   /**
    * Ruler positions counted off the first archived date rather than off a calendar boundary, so the
    * opening line marks the day the work actually started and every later line is a whole number of
    * steps from it.
-   * @param {{unit: string, step: number}} interval @param {number} origin @param {number} first @param {number} last @returns {number[]}
+   * @param {{unit: MDArchiveUnit, step: number}} interval @param {number} origin @param {number} first @param {number} last @returns {number[]}
    */
   function archiveAnchoredTimes(interval, origin, first, last) {
     /** @type {number[]} */
@@ -265,7 +229,7 @@ window.MDManager = window.MDManager || {};
     return times;
   }
 
-  /** @param {{unit: string, step: number}} interval @param {number} first @param {number} last @returns {number[]} */
+  /** @param {{unit: MDArchiveUnit, step: number}} interval @param {number} first @param {number} last @returns {number[]} */
   function archiveUnitBoundaries(interval, first, last) {
     /** @type {number[]} */
     const times = [];
@@ -275,7 +239,7 @@ window.MDManager = window.MDManager || {};
     return times;
   }
 
-  /** @param {MDArchiveScale} scale @param {number} spanDays */
+  /** @param {MDArchiveScale} scale @param {number} spanDays @returns {{minor: {unit: MDArchiveUnit, step: number}, major: {unit: MDArchiveUnit, step: number}}} */
   function archiveTickIntervals(scale, spanDays) {
     if (scale === "day") return { minor: { unit: "day", step: 1 }, major: { unit: "week", step: 1 } };
     if (scale === "week") return { minor: { unit: "day", step: 1 }, major: { unit: "month", step: 1 } };
@@ -285,16 +249,16 @@ window.MDManager = window.MDManager || {};
     return { minor: { unit: "year", step: 5 }, major: { unit: "year", step: 10 } };
   }
 
-  /** @param {string} unit @param {number} time */
+  /** @param {MDArchiveUnit} unit @param {number} time */
   function archiveCellLabel(unit, time) {
     const date = new Date(time);
-    if (unit === "week") return `KW ${archiveIsoWeek(time)}`;
+    if (unit === "week") return `KW ${dates.isoWeek(dates.fromTime(time))}`;
     if (unit === "month") return `${archiveMonthNames[date.getUTCMonth()]} ${String(date.getUTCFullYear()).slice(-2)}`;
     if (unit === "quarter") return `Q${Math.floor(date.getUTCMonth() / 3) + 1} ${date.getUTCFullYear()}`;
     return String(date.getUTCFullYear());
   }
 
-  /** @param {MDArchiveScale} scale @param {number} first @param {number} last @param {number} startDay @param {number} spanDays @param {number} [origin] @param {{unit: string, step: number} | null} [subdivision] @returns {MDArchiveTick[]} */
+  /** @param {MDArchiveScale} scale @param {number} first @param {number} last @param {number} startDay @param {number} spanDays @param {number} [origin] @param {{unit: MDArchiveUnit, step: number} | null} [subdivision] @returns {MDArchiveTick[]} */
   function archiveTicks(scale, first, last, startDay, spanDays, origin = first, subdivision = null) {
     if (!(last > first)) return [];
     const intervals = archiveTickIntervals(scale, spanDays);
@@ -330,7 +294,7 @@ window.MDManager = window.MDManager || {};
    * How a cell is divided. A quarter reads in months and a year in quarters, so the ruler lands on
    * the boundaries a reader already has names for and every cell is cut the same way. Shorter cells
    * keep the date-anchored ruler, which counts off the first archived day instead.
-   * @param {{unit: string, step: number}} cell @returns {{unit: string, step: number} | null}
+   * @param {{unit: MDArchiveUnit, step: number}} cell @returns {{unit: MDArchiveUnit, step: number} | null}
    */
   function archiveCellSubdivision(cell) {
     if (cell.unit === "quarter") return { unit: "month", step: 1 };
@@ -341,7 +305,7 @@ window.MDManager = window.MDManager || {};
   /**
    * How many ruler steps one cell holds. Thinning the ruler may only drop whole multiples of this,
    * otherwise one cell would keep a line where its neighbour lost one.
-   * @param {{unit: string, step: number}} cell
+   * @param {{unit: MDArchiveUnit, step: number}} cell
    */
   function archiveCellRulerCount(cell) {
     const subdivision = archiveCellSubdivision(cell);
@@ -352,7 +316,7 @@ window.MDManager = window.MDManager || {};
     return Math.round(cellDays / stepDays) - 1;
   }
 
-  /** @param {MDArchiveScale} scale @param {number} spanDays @returns {{unit: string, step: number}} */
+  /** @param {MDArchiveScale} scale @param {number} spanDays @returns {{unit: MDArchiveUnit, step: number}} */
   function archiveCellInterval(scale, spanDays) {
     if (scale === "day") return { unit: "week", step: 1 };
     if (scale === "week") return { unit: "month", step: 1 };

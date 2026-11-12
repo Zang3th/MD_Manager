@@ -304,18 +304,13 @@ test("docs/Roadmap.md uses the supported tagged archive section shape", () => {
   assert.equal(project.features.find((/** @type {any} */ feature) => feature.isArchived).title, "Prototyp");
 });
 
-test("archive serialization sorts versions and ISO or European dates before missing metadata", () => {
-  const project = markdown.parse("# P\n\n#Archive\n## Unknown\n### U\n- [x] u\n## Date Late\n#Date\n- 2028-04-01\n### Done\n- [x] done\n## Version Ten\n#Version\n- 10.0.0\n### Done\n- [x] done\n## Date Early\n#Date\n- 01.03.2027\n### Done\n- [x] done\n## Version Two\n#Version\n- 2.0.0\n### Done\n- [x] done");
+test("archive serialization sorts versions, then ISO or European dates by calendar, then missing metadata", () => {
+  // 31.12.27 sorts after 2028-04-01 as text, so only parsed dates put it first.
+  const project = markdown.parse("# P\n\n#Archive\n## Unknown\n### U\n- [x] u\n## Date Late\n#Date\n- 2028-04-01\n### Done\n- [x] done\n## Version Ten\n#Version\n- 10.0.0\n### Done\n- [x] done\n## Date Early\n#Date\n- 31.12.27\n### Done\n- [x] done\n## Version Two\n#Version\n- 2.0.0\n### Done\n- [x] done");
   const output = markdown.serialize(project);
   const titles = Array.from(output.matchAll(/^## (.+)$/gm), match => match[1]);
   assert.deepEqual(titles, ["Version Two", "Version Ten", "Date Early", "Date Late", "Unknown"]);
   assert.ok(output.indexOf("#Archive") > output.indexOf("# P"));
-});
-
-test("archive serialization sorts European two-digit dates chronologically", () => {
-  const project = markdown.parse("# P\n#Archive\n# Archive\n## February\n#Date\n- 01.02.26\n### Done\n- [x] ~done~\n## January\n#Date\n- 31.01.26\n### Done\n- [x] ~done~");
-  const output = markdown.serialize(project);
-  assert.ok(output.indexOf("## January") < output.indexOf("## February"));
 });
 
 test("archive rejects individual tasks and sections following it", () => {

@@ -1,6 +1,9 @@
+import { markdown } from "@zang3th/md-libs/core";
+
 window.MDManager = window.MDManager || {};
 
 (function (app) {
+  const { escapeHtml } = markdown;
   const resultLimit = 50;
   const excerptLimit = 88;
   const highlightDuration = 1800;
@@ -36,11 +39,6 @@ window.MDManager = window.MDManager || {};
   let settleFrame = 0;
   /** @type {Element | null} */
   let opener = null;
-
-  /** @param {string} value */
-  function escapeHtml(value) {
-    return value.replace(/[&<>"]/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" })[character] || character);
-  }
 
   /** @param {string} text @param {number[]} positions */
   function highlightMarkup(text, positions) {

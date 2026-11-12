@@ -1,4 +1,6 @@
-# <img src="res/logo/icon.svg" alt="" height="36"> MD_Manager
+<p align="center"><img src="res/logo/icon.svg" alt="" width="96"></p>
+<h1 align="center">MD_Manager</h1>
+<p align="center">
 
 <a href="https://github.com/Zang3th/MD_Manager/actions/workflows/verify.yml"><img src="https://img.shields.io/github/actions/workflow/status/Zang3th/MD_Manager/verify.yml?branch=master&amp;label=Build&amp;logo=github" alt="Build status"></a>
 <a href="https://github.com/Zang3th/MD_Manager/releases/latest"><img src="https://img.shields.io/github/v/release/Zang3th/MD_Manager?display_name=tag&amp;sort=semver&amp;label=Latest%20release&amp;logo=markdown&amp;color=blue" alt="Latest release"></a>
@@ -19,7 +21,7 @@ Plan visually while keeping your project data open, portable, and human-readable
 - Project-wide fuzzy search with keyboard navigation to matching content.
 - External-change detection, reload or overwrite resolution, and retryable saves.
 - Markdown editing with tags, templates, and inline formatting.
-- Fully local and offline, with no cloud services, installation, build step, or web server.
+- Fully local and offline, with no cloud services, installation, or web server.
 
 <table>
   <tr>
@@ -38,9 +40,9 @@ Plan visually while keeping your project data open, portable, and human-readable
 
 ### Launching
 
-The application consists of plain HTML, CSS, and JavaScript. It has no build step, package-manager runtime, web server, framework, or CDN dependency.
+From a [release](https://github.com/Zang3th/MD_Manager/releases/latest), just open `MD_Manager.html` in a Chromium-based browser with support for the File System Access API.
 
-Just open `MD_Manager.html` in a Chromium-based browser with support for the File System Access API.
+From a clone of the repository, run `npm ci` and `npm run build` beforehand; this bundles [MD_Libs](https://github.com/Zang3th/MD_Libs) into `dist/app.js`.
 
 ### Markdown Example
 
@@ -103,25 +105,25 @@ MD_Manager/
 ├── tests/
 │   ├── e2e/                 # Playwright interaction and layout tests
 │   └── unit/                # DOM-independent Node.js tests
-├── tools/                   # Architecture and statistics checks
+├── tools/                   # Build, architecture and statistics checks
 ├── types/                   # Global JSDoc type declarations
 ├── ui/                      # Rendering, layout, and interactions
-├── vendor/                  # Local libraries and licenses
-├── app.js                   # Application wiring and lifecycle
+├── dist/                    # Generated bundle (npm run build), not committed
+├── app.js                   # Bundle entry, application wiring and lifecycle
 ├── MD_Manager.html          # Entry point
 └── styles.css               # Styles and theme tokens
 ```
 
 ### Testing and verification
 
-Node.js and npm are required only for development checks:
+Node.js and npm are required for development checks:
 
 ```bash
 npm ci
 npm run verify
 ```
 
-The verification pipeline runs strict TypeScript checking for JavaScript with JSDoc, ESLint with zero warnings, the harness doctor, architecture-boundary checks, unit tests, and Playwright tests in Chromium.
+The verification pipeline builds the bundle and runs strict TypeScript checking for JavaScript with JSDoc, ESLint with zero warnings, the harness doctor, architecture-boundary checks, unit tests, and Playwright tests in Chromium.
 
 CI executes the complete pipeline on Windows, Linux, and macOS.
 
@@ -143,6 +145,7 @@ CI executes the complete pipeline on Windows, Linux, and macOS.
     </tr>
   </thead>
   <tbody>
+    <tr><td>master</td><td>12.11.2026</td><td>600</td><td>738</td><td>5,433</td><td>267</td><td>See <a href="https://github.com/Zang3th/MD_Manager/blob/master/docs/Roadmap.md">roadmap</a></td></tr>
     <tr><td><a href="https://github.com/Zang3th/MD_Manager/releases/tag/v0.9.0">v0.9.0</a></td><td>05.10.2026</td><td>609</td><td>707</td><td>5,947</td><td>289</td><td>Archive swimlanes, statistics charts</td></tr>
     <tr><td><a href="https://github.com/Zang3th/MD_Manager/releases/tag/v0.8.0">v0.8.0</a></td><td>15.08.2026</td><td>600</td><td>557</td><td>5,332</td><td>234</td><td>Timeline improvements, workspace search</td></tr>
     <tr><td><a href="https://github.com/Zang3th/MD_Manager/releases/tag/v0.7.1">v0.7.1</a></td><td>12.08.2026</td><td>557</td><td>474</td><td>4,322</td><td>166</td><td>Feature pinning, archive timeline</td></tr>
@@ -157,15 +160,12 @@ CI executes the complete pipeline on Windows, Linux, and macOS.
 
 ### Vendor
 
-All production dependencies and fonts are stored locally.
-
 | Component | Version | Functionality | License |
-|:---------:|:-------:|:-------------:|:-------:|
-| [SortableJS](https://github.com/SortableJS/Sortable) | 1.15.7 | Drag and drop | [MIT](https://github.com/Zang3th/MD_Manager/blob/master/vendor/LICENSE) |
+|:----------|:--------|:--------------|:--------|
+| [MD_Libs](https://github.com/Zang3th/MD_Libs) | master | Shared application core and build | [MIT](https://github.com/Zang3th/MD_Libs/blob/master/LICENSE) |
+| [SortableJS](https://github.com/SortableJS/Sortable) | 1.15.7 | Drag and drop | [MIT](https://github.com/SortableJS/Sortable/blob/master/LICENSE) |
 | [Inter](https://github.com/rsms/inter) | 4.1 | Interface typography | [SIL OFL 1.1](https://github.com/Zang3th/MD_Manager/blob/master/res/fonts/InterVariable-LICENSE.txt) |
 | [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono) | 2.304 | Monospace font | [SIL OFL 1.1](https://github.com/Zang3th/MD_Manager/blob/master/res/fonts/JetBrainsMono-LICENSE.txt) |
-
-**Thanks to all the creators and contributors of these projects!**
 
 ## License
 

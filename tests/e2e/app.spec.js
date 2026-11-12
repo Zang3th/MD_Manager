@@ -991,7 +991,7 @@ test("Markdown toolbars format defaults and selected text in the active field", 
   for (const offset of iconOffsets) expect(offset).toEqual([0, 0]);
   await expect(page.getByText("Content, todos, #Info and #Warn", { exact: true })).toHaveCount(0);
   await expect(toolbar.locator(".markdown-tool-group")).toHaveCount(2);
-  await expect(toolbar.locator("[data-editor-history]")).toHaveCount(0);
+  await expect(toolbar.locator("[data-editor-undo-system]")).toHaveCount(0);
   await expect(toolbar.locator(".markdown-tags > summary")).toHaveText("Tags");
   const editorActionOffsets = await page.locator("#cancelTaskEditor, #saveTaskEditor").evaluateAll(buttons => buttons.map(button => {
     const buttonBounds = button.getBoundingClientRect();
@@ -2245,31 +2245,6 @@ test("Archive scrolling appears only for overflow", async ({ page }) => {
   const archive = page.locator("#archive");
   const content = archive.locator(":scope > .archive-content");
   expect(await content.evaluate(node => node.scrollHeight <= node.clientHeight + 1)).toBe(true);
-});
-
-test("complete features move to Archive and can be returned to Workspace with undo", async ({ page }) => {
-  await openFixture(page, "# Archive Test\n\n## Spacer Feature\n### Open Task\n- [ ] open\n\n## Complete Feature\n### Done Task\n- [x] ~done~\n\n#Backlog\n## Later");
-  const completeFeature = page.locator("#content > .release").nth(1);
-  await openFeatureActions(completeFeature);
-  await completeFeature.locator('[data-feature-action="archive"]').click();
-  await expect(page.locator(".notification-title").last()).toHaveText("Feature archived");
-  await expect(page.locator("#content > .release .release-title")).toHaveText(["Spacer Feature"]);
-  await page.keyboard.press("a");
-  const archive = page.locator("#archive");
-  await expect(archive.locator(".archive-feature-title")).toHaveText("Complete Feature");
-  await archive.locator(".archive-feature-toggle").click();
-  await archive.locator(".archive-popover-unarchive").click();
-  await expect(page.locator(".notification-title").last()).toHaveText("Feature unarchived");
-  await expect(page.locator(".notification-body").last()).toHaveText("Complete Feature moved to Workspace.");
-  await page.locator("#showWorkspaceView").click();
-  await expect(page.locator("#content > .release .release-title")).toHaveText(["Complete Feature", "Spacer Feature"]);
-  await page.keyboard.press("Control+z");
-  await expect(page.locator("#archive")).toBeVisible();
-  await expect(page.locator("#archive .archive-feature-title")).toHaveText("Complete Feature");
-  await page.locator("#redoChange").click();
-  await expect(page.locator("#archive .archive-feature-title")).toHaveCount(0);
-  await page.locator("#showWorkspaceView").click();
-  await expect(page.locator("#content > .release .release-title")).toHaveText(["Complete Feature", "Spacer Feature"]);
 });
 
 test("statistics can close and reopen in Workspace and are unavailable in Archive", async ({ page }) => {

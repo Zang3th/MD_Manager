@@ -1,3 +1,5 @@
+import { history, markdown } from "@zang3th/md-libs/core";
+
 window.MDManager = window.MDManager || {};
 
 (function (app) {
@@ -118,10 +120,7 @@ window.MDManager = window.MDManager || {};
     replaceText(textarea, replacement, start, end, contentStart, contentStart + selection.length);
   }
 
-  /** @param {string} value */
-  function escapeHtml(value) {
-    return value.replace(/[&<>]/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[character] || character);
-  }
+  const escapeHtml = markdown.escapeHtml;
 
   /** @param {string[]} lines */
   function editorMarkdown(lines) {
@@ -270,8 +269,8 @@ window.MDManager = window.MDManager || {};
     const redoButton = /** @type {HTMLButtonElement} */ (editorForm.querySelector('[data-editor-undo-system="redo"]'));
     const helpButton = /** @type {HTMLButtonElement} */ (toolbar.querySelector('[data-editor-help="toggle"]'));
     const help = /** @type {HTMLElement} */ (toolbar.querySelector(".help-popover"));
-    /** @type {MDUndoSystem} */
-    let dialogUndoSystem = app.undoSystem.create();
+    /** @type {MDHistory} */
+    let dialogUndoSystem = history.create();
     /** @type {{values: string[], activeIndex: number, selectionStart: number, selectionEnd: number}} */
     let initialSnapshot;
     /** @type {{values: string[], activeIndex: number, selectionStart: number, selectionEnd: number}} */
@@ -360,8 +359,8 @@ window.MDManager = window.MDManager || {};
     }
 
     function updateUndoSystemButtons() {
-      undoButton.disabled = !app.undoSystem.canUndo(dialogUndoSystem);
-      redoButton.disabled = !app.undoSystem.canRedo(dialogUndoSystem);
+      undoButton.disabled = !dialogUndoSystem.canUndo;
+      redoButton.disabled = !dialogUndoSystem.canRedo;
     }
 
     function closeHelp() {
@@ -401,12 +400,12 @@ window.MDManager = window.MDManager || {};
     }
 
     function undo() {
-      app.undoSystem.undo(dialogUndoSystem);
+      dialogUndoSystem.undo();
       updateUndoSystemButtons();
     }
 
     function redo() {
-      app.undoSystem.redo(dialogUndoSystem);
+      dialogUndoSystem.redo();
       updateUndoSystemButtons();
     }
 
@@ -419,7 +418,7 @@ window.MDManager = window.MDManager || {};
       const previous = currentSnapshot;
       if (!previous || previous.values.every((value, index) => value === snapshot.values[index])) return;
       if (initialSnapshot.values.every((value, index) => value === snapshot.values[index])) {
-        app.undoSystem.clear(dialogUndoSystem);
+        dialogUndoSystem.clear();
         currentSnapshot = initialSnapshot;
         lastInputType = "";
         lastInputField = -1;
@@ -439,10 +438,10 @@ window.MDManager = window.MDManager || {};
         redo: () => restore(snapshot),
         size: previous.values.reduce((size, value) => size + value.length, 0) + snapshot.values.reduce((size, value) => size + value.length, 0)
       };
-      if (coalesces && inputType === lastInputType && fieldIndex === lastInputField && app.undoSystem.canUndo(dialogUndoSystem) && !app.undoSystem.canRedo(dialogUndoSystem)) {
-        app.undoSystem.replaceCurrent(dialogUndoSystem, action);
+      if (coalesces && inputType === lastInputType && fieldIndex === lastInputField && dialogUndoSystem.canUndo && !dialogUndoSystem.canRedo) {
+        dialogUndoSystem.replaceCurrent(action);
       } else {
-        app.undoSystem.commit(dialogUndoSystem, action);
+        dialogUndoSystem.commit(action);
       }
       currentSnapshot = snapshot;
       lastInputType = coalesces ? inputType : "";
@@ -454,7 +453,7 @@ window.MDManager = window.MDManager || {};
       activeTextarea = null;
       activeControl = null;
       formatButtons.forEach(button => { button.disabled = true; });
-      dialogUndoSystem = app.undoSystem.create();
+      dialogUndoSystem = history.create();
       initialSnapshot = capture(null);
       currentSnapshot = initialSnapshot;
       lastInputType = "";

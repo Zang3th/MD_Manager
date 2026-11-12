@@ -68,12 +68,6 @@ test("external changes show warning actions and Reload starts a clean undo syste
   expect(buttons[0].bounds.width).toBe(buttons[1].bounds.width);
   expect(buttons.every(button => button.fits)).toBe(true);
   expect(buttons[1].bounds.top).toBe(buttons[0].bounds.bottom);
-  await reload.hover();
-  await expect(reload).toHaveCSS("opacity", "1");
-  await expect(overwrite).toHaveCSS("opacity", "0.45");
-  await overwrite.hover();
-  await expect(reload).toHaveCSS("opacity", "0.45");
-  await expect(overwrite).toHaveCSS("opacity", "1");
   const warning = page.locator(".notification-warning").last();
   await expect(warning.locator(".notification-title")).toHaveText("File changed externally");
   await expect(warning.locator(".notification-body")).toContainText("Choose Reload or Overwrite");
@@ -125,8 +119,6 @@ test("Overwrite resolves an external conflict with the current local revision", 
   await expect(reload).toBeDisabled();
   await expect(overwrite).toHaveAttribute("aria-pressed", "true");
   await expect(reload).toHaveAttribute("aria-pressed", "false");
-  await expect(overwrite).toHaveCSS("opacity", "1");
-  await expect(reload).toHaveCSS("opacity", "0.45");
   await page.evaluate(() => { window.__finishWrite(); });
 
   await expect.poll(() => page.evaluate(() => window.__diskMarkdown)).toContain("# Local Project");

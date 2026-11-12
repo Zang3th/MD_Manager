@@ -122,6 +122,7 @@ Stats und Backlog bleiben davon unberührt.
 - [x] ~Archiv-Visualisierung: Arbeit die Montags beginnt braucht Margin~
 - [x] ~Backlog: Toggle funktioniert nicht bei leerem Backlog~
 - [x] ~Titel der Datei anstelle von MD_Manager in Browser-Tab~
+- [x] ~Logo verbessern und in README integrieren~
 
 ### Archiv-Zeitstrahl
 
@@ -132,6 +133,12 @@ Stats und Backlog bleiben davon unberührt.
 ### Statistik-Fenster
 
 - [x] ~Visualisierung der Daten verbessern~
+
+### MD_Libs
+
+- [x] ~Auf MD_Libs als Applikationskern umsteigen~
+- [x] ~Tests anpassen und reduzieren~
+- [x] ~Dokumentation und README anpassen~
 
 ### Release
 

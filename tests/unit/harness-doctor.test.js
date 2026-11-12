@@ -19,6 +19,7 @@ function fixture(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "md-manager-doctor-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const scripts = {
+    "build": "node tools/build.js",
     "check:types": "npm run check:types:production && npm run check:types:harness",
     "check:types:production": "tsc -p jsconfig.json",
     "check:types:harness": "tsc -p jsconfig.harness.json",
@@ -27,7 +28,7 @@ function fixture(t) {
     "check:architecture": "node tools/check-architecture.js",
     "test:unit": "node --test tests/unit/*.test.js",
     "test:e2e": "playwright test",
-    "verify": "npm run check:types && npm run check:lint && npm run check:doctor && npm run check:architecture && npm run test:unit && npm run test:e2e"
+    "verify": "npm run build && npm run check:types && npm run check:lint && npm run check:doctor && npm run check:architecture && npm run test:unit && npm run test:e2e"
   };
   const basicFiles = ["package-lock.json", "jsconfig.json", "jsconfig.harness.json", "eslint.config.js", "tools/check-architecture.js", "tools/check-harness.js", "tests/unit/architecture-checker.test.js", "tests/unit/harness-doctor.test.js", "tests/e2e/fixtures.js"];
   for (const file of basicFiles) write(root, file);
@@ -37,6 +38,7 @@ function fixture(t) {
   write(root, "README.md", "Run `npm run verify`.\n");
   write(root, "playwright.config.js", "module.exports = { fullyParallel: true, forbidOnly: true, retries: 0 };\n");
   write(root, ".github/workflows/verify.yml", "workflow_call:\npermissions:\n  contents: read\n# ubuntu-latest windows-latest macos-latest\n- run: node tools/check-harness.js\n- run: npm ci\n- run: npm run verify\n");
+  write(root, ".github/workflows/visual-baselines.yml", "- run: npm ci\n- run: npm run build\n- run: npx playwright test --update-snapshots=all\n");
   write(root, "docs/work/current.md", "# Current Work\n\n_No active work item._\n");
   write(root, "data/parsing/Layout.md", ["# Layout", "#Pin", "#Ignore", "#Backlog", "#Archive", "#Version", "#Date", "#Info", "#Warn"].join("\n"));
   for (const platform of ["linux", "win32", "darwin"]) {
@@ -49,15 +51,17 @@ test("accepts a coherent deterministic harness contract", t => {
   assert.deepEqual(checkHarness(fixture(t)), []);
 });
 
-test("reports verify-order and CI drift with stable rule ids", t => {
+test("reports verify-order, CI and unbuilt baseline drift with stable rule ids", t => {
   const root = fixture(t);
   const packageJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
   packageJson.scripts.verify = "npm run test:e2e && npm run check:types";
   write(root, "package.json", `${JSON.stringify(packageJson, null, 2)}\n`);
   write(root, ".github/workflows/verify.yml", "workflow_call:\npermissions:\n  contents: write\n");
+  write(root, ".github/workflows/visual-baselines.yml", "- run: npm ci\n- run: npx playwright test --update-snapshots=all\n");
   const violations = checkHarness(root);
   assert.ok(violations.some(value => value.includes("HARNESS-SCRIPTS-002")));
   assert.ok(violations.some(value => value.includes("HARNESS-CI-001")));
+  assert.ok(violations.some(value => value.includes("HARNESS-CI-003")));
 });
 
 test("rejects a duplicated workflow snapshot manifest", t => {

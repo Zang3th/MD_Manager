@@ -60,7 +60,7 @@ test("F opens the palette and Esc, outside click, and a closed project keep it p
   await expect(page.locator("#searchPalette")).toBeHidden();
 });
 
-test("typing filters live and every result carries badge, state, breadcrumb, and highlight", async ({ page }) => {
+test("typing filters live and results carry every badge kind, state, breadcrumb, and highlight", async ({ page }) => {
   await openFixture(page, goldenFixture);
   await search(page, "keyboard");
 
@@ -76,6 +76,11 @@ test("typing filters live and every result carries badge, state, breadcrumb, and
 
   await page.locator("#searchInput").fill("research archive");
   await expect(page.locator(`${rows} .search-pill[data-location="backlog"]`).first()).toHaveText("Backlog");
+
+  for (const [query, badge] of [["Editor Experience", "Feature"], ["Markdown editing", "Task"], ["Formatting toolbar", "Group"], ["Continue a todo after", "ToDo"], ["Toolbar actions participate", "Info"], ["Unsaved lorem ipsum", "Warn"], ["Selections remain stable", "Text"]]) {
+    await page.locator("#searchInput").fill(query);
+    await expect(first.locator(".search-badge")).toHaveText(badge);
+  }
 
   await page.locator("#searchInput").fill("zzzzzz");
   await expect(page.locator(".search-empty")).toHaveText("No matches.");
@@ -109,26 +114,6 @@ test("the refined result hierarchy and keyboard legend stay application-native",
   await expect(page.locator(".search-legend")).toContainText("Navigate");
   await expect(page.locator(".search-legend")).toContainText("Go to");
   await expect(page.locator(".search-legend")).toContainText("Close");
-});
-
-test("every badge kind reaches the result list", async ({ page }) => {
-  await openFixture(page, goldenFixture);
-  await openPalette(page);
-
-  /** @param {string} query */
-  const badgeFor = async query => {
-    await page.locator("#searchInput").fill(query);
-    await expect(page.locator(rows).first()).toBeVisible();
-    return page.locator(rows).first().locator(".search-badge").textContent();
-  };
-
-  expect(await badgeFor("Editor Experience")).toBe("Feature");
-  expect(await badgeFor("Markdown editing")).toBe("Task");
-  expect(await badgeFor("Formatting toolbar")).toBe("Group");
-  expect(await badgeFor("Continue a todo after")).toBe("ToDo");
-  expect(await badgeFor("Toolbar actions participate")).toBe("Info");
-  expect(await badgeFor("Unsaved lorem ipsum")).toBe("Warn");
-  expect(await badgeFor("Selections remain stable")).toBe("Text");
 });
 
 test("arrows and Tab move the selection in both directions and wrap", async ({ page }) => {

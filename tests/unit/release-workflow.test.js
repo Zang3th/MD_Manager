@@ -11,8 +11,16 @@ const releaseWorkflow = fs.readFileSync(path.join(root, ".github/workflows/relea
 const verifyWorkflow = fs.readFileSync(path.join(root, ".github/workflows/verify.yml"), "utf8");
 const releaseEntries = fs.readFileSync(path.join(root, ".github/release-files.txt"), "utf8").split(/\r?\n/).map(entry => entry.trim()).filter(Boolean);
 
+/** @param {string[]} entries */
+function trackedFiles(entries) {
+  return new Set(childProcess.execFileSync("git", ["ls-files", "--", ...entries], { cwd: root, encoding: "utf8" }).split(/\r?\n/).filter(Boolean).map(file => file.replaceAll("\\", "/")).filter(file => fs.existsSync(path.join(root, file))));
+}
+
+// The bundle is built in the release job and copied next to the tracked release files.
+const generatedFiles = ["dist/app.js", "dist/app.js.map"];
+
 function releaseFiles() {
-  return new Set(childProcess.execFileSync("git", ["ls-files", "--", ...releaseEntries], { cwd: root, encoding: "utf8" }).split(/\r?\n/).filter(Boolean).map(file => file.replaceAll("\\", "/")));
+  return new Set([...trackedFiles(releaseEntries), ...generatedFiles]);
 }
 
 /** @param {string} reference */
@@ -66,15 +74,10 @@ test("verification can be reused by release preparation", () => {
 });
 
 test("release archive contains the local application runtime", () => {
-  const packaged = releaseFiles();
+  const packaged = trackedFiles(releaseEntries);
   assert.deepEqual(releaseEntries, [
     "MD_Manager.html",
-    "app.js",
     "styles.css",
-    "domain",
-    "io",
-    "ui",
-    "vendor",
     "res",
     "data/templates",
     "README.md",
@@ -86,6 +89,9 @@ test("release archive contains the local application runtime", () => {
   }
   assert.match(releaseWorkflow, /mapfile -t release_paths < \.github\/release-files\.txt/);
   assert.match(releaseWorkflow, /"\$\{release_paths\[@\]\}"/);
+  assert.match(releaseWorkflow, /npm ci\s+npm run build/, "the release job builds the bundle");
+  assert.match(releaseWorkflow, /cp -R dist "release\/\$folder\/dist"/, "the release archive contains the bundle");
+  assert.match(releaseWorkflow, /cp node_modules\/sortablejs\/LICENSE "release\/\$folder\/licenses\/SortableJS-LICENSE"/, "the release archive contains the license of the bundled SortableJS");
 });
 
 test("every local runtime dependency is tracked and included in the release", () => {
@@ -94,10 +100,18 @@ test("every local runtime dependency is tracked and included in the release", ()
   const references = new Set(htmlReferences(html));
 
   for (const file of packaged) {
-    if (!file.endsWith(".css") && !file.endsWith(".js")) continue;
-    const source = fs.readFileSync(path.join(root, file), "utf8");
-    if (file.endsWith(".css")) cssReferences(source).forEach(reference => references.add(reference));
-    else runtimeReferences(source).forEach(reference => references.add(reference));
+    if (!file.endsWith(".css") || generatedFiles.includes(file)) continue;
+    cssReferences(fs.readFileSync(path.join(root, file), "utf8")).forEach(reference => references.add(reference));
+  }
+  // The production modules are bundled into dist/app.js; the paths they load at runtime must be packaged.
+  // Module imports (relative or npm packages) are bundled as well and are not runtime paths.
+  const packages = Object.keys(JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")).dependencies || {});
+  const modules = trackedFiles(["app.js", "domain", "io", "ui"]);
+  for (const file of modules) {
+    if (!file.endsWith(".js")) continue;
+    runtimeReferences(fs.readFileSync(path.join(root, file), "utf8"))
+      .filter(reference => !reference.startsWith(".") && !modules.has(reference) && !packages.some(name => reference === name || reference.startsWith(`${name}/`)))
+      .forEach(reference => references.add(reference));
   }
 
   for (const reference of references) {

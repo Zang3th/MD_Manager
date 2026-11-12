@@ -63,26 +63,37 @@ jobs:
             echo "::error::Tag v$VERSION already exists."
             exit 1
           fi
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - name: Build application
+        run: |
+          npm ci
+          npm run build
       - name: Package application
         shell: bash
         run: |
           archive="MD_Manager-v$VERSION.zip"
-          mkdir dist
+          folder="MD_Manager-v$VERSION"
+          mkdir -p "release/$folder"
           mapfile -t release_paths < .github/release-files.txt
           git archive \
-            --format=zip \
-            --prefix="MD_Manager-v$VERSION/" \
-            --output="dist/$archive" \
+            --format=tar \
             "$GITHUB_SHA" \
-            "${release_paths[@]}"
-          cd dist
+            "${release_paths[@]}" | tar -x -C "release/$folder"
+          cp -R dist "release/$folder/dist"
+          mkdir -p "release/$folder/licenses"
+          cp node_modules/sortablejs/LICENSE "release/$folder/licenses/SortableJS-LICENSE"
+          cd release
+          zip -qr "$archive" "$folder"
           sha256sum "$archive" > "$archive.sha256"
       - name: Create draft release
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          archive="dist/MD_Manager-v$VERSION.zip"
+          archive="release/MD_Manager-v$VERSION.zip"
           gh release create "v$VERSION" \
             "$archive" \
             "$archive.sha256" \

@@ -5,7 +5,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
-const { checkArchitecture, executableSource } = require("../../tools/check-architecture.js");
+const { checkArchitecture } = require("../../tools/check-architecture.js");
 
 function script(namespace = "base") {
   return `"use strict";\nwindow.MDManager = window.MDManager || {};\nwindow.MDManager.${namespace} = {};\n`;
@@ -16,26 +16,24 @@ function fixture(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "md-manager-architecture-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const files = {
-    "app.js": script("app"),
+    "app.js": [
+      'import "sortablejs/Sortable.min.js";',
+      'import "./domain/project.js";',
+      'import "./io/files.js";',
+      'import "./io/markdown.js";',
+      'import "./ui/interactions.js";',
+      'import "./ui/render.js";',
+      script("app")
+    ].join("\n"),
     "domain/project.js": script("domain"),
     "io/files.js": script("files"),
     "io/markdown.js": script("markdown"),
-    "ui/interactions.js": script("interactions"),
+    "ui/interactions.js": `import Sortable from "sortablejs/Sortable.min.js";\n${script("interactions")}Sortable.create(document.body, {});\n`,
     "ui/render.js": script("render"),
-    "vendor/Sortable.min.js": "/* fixture */\n",
     "data/parsing/Layout.md": "# Fixture\n",
     "styles.css": "",
-    "package.json": "{\n  \"private\": true\n}\n",
-    "MD_Manager.html": [
-      "<!doctype html>",
-      '<script defer src="vendor/Sortable.min.js"></script>',
-      '<script defer src="domain/project.js"></script>',
-      '<script defer src="io/files.js"></script>',
-      '<script defer src="io/markdown.js"></script>',
-      '<script defer src="ui/interactions.js"></script>',
-      '<script defer src="ui/render.js"></script>',
-      '<script defer src="app.js"></script>'
-    ].join("\n")
+    "package.json": JSON.stringify({ private: true, dependencies: { sortablejs: "1.15.7", "@zang3th/md-libs": "file:../MD_Libs" } }),
+    "MD_Manager.html": '<!doctype html>\n<script defer src="dist/app.js"></script>'
   };
   for (const [relative, content] of Object.entries(files)) {
     const target = path.join(root, relative);
@@ -52,44 +50,33 @@ function write(root, relative, content) {
   fs.writeFileSync(target, content);
 }
 
-/** @param {string} root @param {string} scriptPath */
-function addDomainScript(root, scriptPath) {
-  const htmlPath = path.join(root, "MD_Manager.html");
-  const html = fs.readFileSync(htmlPath, "utf8");
-  fs.writeFileSync(htmlPath, html.replace('<script defer src="io/files.js"></script>', `<script defer src="${scriptPath}"></script>\n<script defer src="io/files.js"></script>`));
+/** @param {string} root @param {string} modulePath */
+function addDomainScript(root, modulePath) {
+  const appPath = path.join(root, "app.js");
+  const app = fs.readFileSync(appPath, "utf8");
+  fs.writeFileSync(appPath, app.replace('import "./io/files.js";', `import "./${modulePath}";\nimport "./io/files.js";`));
 }
 
 test("accepts the minimal valid layered application fixture", t => {
   assert.deepEqual(checkArchitecture(fixture(t)), []);
 });
 
-test("recursively checks nested production JavaScript", t => {
+test("domain property names that equal browser globals are no browser access", t => {
   const root = fixture(t);
-  write(root, "domain/nested/browser.js", `${script("nested")}document.body.textContent = "bad";\n`);
-  addDomainScript(root, "domain/nested/browser.js");
-  const violations = checkArchitecture(root);
-  assert.ok(violations.some(value => value.includes("domain/nested/browser.js: ARCH-DOMAIN-001")));
-  assert.ok(!violations.some(value => value.includes("found 0")));
-});
-
-test("ignores forbidden words in comments and strings", t => {
-  const root = fixture(t);
-  write(root, "domain/nested/examples.js", `${script("examples")}\n// document, localStorage, and FileReader are examples\nconst message = "fetch Sortable indexedDB";\nwindow.MDManager.examples.value = message;\n`);
-  addDomainScript(root, "domain/nested/examples.js");
+  write(root, "domain/places.js", `${script("places")}const item = { location: "archive" };\nitem.location = item.window;\n`);
+  addDomainScript(root, "domain/places.js");
   assert.deepEqual(checkArchitecture(root), []);
+  write(root, "domain/places.js", `${script("places")}const item = { url: location.href };\n`);
+  assert.ok(checkArchitecture(root).some(value => value.includes("domain/places.js: ARCH-DOMAIN-001")));
 });
 
-test("reports duplicate script wiring with a stable rule id", t => {
+test("MD_Libs entry points and SortableJS are allowed only in their layers", t => {
   const root = fixture(t);
-  const htmlPath = path.join(root, "MD_Manager.html");
-  fs.appendFileSync(htmlPath, '\n<script defer src="domain/project.js"></script>\n');
+  write(root, "domain/project.js", `import "@zang3th/md-libs/ui";\nimport "sortablejs/Sortable.min.js";\n${script("domain")}`);
+  write(root, "ui/render.js", `import "@zang3th/md-libs/core";\nimport "@zang3th/md-libs/ui";\nimport "@zang3th/md-libs/platform";\n${script("render")}`);
   const violations = checkArchitecture(root);
-  assert.ok(violations.some(value => value.includes("ARCH-WIRING-001") && value.includes("found 2")));
-});
-
-test("lexical masking preserves line structure and executable identifiers", () => {
-  const masked = executableSource('const first = "document";\n// fetch\nconst second = document;\n');
-  assert.equal(masked.split("\n").length, 4);
-  assert.doesNotMatch(masked, /fetch/);
-  assert.match(masked, /second = document/);
+  for (const [file, specifier] of [["domain/project.js", "@zang3th/md-libs/ui"], ["domain/project.js", "sortablejs/Sortable.min.js"], ["ui/render.js", "@zang3th/md-libs/platform"]]) {
+    assert.ok(violations.some(value => value.includes(`package '${specifier}' is not allowed in ${file}`)), `${specifier} in ${file}`);
+  }
+  assert.equal(violations.filter(value => value.startsWith("ui/render.js")).length, 1, "core and ui are allowed in ui/");
 });

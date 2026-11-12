@@ -1,3 +1,5 @@
+import { markdown, search } from "@zang3th/md-libs/core";
+
 window.MDManager = window.MDManager || {};
 
 (function (app) {
@@ -5,41 +7,10 @@ window.MDManager = window.MDManager || {};
   const kindWeight = { feature: 0, task: 1, group: 2, todo: 3, note: 4, text: 5 };
   /** @type {Record<MDSearchLocation, number>} */
   const locationWeight = { workspace: 0, backlog: 1, archive: 2 };
-  const wordBoundary = new Set([" ", "-", "_", "/", ".", ",", "(", "[", ":"].map(character => character.charCodeAt(0)));
 
-  // Inline Markdown is stripped once at index time. Searching the raw source would let
-  // the markers sit between the characters the user types, which destroys the
-  // contiguity bonus and shifts every highlight position.
-  // Most titles and todos carry no inline markup at all, so one character test skips the
-  // whole replace chain for them. At index scale that is thousands of regex passes.
-  // The backtick is escaped so this stays a plain regex literal: an unescaped one makes
-  // the architecture checker's TypeScript scanner read the rest of the file as a
-  // template literal.
-  const inlineMarkers = /[\u0060*_~[]/;
-
-  /** @param {string} value */
-  function plainText(value) {
-    if (!inlineMarkers.test(value)) return value.trim();
-    return value
-      .replace(/`([^`]*)`/g, "$1")
-      .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
-      .replace(/\*\*([^*]+)\*\*/g, "$1")
-      .replace(/__([^_]+)__/g, "$1")
-      .replace(/\*([^*]+)\*/g, "$1")
-      .replace(/(^|\s)_([^_]+)_(?=\s|$)/g, "$1$2")
-      .replace(/~~([^~]+)~~/g, "$1")
-      .replace(/~([^~]+)~/g, "$1")
-      .trim();
-  }
-
-  // Lowercasing can change a string's length for a few characters. When it does, the
-  // match positions would no longer address the displayed text, so that item keeps its
-  // original casing and simply matches case-sensitively.
-  /** @param {string} text */
-  function foldCase(text) {
-    const lower = text.toLowerCase();
-    return lower.length === text.length ? lower : text;
-  }
+  // Inline Markdown is stripped once at index time. Searching the raw source would let the markers sit
+  // between the characters the user types, which destroys the contiguity bonus and shifts every highlight.
+  // Matching, ranking and narrowing are MD_Libs core/search; this module builds the index of a project.
 
   /** @param {Array<{checked: boolean}>} todos @returns {MDSearchState} */
   function progressState(todos) {
@@ -51,13 +22,13 @@ window.MDManager = window.MDManager || {};
 
   /**
    * @param {MDSearchKind} kind @param {MDSearchBadge} badge @param {string} source
-   * @param {Omit<MDSearchItem, "kind" | "badge" | "text" | "lower">} rest
+   * @param {Omit<MDSearchItem, "kind" | "badge" | "text">} rest
    * @returns {MDSearchItem | null}
    */
   function item(kind, badge, source, rest) {
-    const text = plainText(source);
+    const text = markdown.plainText(source);
     if (!text) return null;
-    return { kind, badge, text, lower: foldCase(text), ...rest };
+    return { kind, badge, text, ...rest };
   }
 
   /**
@@ -77,10 +48,10 @@ window.MDManager = window.MDManager || {};
     project.features.forEach((feature, featureIndex) => {
       if (feature.ignored) return;
       /** @type {MDSearchLocation} */
-      const location = feature.isBacklog ? "backlog" : feature.isArchived ? "archive" : "workspace";
+      const place = feature.isBacklog ? "backlog" : feature.isArchived ? "archive" : "workspace";
       const tasks = feature.tasks.filter(task => !task.ignored);
-      /** @type {Omit<MDSearchItem, "kind" | "badge" | "text" | "lower">} */
-      const featureAnchor = { featureIndex, taskIndex: -1, taskPosition: -1, noteType: "", itemIndex: -1, lineIndex: -1, location, state: "", breadcrumb: [] };
+      /** @type {Omit<MDSearchItem, "kind" | "badge" | "text">} */
+      const featureAnchor = { featureIndex, taskIndex: -1, taskPosition: -1, noteType: "", itemIndex: -1, lineIndex: -1, location: place, state: "", breadcrumb: [] };
 
       add(item("feature", "feature", feature.title, {
         ...featureAnchor,
@@ -98,8 +69,8 @@ window.MDManager = window.MDManager || {};
       tasks.forEach((task, taskPosition) => {
         const taskIndex = feature.tasks.indexOf(task);
         const content = taskContent(task);
-        /** @type {Omit<MDSearchItem, "kind" | "badge" | "text" | "lower">} */
-        const taskAnchor = { featureIndex, taskIndex, taskPosition, noteType: "", itemIndex: -1, lineIndex: -1, location, state: "", breadcrumb: [feature.title, task.title] };
+        /** @type {Omit<MDSearchItem, "kind" | "badge" | "text">} */
+        const taskAnchor = { featureIndex, taskIndex, taskPosition, noteType: "", itemIndex: -1, lineIndex: -1, location: place, state: "", breadcrumb: [feature.title, task.title] };
 
         add(item("task", "task", task.title, {
           ...taskAnchor,
@@ -152,58 +123,12 @@ window.MDManager = window.MDManager || {};
       });
     });
 
-    return { items, narrow: null };
+    return search.create({ items, fields: [{ get: entry => entry.text }], tieBreak });
   }
 
-  /**
-   * Greedy left-to-right match, then a backward pass that pulls every position as late
-   * as the window allows. Without the second pass "ab" in "a-x-ab" would score as two
-   * scattered characters instead of the adjacent pair it actually is.
-   * @param {string} haystack @param {string} needle @param {string} original
-   * @returns {{score: number, positions: number[]} | null}
-   */
-  function score(haystack, needle, original) {
-    const positions = new Array(needle.length);
-    let cursor = 0;
-    for (let index = 0; index < needle.length; index++) {
-      const code = needle.charCodeAt(index);
-      while (cursor < haystack.length && haystack.charCodeAt(cursor) !== code) cursor++;
-      if (cursor === haystack.length) return null;
-      positions[index] = cursor;
-      cursor++;
-    }
-    let tail = positions[needle.length - 1];
-    for (let index = needle.length - 1; index >= 0; index--) {
-      const code = needle.charCodeAt(index);
-      while (haystack.charCodeAt(tail) !== code) tail--;
-      positions[index] = tail;
-      tail--;
-    }
-
-    let total = 0;
-    let previous = -2;
-    for (let index = 0; index < needle.length; index++) {
-      const position = positions[index];
-      total += 16;
-      // A solid run must outrank the same letters spread across word starts. With equal
-      // bonuses "f o r m a t" ties "the format label", because every scattered letter
-      // also sits on a boundary.
-      if (position === previous + 1) total += 16;
-      if (position === 0 || wordBoundary.has(haystack.charCodeAt(position - 1))) total += 8;
-      const character = original.charCodeAt(position);
-      if (character >= 65 && character <= 90) total += 4;
-      previous = position;
-    }
-    return { score: total - positions[0] - (haystack.length - needle.length) * 0.05, positions };
-  }
-
-  /** @param {MDSearchResult} left @param {MDSearchResult} right */
-  function compare(left, right) {
-    if (left.score !== right.score) return right.score - left.score;
-    if (left.item.text.length !== right.item.text.length) return left.item.text.length - right.item.text.length;
-    const kinds = kindWeight[left.item.kind] - kindWeight[right.item.kind];
-    if (kinds) return kinds;
-    return locationWeight[left.item.location] - locationWeight[right.item.location];
+  /** Equal scores of equally long texts prefer the kind, then the location. @param {MDSearchItem} left @param {MDSearchItem} right */
+  function tieBreak(left, right) {
+    return (kindWeight[left.kind] - kindWeight[right.kind]) || (locationWeight[left.location] - locationWeight[right.location]);
   }
 
   /**
@@ -211,43 +136,8 @@ window.MDManager = window.MDManager || {};
    * @returns {{results: MDSearchResult[], total: number}}
    */
   function query(searchIndex, text, limit = 50) {
-    const raw = text.trim();
-    if (!raw) {
-      searchIndex.narrow = null;
-      return { results: [], total: 0 };
-    }
-    // Smart case, as in fzf and ripgrep: an all-lowercase query ignores case, any
-    // uppercase character makes the whole query case-sensitive.
-    const sensitive = raw !== raw.toLowerCase();
-    const needle = sensitive ? raw : foldCase(raw);
-
-    // Subsequence matching is monotone, so extending a query can only remove matches.
-    // Rescoring the previous survivors is therefore exact, not an approximation.
-    const reuse = searchIndex.narrow && raw.startsWith(searchIndex.narrow.query) ? searchIndex.narrow.items : searchIndex.items;
-
-    /** @type {MDSearchItem[]} */
-    const matched = [];
-    /** @type {MDSearchResult[]} */
-    const results = [];
-    let floor = Number.NEGATIVE_INFINITY;
-    for (const entry of reuse) {
-      const haystack = sensitive ? entry.text : entry.lower;
-      const scored = score(haystack, needle, entry.text);
-      if (!scored) continue;
-      matched.push(entry);
-      if (results.length === limit && scored.score < floor) continue;
-      /** @type {MDSearchResult} */
-      const result = { item: entry, score: scored.score, positions: scored.positions };
-      let position = results.length;
-      while (position > 0 && compare(results[position - 1], result) > 0) position--;
-      results.splice(position, 0, result);
-      if (results.length > limit) results.pop();
-      if (results.length === limit) floor = results[limit - 1].score;
-    }
-
-    searchIndex.narrow = { query: raw, items: matched };
-    return { results, total: matched.length };
+    return searchIndex.query(text, { limit });
   }
 
-  app.search = { index, query, plainText };
+  app.search = { index, query };
 })(window.MDManager);

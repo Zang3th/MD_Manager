@@ -23,7 +23,7 @@ declare global {
 declare module "playwright-core" {
   interface Locator {
     boundingBox(options?: { signal?: AbortSignal; timeout?: number }): Promise<{ x: number; y: number; width: number; height: number }>;
-    elementHandle(options?: { timeout?: number }): Promise<ElementHandle<HTMLElement>>;
+    elementHandle(options?: { timeout?: number }): Promise<import("playwright-core").ElementHandle<HTMLElement>>;
     getAttribute(name: string, options?: { timeout?: number }): Promise<string>;
   }
 
