@@ -1,3 +1,4 @@
+/* global MDM_VERSION -- inserted by the build from package.json (tools/build.js) */
 // Entry point of the bundle (see README.md): the imports replace the former script tags and keep
 // their order: SortableJS, domain, IO, UI, then this file.
 import "sortablejs/Sortable.min.js";
@@ -22,6 +23,8 @@ window.MDManager = window.MDManager || {};
 
 /** @param {any} app */
 (function (app) {
+  document.getElementById("appVersion").textContent = `v${MDM_VERSION}`;
+  document.getElementById("watermarkVersion").textContent = `v${MDM_VERSION}`;
   tooltips.create({ window, element: document.getElementById("appTooltip") });
 
   // Completion sound, played with MD_Libs platform/audio: two upward octave sweeps.
@@ -158,7 +161,7 @@ window.MDManager = window.MDManager || {};
     const activeHandle = fileHandle;
     app.files.remember(activeHandle, project.title, featureWidth, viewOptions).then((/** @type {MDRecentFile | undefined} */ record) => {
       if (!record) return;
-      recentFiles = recentFiles.filter(entry => entry.id !== record.id).concat(record).sort((left, right) => right.openedAt - left.openedAt).slice(0, 5);
+      recentFiles = recentFiles.filter(entry => entry.id !== record.id).concat(record).sort((left, right) => right.openedAt - left.openedAt).slice(0, app.files.recentLimit);
     }).catch((/** @type {Error} */ error) => {
       app.notifications.show("error", "Recent files", "The recent-files list could not be updated.", undefined, `Recent-files list could not be updated: ${error.message}`, "MDM-101");
     });

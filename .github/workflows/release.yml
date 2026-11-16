@@ -42,15 +42,10 @@ jobs:
             exit 1
           fi
 
-          app_version=$(sed -nE 's/.*id="appVersion">v([^<]+)<.*/\1/p' MD_Manager.html)
-          if [[ "$app_version" != "$VERSION" ]]; then
-            echo "::error::MD_Manager.html contains v${app_version:-<missing>}, but the requested release is v$VERSION."
-            exit 1
-          fi
-
-          watermark_version=$(sed -nE 's/.*id="watermark">[^<]*MD_Manager v([^ ]+).*/\1/p' MD_Manager.html)
-          if [[ "$watermark_version" != "$VERSION" ]]; then
-            echo "::error::The application watermark contains v${watermark_version:-<missing>}, but the requested release is v$VERSION."
+          # package.json is the only place of the version; the build writes it into the label and the watermark.
+          package_version=$(node -p 'require("./package.json").version')
+          if [[ "$package_version" != "$VERSION" ]]; then
+            echo "::error::package.json contains version ${package_version:-<missing>}, but the requested release is v$VERSION."
             exit 1
           fi
 

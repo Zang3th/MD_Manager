@@ -2,6 +2,7 @@ const { test, expect, appUrl, settleLayout, dismissNotifications } = require("./
 const fs = require("node:fs");
 const path = require("node:path");
 
+const { version } = require("../../package.json");
 const goldenFixture = fs.readFileSync(path.resolve(__dirname, "../../data/parsing/Layout.md"), "utf8");
 const fixture = `# Test Project
 
@@ -191,7 +192,7 @@ async function expectSvgInkCentered(button, svg) {
 test("start screen exposes the application identity and open action", async ({ page }) => {
   await page.goto(appUrl);
   await expect(page).toHaveTitle("MD_Manager");
-  await expect(page.locator("#appVersion")).toHaveText("v0.9.1-dev");
+  await expect(page.locator("#appVersion")).toHaveText(`v${version}`);
   const versionClockStyles = await page.locator("#appVersion, #appClock").evaluateAll(elements => elements.map(element => {
     const style = getComputedStyle(element);
     return [style.height, style.padding, style.borderWidth, style.borderRadius, style.backgroundImage, style.boxShadow, style.font];
@@ -204,7 +205,7 @@ test("start screen exposes the application identity and open action", async ({ p
   expect(await openFile.evaluate(element => element.getBoundingClientRect().x)).toBeLessThan(await createFile.evaluate(element => element.getBoundingClientRect().x));
   await expect(page.locator(".header").getByRole("button", { name: /Open/ })).toHaveCount(0);
   await expect(page.locator("#watermark")).toBeVisible();
-  await expect(page.locator("#watermark")).toContainText("MD_Manager v0.9.1-dev");
+  await expect(page.locator("#watermark")).toContainText(`MD_Manager v${version}`);
   const help = page.getByRole("button", { name: "Help", exact: true });
   const sound = page.locator("#toggleSounds");
   const theme = page.locator("#toggleTheme");
@@ -216,19 +217,31 @@ test("start screen exposes the application identity and open action", async ({ p
   await expect(page.locator("#helpPopover")).toBeVisible();
 });
 
-test("recent files show the Markdown project title and filename", async ({ page }) => {
+test("recent files show the Markdown project title, filename, opening day above the time, and only as many entries as fit", async ({ page }) => {
+  await page.clock.setFixedTime(new Date(2026, 7, 5, 9, 0));
   await page.goto(appUrl);
   await expect(page.locator(".recent-files-empty")).toHaveText("No recent files.");
-  await page.evaluate(() => window.MDManager.render.start([{
-    id: "roadmap",
-    name: "Roadmap.md",
-    projectTitle: "MD Manager",
-    openedAt: new Date(2026, 7, 3, 12, 34).getTime(),
-    handle: {}
-  }]));
-  await expect(page.locator(".recent-project-name")).toHaveText("MD Manager");
-  await expect(page.locator(".recent-file-name")).toHaveText("Roadmap.md");
-  await expect(page.locator(".recent-file-time")).toHaveText("03.08.2026 12:34");
+  await page.evaluate(() => window.MDManager.render.start([
+    { id: "roadmap", name: "Roadmap.md", projectTitle: "MD Manager", openedAt: new Date(2026, 7, 5, 8, 5).getTime(), handle: {} },
+    { id: "notes", name: "Notes.md", projectTitle: "", openedAt: new Date(2026, 7, 4, 23, 59).getTime(), handle: {} },
+    { id: "plan", name: "Plan.md", projectTitle: "", openedAt: new Date(2026, 7, 3, 12, 34).getTime(), handle: {} }
+  ]));
+  await expect(page.locator(".recent-project-name").first()).toHaveText("MD Manager");
+  await expect(page.locator(".recent-file-name")).toHaveText(["Roadmap.md"]);
+  await expect(page.locator(".recent-file-date")).toHaveText(["Today", "Yesterday", "03.08.2026"]);
+  await expect(page.locator(".recent-file-clock")).toHaveText(["08:05", "23:59", "12:34"]);
+  const [date, clock] = await page.locator(".recent-file").first().locator(".recent-file-date, .recent-file-clock").evaluateAll(elements => elements.map(element => element.getBoundingClientRect()));
+  expect(clock.top).toBeGreaterThanOrEqual(date.bottom - 0.5);
+  expect(Math.abs(clock.right - date.right)).toBeLessThanOrEqual(0.5);
+
+  const six = await page.evaluate(() => Array.from({ length: 6 }, (_, index) => ({ id: String(index), name: `File${index}.md`, projectTitle: "", openedAt: Date.now(), handle: {} })));
+  for (const [height, visible] of /** @type {const} */ ([[900, 6], [720, 5]])) {
+    await page.setViewportSize({ width: 1280, height });
+    await page.evaluate(entries => window.MDManager.render.start(entries), six);
+    await expect(page.locator(".recent-file:visible")).toHaveCount(visible);
+    const content = await page.locator("#content").evaluate(element => element.scrollHeight - element.clientHeight);
+    expect(content).toBeLessThanOrEqual(0);
+  }
 });
 
 test("local fonts, SVG symbols, custom tooltips, and editor controls are deterministic", async ({ page }) => {

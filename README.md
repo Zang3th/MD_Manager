@@ -145,7 +145,7 @@ CI executes the complete pipeline on Windows, Linux, and macOS.
     </tr>
   </thead>
   <tbody>
-    <tr><td>master</td><td>12.11.2026</td><td>600</td><td>738</td><td>5,433</td><td>267</td><td>See <a href="https://github.com/Zang3th/MD_Manager/blob/master/docs/Roadmap.md">roadmap</a></td></tr>
+    <tr><td>master</td><td>16.11.2026</td><td>600</td><td>741</td><td>5,437</td><td>267</td><td>See <a href="https://github.com/Zang3th/MD_Manager/blob/master/docs/Roadmap.md">roadmap</a></td></tr>
     <tr><td><a href="https://github.com/Zang3th/MD_Manager/releases/tag/v0.9.0">v0.9.0</a></td><td>05.10.2026</td><td>609</td><td>707</td><td>5,947</td><td>289</td><td>Archive swimlanes, statistics charts</td></tr>
     <tr><td><a href="https://github.com/Zang3th/MD_Manager/releases/tag/v0.8.0">v0.8.0</a></td><td>15.08.2026</td><td>600</td><td>557</td><td>5,332</td><td>234</td><td>Timeline improvements, workspace search</td></tr>
     <tr><td><a href="https://github.com/Zang3th/MD_Manager/releases/tag/v0.7.1">v0.7.1</a></td><td>12.08.2026</td><td>557</td><td>474</td><td>4,322</td><td>166</td><td>Feature pinning, archive timeline</td></tr>

@@ -139,6 +139,8 @@ Stats und Backlog bleiben davon unberührt.
 - [x] ~Auf MD_Libs als Applikationskern umsteigen~
 - [x] ~Tests anpassen und reduzieren~
 - [x] ~Dokumentation und README anpassen~
+- [x] ~`ui/segmented` für den Workspace/Archive-Umschalter~
+- [x] ~Version nur in `package.json`, Build setzt sie in Label + Watermark~
 
 ### Release
 

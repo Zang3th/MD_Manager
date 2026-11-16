@@ -1,3 +1,6 @@
+/** The version from package.json, inserted by the build (tools/build.js). */
+declare const MDM_VERSION: string;
+
 interface Window {
   MDManager: any;
   showOpenFilePicker(options?: any): Promise<any[]>;

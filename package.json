@@ -1,5 +1,6 @@
 {
   "private": true,
+  "version": "0.9.1-dev",
   "scripts": {
     "build": "node tools/build.js",
     "check:types": "npm run check:types:production && npm run check:types:harness",

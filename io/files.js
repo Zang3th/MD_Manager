@@ -9,6 +9,8 @@ window.MDManager = window.MDManager || {};
   const adapters = new WeakMap();
   /** @type {import("@zang3th/md-libs/platform").handles.MDLHandleStore<Omit<MDRecentFile, "id" | "name" | "openedAt" | "handle">> | null} */
   let recentStore = null;
+  /** How many recent files are remembered and listed. */
+  const recentLimit = 6;
 
   /** @param {MDFileHandle} handle */
   function adapter(handle) {
@@ -21,7 +23,7 @@ window.MDManager = window.MDManager || {};
   }
 
   function recentFiles() {
-    recentStore ||= handles.create({ indexedDB, database: "MD_Manager", store: "recentFiles", limit: 5 });
+    recentStore ||= handles.create({ indexedDB, database: "MD_Manager", store: "recentFiles", limit: recentLimit });
     return recentStore;
   }
 
@@ -99,5 +101,5 @@ window.MDManager = window.MDManager || {};
     return startup.missingApis({ window, apis: ["showOpenFilePicker()", "showSaveFilePicker()"] });
   }
 
-  app.files = { open, createProject, read, stat, inspect, save, recent, remember, forget, missingFileSystemApis };
+  app.files = { recentLimit, open, createProject, read, stat, inspect, save, recent, remember, forget, missingFileSystemApis };
 })(window.MDManager);

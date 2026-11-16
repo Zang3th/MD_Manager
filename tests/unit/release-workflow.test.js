@@ -56,8 +56,8 @@ test("release preparation is explicitly dispatched and creates only a draft", ()
   assert.match(releaseWorkflow, /uses: \.\/\.github\/workflows\/verify\.yml/);
   assert.match(releaseWorkflow, /needs: verify/);
   assert.match(releaseWorkflow, /contents: write/);
-  assert.match(releaseWorkflow, /id="appVersion"/);
-  assert.match(releaseWorkflow, /id="watermark"/);
+  assert.match(releaseWorkflow, /package_version=\$\(node -p 'require\("\.\/package\.json"\)\.version'\)/);
+  assert.match(releaseWorkflow, /"\$package_version" != "\$VERSION"/);
   assert.match(releaseWorkflow, /README\.md has no release-table entry/);
   assert.match(releaseWorkflow, /git rev-parse --verify --quiet "refs\/tags\/v\$VERSION"/);
   assert.match(releaseWorkflow, /gh release create "v\$VERSION"/);

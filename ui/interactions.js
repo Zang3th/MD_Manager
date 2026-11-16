@@ -1,5 +1,5 @@
 import Sortable from "sortablejs/Sortable.min.js";
-import { keymap, popover as floating, sortable } from "@zang3th/md-libs/ui";
+import { keymap, popover as floating, segmented, sortable } from "@zang3th/md-libs/ui";
 
 window.MDManager = window.MDManager || {};
 
@@ -816,8 +816,7 @@ window.MDManager = window.MDManager || {};
     document.body.classList.toggle("archive-view-active", archiveActive);
     content.hidden = archiveActive;
     archive.hidden = !archiveActive;
-    document.getElementById("showWorkspaceView").setAttribute("aria-pressed", String(!archiveActive));
-    document.getElementById("showArchiveView").setAttribute("aria-pressed", String(archiveActive));
+    segmented.select({ buttons: [byId("showWorkspaceView"), byId("showArchiveView")], selected: archiveActive ? 1 : 0 });
     document.getElementById("addFeature").hidden = archiveActive;
     document.getElementById("workspaceZoom").hidden = archiveActive;
     const backlogButton = document.getElementById("toggleBacklog");

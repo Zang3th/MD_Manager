@@ -1,4 +1,5 @@
-import { markdown } from "@zang3th/md-libs/core";
+import { dates, markdown } from "@zang3th/md-libs/core";
+import { segmented } from "@zang3th/md-libs/ui";
 
 window.MDManager = window.MDManager || {};
 
@@ -536,8 +537,7 @@ window.MDManager = window.MDManager || {};
     showDoneButton.setAttribute("aria-pressed", String(Boolean(options.showDone)));
     document.getElementById("workspaceZoom").hidden = archiveActive;
     document.body.classList.toggle("archive-view-active", archiveActive);
-    document.getElementById("showWorkspaceView").setAttribute("aria-pressed", String(!archiveActive));
-    document.getElementById("showArchiveView").setAttribute("aria-pressed", String(archiveActive));
+    segmented.select({ buttons: [document.getElementById("showWorkspaceView"), document.getElementById("showArchiveView")], selected: archiveActive ? 1 : 0 });
     content.hidden = archiveActive;
     const archive = document.getElementById("archive");
     renderArchive(project, Boolean(options.showDone));
@@ -598,10 +598,14 @@ window.MDManager = window.MDManager || {};
   }
 
   /** @param {number} timestamp */
+  /** Two lines: “Today”, “Yesterday” or DD.MM.YYYY above HH:MM (as in MD_Calendar). @param {number} timestamp */
   function formatRecentTime(timestamp) {
     const date = new Date(timestamp);
     const part = (/** @type {number} */ value) => String(value).padStart(2, "0");
-    return `${part(date.getDate())}.${part(date.getMonth() + 1)}.${String(date.getFullYear()).padStart(4, "0")} ${part(date.getHours())}:${part(date.getMinutes())}`;
+    const key = dates.today(date);
+    const today = dates.today(new Date());
+    const day = key === today ? "Today" : key === dates.addDays(today, -1) ? "Yesterday" : dates.format(key);
+    return `<span class="recent-file-date">${day}</span><span class="recent-file-clock">${part(date.getHours())}:${part(date.getMinutes())}</span>`;
   }
 
   /** @param {MDRecentFile[]} entries */
@@ -616,8 +620,7 @@ window.MDManager = window.MDManager || {};
     document.getElementById("projectStats").hidden = true;
     document.getElementById("workspaceZoom").hidden = true;
     document.body.classList.remove("archive-view-active");
-    document.getElementById("showWorkspaceView").setAttribute("aria-pressed", "true");
-    document.getElementById("showArchiveView").setAttribute("aria-pressed", "false");
+    segmented.select({ buttons: [document.getElementById("showWorkspaceView"), document.getElementById("showArchiveView")], selected: 0 });
     document.getElementById("archive").hidden = true;
     document.getElementById("archive").innerHTML = "";
     document.getElementById("toggleBacklog").disabled = true;
