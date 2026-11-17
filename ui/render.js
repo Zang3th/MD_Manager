@@ -193,7 +193,7 @@ window.MDManager = window.MDManager || {};
     const content = taskContent(task);
     const { entries: taskTodos, complete: taskComplete, inProgress: taskInProgress } = taskProgress(task);
     const hasBody = content.blocks.some(block => block.type === "paragraph" || block.type === "note" && block.items.length || block.type === "group" && (Boolean(block.title) || block.descriptions.length || block.todos.length));
-    return `<section class="card${taskComplete ? " complete" : ""}${taskInProgress ? " in-progress" : ""}${taskTodos.length ? "" : " empty-task"}${hasBody ? "" : " bodyless-task"}" data-task="${taskIndex}"${hasBody ? ' tabindex="0" aria-expanded="false"' : ""}>
+    return `<section class="card${taskComplete ? " complete" : ""}${taskInProgress ? " in-progress" : ""}${taskTodos.length ? "" : " empty-task"}${hasBody ? "" : " bodyless-task"}" data-task="${taskIndex}"${hasBody ? ' aria-expanded="false"' : ""}>
       <header class="card-header"><h3 class="card-title" data-full-title="${escapeHtml(task.title)}"><span class="title-text">${escapeHtml(task.title)}</span></h3><span class="task-status">${taskStatusMarkup(task)}</span>${readOnly ? "" : `<button class="edit-btn action-btn" data-edit="task" type="button" aria-label="Edit task" data-tooltip="Edit task">${editIcon}</button><button class="delete-btn action-btn" data-delete="task" type="button" aria-label="Delete task" data-tooltip="Delete task">${deleteIcon}</button>`}</header>
       <div class="card-body" hidden>${taskBody(task, readOnly)}</div>
     </section>`;
@@ -515,7 +515,7 @@ window.MDManager = window.MDManager || {};
           <button class="feature-option action-btn" data-edit="feature" type="button" aria-label="Edit feature">${editIcon}<span>Edit</span></button>
           <button class="feature-option action-btn" data-feature-action="pin" type="button" aria-label="${feature.isPinned ? "Unpin" : "Pin"} feature">${pinIcon}<span>${feature.isPinned ? "Unpin" : "Pin"}</span></button>`;
       return `<section class="release${complete ? " complete" : ""}${inProgress ? " in-progress" : ""}${feature.isPinned ? " pinned" : ""}${archived ? " archived" : ""}" data-feature="${featureIndex}"${archived ? ' aria-roledescription="archived feature"' : ""}>
-        ${archived ? '<span class="archived-watermark" aria-hidden="true"><span>Archived</span></span>' : ""}<header class="release-header" tabindex="0"><div class="release-heading"><div class="feature-menu"><button class="feature-menu-button action-btn" type="button" aria-label="Feature actions" data-tooltip="Feature actions" aria-expanded="false" aria-controls="featureOptions${featureIndex}">${dotsIcon}</button><div class="feature-options" id="featureOptions${featureIndex}" hidden>
+        ${archived ? '<span class="archived-watermark" aria-hidden="true"><span>Archived</span></span>' : ""}<header class="release-header"><div class="release-heading"><div class="feature-menu"><button class="feature-menu-button action-btn" type="button" aria-label="Feature actions" data-tooltip="Feature actions" aria-expanded="false" aria-controls="featureOptions${featureIndex}">${dotsIcon}</button><div class="feature-options" id="featureOptions${featureIndex}" hidden>
           ${menuOptions}
         </div></div>
           <span class="feature-progress"><span class="status-value">${percentage}%</span></span>

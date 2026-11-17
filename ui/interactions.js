@@ -1872,6 +1872,10 @@ window.MDManager = window.MDManager || {};
     }
     app.layout.layout();
   });
+  // The views have no browser focus navigation; only open dialogs keep Tab.
+  document.addEventListener("keydown", event => {
+    if (event.key === "Tab" && !document.querySelector("dialog[open]")) event.preventDefault();
+  });
   document.addEventListener("keydown", event => {
     if (!document.body.classList.contains("archive-view-active") || document.querySelector("dialog[open]")) return;
     const key = event.key.toLowerCase();

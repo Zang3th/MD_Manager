@@ -124,6 +124,7 @@ Stats und Backlog bleiben davon unberührt.
 - [x] ~Titel der Datei anstelle von MD_Manager in Browser-Tab~
 - [x] ~Logo verbessern und in README integrieren~
 - [x] ~Archiv: Sortierreihenfolge bei Done-Features mit demselben Startdatum reparieren~
+- [x] ~Tastaturnavigation bis zum expliziten Ausbau abklemmen~
 
 ### Archiv-Zeitstrahl
 

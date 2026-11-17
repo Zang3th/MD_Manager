@@ -670,6 +670,28 @@ Visible details`);
   expect(await emptyTask.evaluate(node => node.getBoundingClientRect().height)).toBeCloseTo(previewHeight, 1);
 });
 
+test("clicked feature and task headers take no focus and Tab does not navigate the Workspace", async ({ page }) => {
+  await openFixture(page, `# Focus
+
+## Feature
+### Task
+- [ ] todo`);
+  const feature = page.locator("#content > .release");
+  const card = feature.locator(".card");
+  const bodyFocused = () => page.evaluate(() => document.activeElement === document.body);
+
+  await feature.locator(".release-title").click();
+  await expect(card).toHaveAttribute("aria-expanded", "true");
+  await page.keyboard.press("Shift");
+  expect(await bodyFocused()).toBe(true);
+  await card.locator(".card-title").click();
+  await expect(card).toHaveAttribute("aria-expanded", "false");
+  expect(await bodyFocused()).toBe(true);
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("Shift+Tab");
+  expect(await bodyFocused()).toBe(true);
+});
+
 test("features can be pinned, reached with P, persisted, and unpinned", async ({ page }) => {
   const features = Array.from({ length: 8 }, (_, index) => `## Feature ${index + 1}\n### Task ${index + 1}\n- [ ] pending`).join("\n\n");
   await openFixture(page, `# Pin Test\n\n${features}`);
