@@ -123,6 +123,7 @@ Stats und Backlog bleiben davon unberührt.
 - [x] ~Backlog: Toggle funktioniert nicht bei leerem Backlog~
 - [x] ~Titel der Datei anstelle von MD_Manager in Browser-Tab~
 - [x] ~Logo verbessern und in README integrieren~
+- [x] ~Archiv: Sortierreihenfolge bei Done-Features mit demselben Startdatum reparieren~
 
 ### Archiv-Zeitstrahl
 

@@ -187,6 +187,18 @@ test("date metadata becomes ranges, points, or unmatched lanes deterministically
   assert.deepEqual([timeline.from, timeline.to], ["15.02.2026", "03.03.2026"]);
 });
 
+test("lanes on the same start day follow end date, then version, not input order", () => {
+  /** @param {string} title @param {string} version @param {string} to */
+  const versioned = (title, version, to) => ({ title, version, dates: [{ from: "10.11.2026", to }], tasks: [] });
+  const timeline = archive.timeline([
+    versioned("Done", "0.6.0", "16.11.2026"),
+    { title: "Base", version: "0.0.1", dates: [{ from: "09.11.2026", to: "" }], tasks: [] },
+    versioned("Later", "0.2.0", ""),
+    versioned("Earlier", "0.1.0", "")
+  ]);
+  assert.deepEqual(Array.from(/** @type {any[]} */ (timeline.lanes), lane => lane.feature.title), ["Base", "Earlier", "Later", "Done"]);
+});
+
 test("pauses cover only real gaps between merged activity", () => {
   const timeline = archive.timeline([feature("Interrupted", [
     { from: "2026-01-01", to: "2026-01-05" },

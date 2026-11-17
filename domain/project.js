@@ -399,7 +399,7 @@ window.MDManager = window.MDManager || {};
       });
     }
 
-    lanes.sort((left, right) => left.startDay - right.startDay);
+    lanes.sort((left, right) => left.startDay - right.startDay || left.endExclusive - right.endExclusive || compareArchivedFeatures(left.feature, right.feature));
     if (!lanes.length) return { scale: "day", from: "", to: "", plotStartDay: 0, spanDays: 0, lanes, headerCells: [], rulerPerCell: 0, ticks: [], unmatched };
     const domainStartDay = lanes[0].startDay;
     let domainEndExclusive = Number.NEGATIVE_INFINITY;
