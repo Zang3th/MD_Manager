@@ -144,6 +144,15 @@ Stats und Backlog bleiben davon unberührt.
 - [x] ~`ui/segmented` für den Workspace/Archive-Umschalter~
 - [x] ~Version nur in `package.json`, Build setzt sie in Label + Watermark~
 
+### Tabs
+
+- [x] ~Neue Markdown-Struktur überlegen~
+- [ ] Auf neue Struktur umbauen
+- [ ] Einfache #-Header erzeugen Tabs (Lösung anstelle mehrerer Dateien)
+- [ ] Visuell ansprechend umsetzen
+- [ ] +-Button ausbauen: New Feature / New Tab
+- [ ] Alle Controls und Shortcuts müssen funktionieren
+
 ### Release
 
 - [ ] u.U. Docs umspeichern

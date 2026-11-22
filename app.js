@@ -148,10 +148,13 @@ window.MDManager = window.MDManager || {};
     return [380, 460, 540].includes(width || 0) ? /** @type {380 | 460 | 540} */ (width) : 380;
   }
 
-  /** @param {MDFileHandle} handle @returns {Promise<MDRecentFile | undefined>} */
+  /**
+   * Asks the opened handle, as MD_Libs does: a broken remembered handle may never answer, while comparing with it rejects.
+   * @param {MDFileHandle} handle @returns {Promise<MDRecentFile | undefined>}
+   */
   async function rememberedFile(handle) {
     for (const entry of recentFiles) {
-      if (await entry.handle.isSameEntry(handle)) return entry;
+      if (await handle.isSameEntry(entry.handle).catch(() => false)) return entry;
     }
     return undefined;
   }

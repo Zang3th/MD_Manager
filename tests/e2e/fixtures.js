@@ -8,19 +8,8 @@ const test = base.extend({
   page: async ({ page }, use, testInfo) => {
     /** @type {string[]} */
     const errors = [];
-    let pendingFontResourceFailures = 0;
     page.on("console", message => {
-      if (message.type() !== "error") return;
-      const text = message.text();
-      if (/^Access to font at 'file:\/\/\/.+\/res\/fonts\/(?:InterVariable|JetBrainsMonoVariable)\.woff2'.+blocked by CORS policy/.test(text)) {
-        pendingFontResourceFailures += 1;
-        return;
-      }
-      if (text === "Failed to load resource: net::ERR_FAILED" && pendingFontResourceFailures > 0) {
-        pendingFontResourceFailures -= 1;
-        return;
-      }
-      errors.push(`console: ${text}`);
+      if (message.type() === "error") errors.push(`console: ${message.text()}`);
     });
     page.on("pageerror", error => errors.push(`pageerror: ${error.message}`));
     await use(page);

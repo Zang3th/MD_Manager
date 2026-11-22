@@ -6,11 +6,11 @@ const { loadWithGlobals } = require("./load-classic");
 // Storage, write queue, conflicts and the recent-files store are tested in MD_Libs; these tests cover
 // what MD_Manager adds: pickers, permissions and the per-file data kept with a recent file.
 function loadFiles() {
-  const window = loadWithGlobals({ indexedDB: fakes.indexedDB() }, "io/files.js");
+  const window = loadWithGlobals({ indexedDB: fakes.indexedDB(), setTimeout, clearTimeout }, "io/files.js");
   return { files: window.MDManager.files, window };
 }
 
-test("read and open request write permission and use the selected handle", async () => {
+test("read and open need write permission, request it only when not granted and use the selected handle", async () => {
   const { files, window } = loadFiles();
   const disk = fakes.fileSystem({ "Project.md": "# Project" });
   const granted = disk.fileHandle("Project.md");
@@ -19,7 +19,7 @@ test("read and open request write permission and use the selected handle", async
   const opened = await files.open();
   assert.equal(opened.handle, granted);
   assert.equal(opened.markdown, "# Project");
-  assert.equal(disk.hooks.requests, 1);
+  assert.equal(disk.hooks.requests, 0);
 });
 
 test("createProject writes a minimal Markdown project through the save picker", async () => {

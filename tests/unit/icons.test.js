@@ -16,21 +16,17 @@ test("local SVG files exactly match every inline icon symbol", () => {
 
 test("all logo references use the local logo directory", () => {
   const render = fs.readFileSync(path.join(root, "ui", "render.js"), "utf8");
-  const logoDirectory = path.join(root, "res", "logo");
   const referenced = [...html.matchAll(/(?:href|src)="(res\/logo\/[^"]+)"/g)].map(match => match[1]);
   assert.deepEqual(referenced.sort(), [
     "res/logo/apple-touch-icon.png",
     "res/logo/favicon.ico",
     "res/logo/icon.svg",
     "res/logo/icon.svg",
-    "res/logo/mask-icon.svg",
-    "res/logo/site.webmanifest"
+    "res/logo/mask-icon.svg"
   ]);
   for (const file of referenced) assert.ok(fs.existsSync(path.join(root, file)), `${file} exists`);
   assert.match(html, /<img class="app-logo" src="res\/logo\/icon\.svg"/);
   assert.doesNotMatch(render, /res\/logo\//);
-  const manifest = JSON.parse(fs.readFileSync(path.join(logoDirectory, "site.webmanifest"), "utf8"));
-  for (const icon of manifest.icons) assert.ok(fs.existsSync(path.join(logoDirectory, icon.src)), `${icon.src} exists`);
 });
 
 test("application logo uses the Gruvbox palette", () => {

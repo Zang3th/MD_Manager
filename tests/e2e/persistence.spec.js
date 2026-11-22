@@ -75,20 +75,30 @@ test("read and unsupported Markdown failures produce error notifications", async
   await expect(page.locator("#content > .error")).toHaveCount(0);
 });
 
-test("recent-file failures keep the start content and use error notifications", async ({ page }) => {
+test("recent-file failures and unresponsive recent files keep the start content and use error notifications", async ({ page }) => {
+  await page.clock.install();
   await page.addInitScript(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: async (/** @type {string} */ value) => { window.__copiedError = value; } }
+    });
     const handle = {
       name: "Unavailable.md",
       requestPermission: async () => "granted",
       getFile: async () => { throw new Error("Recent file unavailable"); }
     };
+    const never = () => new Promise(() => {});
+    const stale = { name: "Stale.md", queryPermission: never, requestPermission: never, getFile: never, isSameEntry: never };
     /** @type {any} */
     const database = {
       close() {},
       transaction() {
         return { objectStore: () => ({ getAll: () => {
           /** @type {any} */
-          const request = { result: [{ id: "recent", name: handle.name, projectTitle: "Recent project", openedAt: Date.now(), handle }] };
+          const request = { result: [
+            { id: "recent", name: handle.name, projectTitle: "Recent project", openedAt: 2, handle },
+            { id: "stale", name: stale.name, projectTitle: "Stale project", openedAt: 1, handle: stale }
+          ] };
           queueMicrotask(() => request.onsuccess());
           return request;
         } }) };
@@ -102,11 +112,21 @@ test("recent-file failures keep the start content and use error notifications", 
     });
   });
   await page.goto(appUrl);
-  await page.locator(".recent-file-open").click();
+  await page.locator(".recent-file-open", { hasText: "Recent project" }).click();
 
-  await expect(page.locator(".recent-project-name")).toHaveText("Recent project");
+  await expect(page.locator(".recent-project-name")).toHaveText(["Recent project", "Stale project"]);
   await expect(page.locator(".notification-error .notification-title")).toHaveText("File open");
   await expect(page.locator(".notification-error .notification-text")).toHaveText("The recent file could not be opened.");
+
+  await dismissNotifications(page);
+  await page.locator(".recent-file-open", { hasText: "Stale project" }).click();
+  await page.clock.runFor(5000);
+  const error = page.locator(".notification-error");
+  await expect(error.locator(".notification-title")).toHaveText("File open");
+  await expect(error.locator(".notification-text")).toHaveText("The recent file could not be opened.");
+  await error.getByRole("button", { name: "Copy error" }).click();
+  await expect.poll(() => page.evaluate(() => window.__copiedError)).toBe("Error: Code MDM-109 File open\nDetails: Recent file could not be opened: The browser did not respond when checking access to \"Stale.md\". Remove it from the recent list and open it again.");
+  await expect(page.locator(".recent-project-name")).toHaveText(["Recent project", "Stale project"]);
 });
 
 test("recent-list loading failures keep the empty state and use an error notification", async ({ page }) => {

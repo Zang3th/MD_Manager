@@ -52,7 +52,7 @@ window.MDManager = window.MDManager || {};
 
   /** @param {MDFileHandle} handle @returns {Promise<MDOpenedFile | null>} */
   async function read(handle) {
-    if (!await storage.ensurePermission(handle, "readwrite", { query: false })) return null;
+    if (!await storage.ensurePermission(handle, "readwrite", { window })) return null;
     const file = /** @type {{text: string, stamp: string}} */ (await adapter(handle).read(handle.name));
     return { handle, markdown: file.text, stamp: file.stamp };
   }
