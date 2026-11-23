@@ -289,7 +289,7 @@ test("clicking the statistics backdrop closes without activating the project and
     await expect(page.locator("#statisticsDialog")).toBeHidden();
     await expect(page.locator(".stats-expand")).toBeFocused();
     await expect(page.locator("#projectTitle")).toHaveText("Statistics Project");
-    await expect(page.locator("#saveStateLabel")).toHaveText("Saved");
+    await expect(page.locator("#saveFile")).toHaveAttribute("aria-label", "Saved");
     await expect(page.locator("#undoChange")).toBeDisabled();
     await expect(page.locator("#redoChange")).toBeDisabled();
   }
@@ -312,7 +312,7 @@ test("opening preserves workspace context and cannot edit the inert project thro
   await closeStatistics(page);
   expect(await page.locator("#content").evaluate(content => ({ left: content.scrollLeft, html: content.innerHTML }))).toEqual(before);
   await expect(page.locator("#backlog")).toBeVisible();
-  await expect(page.locator("#saveStateLabel")).toHaveText("Saved");
+  await expect(page.locator("#saveFile")).toHaveAttribute("aria-label", "Saved");
   await expect(page.locator("#undoChange")).toBeDisabled();
   await expect(page.locator("#redoChange")).toBeDisabled();
   await page.locator(".stats-close").click();
@@ -393,7 +393,7 @@ test("external reload replaces the cached project and re-evaluates feature durat
     probe.stamp++;
     window.dispatchEvent(new Event("focus"));
   });
-  await expect(page.locator("#saveStateLabel")).toHaveText("Conflict");
+  await expect(page.locator("#saveFile")).toHaveAttribute("aria-label", "Conflict");
   await page.locator("#saveFile").click();
   await page.locator("#reloadExternal").click();
   await expect(page.locator("#projectTitle")).toHaveText("Reloaded");

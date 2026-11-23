@@ -1,7 +1,7 @@
 const { test, expect, appUrl, dismissNotifications } = require("./fixtures");
 
 
-test("a save shows the saving state for at least 600 ms at the width of Saved and Unsaved, a failed save stays dirty and reports the error, and a later save succeeds", async ({ page }) => {
+test("a save shows the saving state for at least 600 ms as an icon-only control of one size whose tooltip and accessible name carry the state, a failed save stays dirty and reports the error, and a later save succeeds", async ({ page }) => {
   await page.clock.install({ time: new Date(2026, 0, 1) });
   await page.goto(appUrl);
   await page.evaluate(() => {
@@ -21,16 +21,20 @@ test("a save shows the saving state for at least 600 ms at the width of Saved an
   });
   await page.locator("#openFile").click();
   const save = page.locator("#saveFile");
-  const width = () => save.evaluate(node => node.getBoundingClientRect().width);
-  await expect(save).toHaveText("Saved");
-  const savedWidth = await width();
+  // Every state shows only its icon in the same 32 px square; the tooltip names the state.
+  /** @param {string} name @param {string} [tooltip] */
+  const expectState = async (name, tooltip = name) => {
+    await expect(save).toHaveAttribute("aria-label", name);
+    await expect(save).toHaveAttribute("data-tooltip", tooltip);
+    await expect(save).toHaveText("");
+    expect(await save.evaluate(node => { const box = node.getBoundingClientRect(); return [box.width, box.height]; })).toEqual([32, 32]);
+  };
+  await expectState("Saved");
   await page.locator(".card-header").click();
   await page.locator(".checkbox").click();
-  await expect(save).toHaveText("Unsaved");
-  expect(Math.abs(await width() - savedWidth)).toBeLessThanOrEqual(0.5);
+  await expectState("Unsaved");
   await save.click();
-  await expect(save).toHaveText("Save failed");
-  await expect(save).toHaveAttribute("data-tooltip", "Disk unavailable");
+  await expectState("Save failed", "Disk unavailable");
   await expect(save).toHaveClass(/dirty/);
   await expect(page.locator(".notification-error .notification-title")).toHaveText("File save");
   const saveError = page.locator(".notification-error");
@@ -41,16 +45,14 @@ test("a save shows the saving state for at least 600 ms at the width of Saved an
   await dismissNotifications(page);
   await page.clock.pauseAt(new Date(2026, 0, 2));
   await save.click();
-  await expect(save).toHaveText("Saving");
+  await expectState("Saving");
   await expect(save).toHaveAttribute("aria-busy", "true");
   await page.clock.runFor(599);
-  await expect(save).toHaveText("Saving");
-  expect(Math.abs(await width() - savedWidth)).toBeLessThanOrEqual(0.5);
+  await expectState("Saving");
   const saved = page.locator(".notification-title").getByText("File saved", { exact: true });
   await expect(saved).toHaveCount(0);
   await page.clock.runFor(1);
-  await expect(save).toHaveText("Saved");
-  expect(Math.abs(await width() - savedWidth)).toBeLessThanOrEqual(0.5);
+  await expectState("Saved");
   await expect(save).toHaveAttribute("aria-busy", "false");
   await expect(save).not.toHaveClass(/dirty/);
   await expect(saved).toBeVisible();

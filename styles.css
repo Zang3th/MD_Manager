@@ -156,20 +156,19 @@ input,textarea { caret-color:var(--text); }
 .header .toolbar-icon-btn:hover:not(:disabled),.header .toolbar-icon-btn:focus-visible { border-color:transparent; background:var(--bg-tertiary); color:var(--text); box-shadow:none; }
 .header .toolbar-icon-btn[aria-pressed="true"],.header .toolbar-icon-btn[aria-expanded="true"] { border-color:transparent; background:var(--border); color:var(--text); }
 .save-menu { position:relative; flex:none; }
-.header .save-btn { display:flex; align-items:center; gap:.35rem; width:auto; padding:0 .4rem; border-color:transparent; background:transparent; color:var(--success); box-shadow:none; }
+/* An icon-only square like the other header icon buttons; the tooltip and the accessible name carry the state.
+   A chip tinted in its state color, like the other emphasized controls: 12 % surface, 40 % frame, 20 % surface on hover. */
+.header .save-btn { --save-color:var(--success); display:grid; place-items:center; width:32px; padding:0; border-color:color-mix(in srgb,var(--save-color) 40%,var(--border)); background:color-mix(in srgb,var(--save-color) 12%,var(--bg-secondary)); color:var(--save-color); box-shadow:none; }
 .header .save-btn>.ui-icon { width:16px; height:16px; }
-/* Saved, Saving and Unsaved share one width: an invisible “Unsaved”, the widest of them, holds the label open. */
-#saveStateLabel { display:inline-flex; flex-direction:column; text-align:start; }
-#saveStateLabel::after { content:"Unsaved"; height:0; overflow:hidden; visibility:hidden; }
-.header .save-btn.dirty { border-color:transparent; background:transparent; color:var(--orange); }
-.header .save-btn.conflict { border-color:transparent; background:transparent; color:var(--yellow); }
-.header .save-btn.save-error { border-color:transparent; background:transparent; color:var(--error); }
+.header .save-btn.dirty { --save-color:var(--orange); }
+.header .save-btn.conflict { --save-color:var(--yellow); }
+.header .save-btn.save-error { --save-color:var(--error); }
 /* Saving: a turning arc in blue masks the write cycles; it lies over the unsaved look and turns with a transform. */
-.header .save-btn.saving { color:var(--link); cursor:progress; }
+.header .save-btn.saving { --save-color:var(--link); cursor:progress; }
 .header .save-btn.saving>.ui-icon { animation:save-spin .8s linear infinite; }
 @keyframes save-spin { to { transform:rotate(1turn); } }
 @media (prefers-reduced-motion:reduce) { .header .save-btn.saving>.ui-icon { animation:none; } }
-.header .save-btn:hover:not(:disabled),.header .save-btn:focus-visible,.header .save-btn[aria-expanded="true"] { border-color:transparent; background:var(--bg-tertiary); box-shadow:none; }
+.header .save-btn:hover:not(:disabled),.header .save-btn:focus-visible,.header .save-btn[aria-expanded="true"] { border-color:color-mix(in srgb,var(--save-color) 40%,var(--border)); background:color-mix(in srgb,var(--save-color) 20%,var(--bg-secondary)); box-shadow:none; }
 .history-controls .btn:disabled,.editor-header-history .btn:disabled { opacity:.45; cursor:default; }
 .control-bar .btn:disabled { opacity:.45; cursor:default; }
 .history-controls,.editor-header-history { gap:0; }

@@ -76,7 +76,7 @@ for (const kind of ["task", "feature"]) {
     await expect(page.locator(".card-title")).toHaveAttribute("data-full-title", "B task");
     await expect(page.locator(".todo-text")).toHaveText("B item");
     await expect(page.locator("#undoChange")).toBeDisabled();
-    await expect(page.locator("#saveFile")).toHaveText("Saved");
+    await expect(page.locator("#saveFile")).toHaveAttribute("aria-label", "Saved");
   });
 }
 
@@ -166,7 +166,7 @@ async function sortableMove(page, move) {
 /** @param {import("@playwright/test").Page} page */
 async function savedProject(page) {
   await page.locator("#saveFile").click();
-  await expect(page.locator("#saveFile")).toHaveText("Saved");
+  await expect(page.locator("#saveFile")).toHaveAttribute("aria-label", "Saved");
   return page.evaluate(() => {
     const parsed = window.MDManager.markdown.parse(window.__reviewSaved);
     return parsed.features.map((/** @type {any} */ feature) => ({ title: feature.title, ignored: feature.ignored, tasks: feature.tasks.map((/** @type {any} */ task) => ({ title: task.title, ignored: task.ignored })) }));
@@ -245,7 +245,7 @@ test("moving features and tasks to the visible end crosses ignored gaps and undo
 test("an unchanged drag across ignored gaps creates no persistent action", async ({ page }) => {
   await openFixture(page, sortingFixture);
   await sortableMove(page, { kind: "task", sourceFeature: 1, task: 1, targetFeature: 1, beforeTask: 3 });
-  await expect(page.locator("#saveFile")).toHaveText("Saved");
+  await expect(page.locator("#saveFile")).toHaveAttribute("aria-label", "Saved");
   await expect(page.locator("#undoChange")).toBeDisabled();
 });
 

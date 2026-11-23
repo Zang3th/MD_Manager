@@ -641,7 +641,6 @@ window.MDManager = window.MDManager || {};
   /** @param {string} message */
   function showSaveError(message) {
     const button = document.getElementById("saveFile");
-    document.getElementById("saveStateLabel").textContent = "Save failed";
     button.querySelector("use").setAttribute("href", "#icon-close");
     button.setAttribute("aria-label", "Save failed");
     button.classList.add("save-error");

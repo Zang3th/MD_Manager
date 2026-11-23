@@ -57,7 +57,7 @@ test("external changes show warning actions and Reload starts a clean undo syste
 
   await changeDisk(page, "# External Project\n\n## Feature\n### Task\n- [ ] Changed");
   const save = page.locator("#saveFile");
-  await expect(save).toHaveText("Conflict");
+  await expect(save).toHaveAttribute("aria-label", "Conflict");
   await expect(reload).toBeHidden();
   await expect(overwrite).toBeHidden();
   await save.click();
