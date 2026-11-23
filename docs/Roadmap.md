@@ -125,6 +125,8 @@ Stats und Backlog bleiben davon unberührt.
 - [x] ~Logo verbessern und in README integrieren~
 - [x] ~Archiv: Sortierreihenfolge bei Done-Features mit demselben Startdatum reparieren~
 - [x] ~Tastaturnavigation bis zum expliziten Ausbau abklemmen~
+- [x] ~Save-Animation um Schreibzyklen zu maskieren~
+- [x] ~Neu angelegte Tasks mit ToDos automatisch öffnen~
 
 ### Archiv-Zeitstrahl
 

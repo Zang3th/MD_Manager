@@ -30,6 +30,9 @@ window.MDManager = window.MDManager || {};
   let createProject = null;
   /** @type {(() => Promise<void>) | null} */
   let save = null;
+  /** Last undo, redo and save state; the save control shows it again when the saving state ends. @type {import("@zang3th/md-libs/core").history.MDLControlState | null} */
+  let controlState = null;
+  let saving = false;
   /** @type {((width: number) => void) | null} */
   let featureWidthCommitted = null;
   /** @type {((changes: MDViewOptions, viewState: MDViewState) => void) | null} */
@@ -397,6 +400,22 @@ window.MDManager = window.MDManager || {};
     const message = missing ? "The open file no longer exists on disk. Your work remains open." : "The open file could not be saved.";
     app.render.saveError(missing ? message : detail);
     app.notifications.show("error", missing ? "File deleted" : "File save", message, undefined, missing ? message : `File could not be saved: ${detail}`, missing ? "MDM-113" : "MDM-114");
+  }
+
+  function showSaveState() {
+    if (!controlState) return;
+    const saveButton = document.getElementById("saveFile");
+    const label = saving ? "Saving" : controlState.save.label;
+    const icon = saving ? "#icon-spinner" : { conflict: "#icon-close", unsaved: "#icon-progress", saved: "#icon-check" }[controlState.save.status];
+    document.getElementById("saveStateLabel").textContent = label;
+    saveButton.querySelector("use").setAttribute("href", icon);
+    saveButton.setAttribute("aria-label", label);
+    saveButton.setAttribute("aria-busy", String(saving));
+    delete saveButton.dataset.tooltip;
+    saveButton.classList.toggle("saving", saving);
+    saveButton.classList.toggle("dirty", controlState.save.count > 0);
+    saveButton.classList.toggle("conflict", controlState.save.status === "conflict");
+    saveButton.classList.remove("save-error");
   }
 
   async function saveFile() {
@@ -1525,7 +1544,8 @@ window.MDManager = window.MDManager || {};
         const afterViewState = copyViewState(beforeViewState);
         const featureCards = [...featureElement.querySelectorAll(".card")];
         const viewIndex = featureCards.length ? [...document.querySelectorAll(viewSelectors.tasks)].indexOf(/** @type {Element} */ (featureCards.at(-1))) + 1 : taskViewIndex(featureElement, null);
-        afterViewState.tasks.splice(viewIndex, 0, false);
+        // A new task with ToDos opens right away.
+        afterViewState.tasks.splice(viewIndex, 0, app.markdown.taskContent(task).todos.length > 0);
         const change = featureTaskChange(activeProject, featureElement, featureIndex => app.domain.insertTask(activeProject, featureIndex, taskIndex, task), featureIndex => { app.domain.deleteTask(activeProject, featureIndex, taskIndex); });
         perform("Task added", change.redo, change.undo, beforeViewState, afterViewState, undefined, task.title.length + task.lines.join("\n").length);
         app.notifications.show("info", "Task added", [{ value: draft.title }, " added to ", { value: feature.title }, "."]);
@@ -2042,16 +2062,8 @@ window.MDManager = window.MDManager || {};
     },
     /** @param {import("@zang3th/md-libs/core").history.MDLControlState} state */
     setUndoSystemState(state) {
-      const saveButton = document.getElementById("saveFile");
-      const label = state.save.label;
-      const icon = { conflict: "#icon-close", unsaved: "#icon-progress", saved: "#icon-check" }[state.save.status];
-      document.getElementById("saveStateLabel").textContent = label;
-      saveButton.querySelector("use").setAttribute("href", icon);
-      saveButton.setAttribute("aria-label", label);
-      delete saveButton.dataset.tooltip;
-      saveButton.classList.toggle("dirty", state.save.count > 0);
-      saveButton.classList.toggle("conflict", state.save.status === "conflict");
-      saveButton.classList.remove("save-error");
+      controlState = state;
+      showSaveState();
       const undoButton = document.getElementById("undoChange");
       const redoButton = document.getElementById("redoChange");
       undoButton.disabled = state.undo.disabled;
@@ -2059,6 +2071,11 @@ window.MDManager = window.MDManager || {};
       undoButton.dataset.tooltip = state.undo.label;
       redoButton.dataset.tooltip = state.redo.label;
       if (state.save.status !== "conflict") closeSaveMenu();
+    },
+    /** Starts or ends the saving state of the save control; it lies over the save status. @param {boolean} active */
+    setSaving(active) {
+      saving = active;
+      showSaveState();
     }
   };
 })(window.MDManager);

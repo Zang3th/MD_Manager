@@ -1496,7 +1496,7 @@ test("merged feature Markdown highlights syntax and inserts tags", async ({ page
   await expect(metadata).toHaveValue(/#Version\n\n#Date\n$/);
 });
 
-test("New button and task buttons create features and tasks through existing editors", async ({ page }) => {
+test("New button and task buttons create features and tasks through existing editors, and a new task with ToDos opens", async ({ page }) => {
   await openFixture(page);
   const addFeature = page.getByRole("button", { name: "New", exact: true });
   await expect(addFeature).toBeEnabled();
@@ -1533,6 +1533,8 @@ test("New button and task buttons create features and tasks through existing edi
   await page.locator("#saveTaskEditor").click();
   await expect(firstFeature.locator(".card")).toHaveCount(tasksBefore + 1);
   await expect(firstFeature.locator(".card-title").last()).toHaveText("New Task");
+  await expect(firstFeature.locator(".card").last()).toHaveAttribute("aria-expanded", "true");
+  await expect(firstFeature.locator(".card").last().locator(".card-body")).toBeVisible();
   await expect(page.locator(".notification-title").last()).toHaveText("Task added");
   await expect(page.locator(".notification-body").last()).toHaveText("New Task added to Active Feature.");
   await expect(page.locator(".notification").last().locator(".notification-value")).toHaveText(["New Task", "Active Feature"]);

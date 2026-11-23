@@ -158,9 +158,17 @@ input,textarea { caret-color:var(--text); }
 .save-menu { position:relative; flex:none; }
 .header .save-btn { display:flex; align-items:center; gap:.35rem; width:auto; padding:0 .4rem; border-color:transparent; background:transparent; color:var(--success); box-shadow:none; }
 .header .save-btn>.ui-icon { width:16px; height:16px; }
+/* Saved, Saving and Unsaved share one width: an invisible “Unsaved”, the widest of them, holds the label open. */
+#saveStateLabel { display:inline-flex; flex-direction:column; text-align:start; }
+#saveStateLabel::after { content:"Unsaved"; height:0; overflow:hidden; visibility:hidden; }
 .header .save-btn.dirty { border-color:transparent; background:transparent; color:var(--orange); }
 .header .save-btn.conflict { border-color:transparent; background:transparent; color:var(--yellow); }
 .header .save-btn.save-error { border-color:transparent; background:transparent; color:var(--error); }
+/* Saving: a turning arc in blue masks the write cycles; it lies over the unsaved look and turns with a transform. */
+.header .save-btn.saving { color:var(--link); cursor:progress; }
+.header .save-btn.saving>.ui-icon { animation:save-spin .8s linear infinite; }
+@keyframes save-spin { to { transform:rotate(1turn); } }
+@media (prefers-reduced-motion:reduce) { .header .save-btn.saving>.ui-icon { animation:none; } }
 .header .save-btn:hover:not(:disabled),.header .save-btn:focus-visible,.header .save-btn[aria-expanded="true"] { border-color:transparent; background:var(--bg-tertiary); box-shadow:none; }
 .history-controls .btn:disabled,.editor-header-history .btn:disabled { opacity:.45; cursor:default; }
 .control-bar .btn:disabled { opacity:.45; cursor:default; }

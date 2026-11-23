@@ -1,7 +1,8 @@
 const { test, expect, appUrl, dismissNotifications } = require("./fixtures");
 
 
-test("a failed save stays dirty, reports the error, and allows a later save", async ({ page }) => {
+test("a save shows the saving state for at least 600 ms at the width of Saved and Unsaved, a failed save stays dirty and reports the error, and a later save succeeds", async ({ page }) => {
+  await page.clock.install({ time: new Date(2026, 0, 1) });
   await page.goto(appUrl);
   await page.evaluate(() => {
     const markdown = "# Project\n\n## Feature\n### Task\n- [ ] Todo";
@@ -19,9 +20,14 @@ test("a failed save stays dirty, reports the error, and allows a later save", as
     });
   });
   await page.locator("#openFile").click();
+  const save = page.locator("#saveFile");
+  const width = () => save.evaluate(node => node.getBoundingClientRect().width);
+  await expect(save).toHaveText("Saved");
+  const savedWidth = await width();
   await page.locator(".card-header").click();
   await page.locator(".checkbox").click();
-  const save = page.locator("#saveFile");
+  await expect(save).toHaveText("Unsaved");
+  expect(Math.abs(await width() - savedWidth)).toBeLessThanOrEqual(0.5);
   await save.click();
   await expect(save).toHaveText("Save failed");
   await expect(save).toHaveAttribute("data-tooltip", "Disk unavailable");
@@ -32,9 +38,22 @@ test("a failed save stays dirty, reports the error, and allows a later save", as
   await expect(saveError.locator(".notification-body")).not.toContainText("Disk unavailable");
   await saveError.getByRole("button", { name: "Copy error" }).click();
   await expect.poll(() => page.evaluate(() => window.__copiedError)).toBe("Error: Code MDM-114 File save\nDetails: File could not be saved: Disk unavailable");
+  await dismissNotifications(page);
+  await page.clock.pauseAt(new Date(2026, 0, 2));
   await save.click();
+  await expect(save).toHaveText("Saving");
+  await expect(save).toHaveAttribute("aria-busy", "true");
+  await page.clock.runFor(599);
+  await expect(save).toHaveText("Saving");
+  expect(Math.abs(await width() - savedWidth)).toBeLessThanOrEqual(0.5);
+  const saved = page.locator(".notification-title").getByText("File saved", { exact: true });
+  await expect(saved).toHaveCount(0);
+  await page.clock.runFor(1);
   await expect(save).toHaveText("Saved");
+  expect(Math.abs(await width() - savedWidth)).toBeLessThanOrEqual(0.5);
+  await expect(save).toHaveAttribute("aria-busy", "false");
   await expect(save).not.toHaveClass(/dirty/);
+  await expect(saved).toBeVisible();
 });
 
 test("read and unsupported Markdown failures produce error notifications", async ({ page }) => {

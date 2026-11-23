@@ -99,6 +99,12 @@ window.MDManager = window.MDManager || {};
   let featureWidth = 380;
   /** @type {Required<MDViewOptions>} */
   let viewOptions = { showArchived: false, showDone: false };
+  /** Shortest time the saving state shows, in milliseconds, so that quick write cycles do not flicker. */
+  const savingMinimum = 600;
+  /** Saves in flight that show the saving state. */
+  let savingCount = 0;
+  /** Name of a file written while the saving state shows; its notification waits for the end of the state. */
+  let savedNotice = "";
 
   /** @type {import("@zang3th/md-libs/core").history.MDLControlStrings} */
   const controlStrings = {
@@ -229,7 +235,9 @@ window.MDManager = window.MDManager || {};
       app.notifications.show("warning", "File changed externally", "Choose Reload or Overwrite before saving.");
     });
     started.on("saved", ({ files }) => {
-      if (files.length) app.notifications.show("info", "File saved", [{ value: handle.name }, " saved."]);
+      if (!files.length) return;
+      if (savingCount > 0) savedNotice = handle.name;
+      else showSaved(handle.name);
     });
     started.on("checkError", ({ error, deleted }) => {
       if (deleted) app.notifications.show("error", "File deleted", [{ value: handle.name }, " was deleted from disk. Your work remains open."], undefined, [{ value: handle.name }, " was deleted from disk. Your work remains open."], "MDM-102");
@@ -238,10 +246,27 @@ window.MDManager = window.MDManager || {};
     fileSession = started;
   }
 
+  /** @param {string} name */
+  function showSaved(name) {
+    app.notifications.show("info", "File saved", [{ value: name }, " saved."]);
+  }
+
   /** @param {boolean} [force] @returns {Promise<void>} */
-  function save(force = false) {
-    if (!project || !fileHandle || !undoSystem || !fileSession) return Promise.resolve();
-    return fileSession.save(force);
+  async function save(force = false) {
+    if (!project || !fileHandle || !undoSystem || !fileSession) return;
+    if (!force && fileSession.unsaved === 0) return fileSession.save(force);
+    savingCount++;
+    app.interactions.setSaving(true);
+    try {
+      await Promise.all([fileSession.save(force), new Promise(resolve => window.setTimeout(resolve, savingMinimum))]);
+    } finally {
+      savingCount--;
+      if (savingCount === 0) {
+        app.interactions.setSaving(false);
+        if (savedNotice) showSaved(savedNotice);
+        savedNotice = "";
+      }
+    }
   }
 
   /** @param {MDOpenedFile | null} opened @param {MDRecentFile} [remembered] */
