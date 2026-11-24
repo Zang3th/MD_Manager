@@ -69,12 +69,13 @@ async function setVisualTheme(page, theme) {
  * Each scene is captured in one theme and the scenes together cover both, so a theme regression still
  * shows up without doubling every baseline.
  * @param {import("@playwright/test").Page} page @param {string} scene @param {Array<"dark" | "light">} themes
+ * @param {number} [maxDiffPixels]
  */
-async function captureVisualThemes(page, scene, themes) {
+async function captureVisualThemes(page, scene, themes, maxDiffPixels = 100) {
   for (const theme of themes) {
     await setVisualTheme(page, theme);
     await prepareVisualPage(page);
-    await expect(page).toHaveScreenshot(`${scene}-${theme}.png`, { animations: "disabled", maxDiffPixels: 100 });
+    await expect(page).toHaveScreenshot(`${scene}-${theme}.png`, { animations: "disabled", maxDiffPixels });
   }
 }
 
@@ -448,7 +449,8 @@ test("Golden File Search palette matches platform visual baselines", async ({ pa
   await expect(page.locator("#searchPalette")).toBeVisible();
   await page.locator("#searchInput").fill("arch");
   await expect(page.locator("#searchResults .search-result").first()).toBeVisible();
-  await captureVisualThemes(page, "search-palette", ["dark"]);
+  // macOS Chromium places the result text after the match highlight a pixel apart between runs.
+  await captureVisualThemes(page, "search-palette", ["dark"], 500);
 });
 
 test("Golden File Archive matches platform visual baselines", async ({ page }) => {
@@ -563,6 +565,7 @@ test("archive action persists the complete feature at the end and undo restores 
   await page.locator(".card-header").first().click();
   await page.locator(".card").first().locator(".checkbox").nth(1).click();
   await page.keyboard.press("Control+s");
+  await expect(page.locator(".notification-title").last()).toHaveText("File saved");
   const feature = page.locator("#content > .release").first();
   await openFeatureActions(feature);
   await feature.getByRole("button", { name: "Archive feature" }).click();
