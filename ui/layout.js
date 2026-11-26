@@ -367,14 +367,17 @@ window.MDManager = window.MDManager || {};
     const ruledPositions = new Map([...visibleMinors, ...visibleMajors].map(tick => [tick.position, tick.x]));
     // A label always sits on a line, but a line does not always carry a label: a daily ruler is
     // wanted while a date every day is not, so labels keep their own spacing on top of that.
+    // Spacing is measured before device-pixel snapping, otherwise rounding drops single labels
+    // whenever the day pitch sits close to the minimum. 65px is one DD.MM.YY label plus a 12px gap.
     let previousLabelX = Number.NEGATIVE_INFINITY;
     for (const label of /** @type {HTMLElement[]} */ ([...timeline.querySelectorAll(".archive-grid-label")])) {
       const position = Number(label.dataset.archiveLabelPosition);
-      const x = ruledPositions.get(position) ?? snap(position / 100 * plotWidth);
-      const visible = ruledX.has(x) && x >= 38 && x <= plotWidth - 38 && x - previousLabelX >= 78;
+      const exactX = position / 100 * plotWidth;
+      const x = ruledPositions.get(position) ?? snap(exactX);
+      const visible = ruledX.has(x) && x >= 38 && x <= plotWidth - 38 && exactX - previousLabelX >= 65;
       label.hidden = !visible;
       label.style.left = `${x}px`;
-      if (visible) previousLabelX = x;
+      if (visible) previousLabelX = exactX;
     }
     for (const { segment, left, width, shortLeft } of segmentGeometry) {
       segment.style.setProperty("--archive-render-left", `${left}px`);

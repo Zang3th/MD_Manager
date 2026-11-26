@@ -1822,7 +1822,7 @@ test("Archive renders one chronological Date swimlane per dated feature and sepa
   const archive = page.locator("#archive");
   await expect(archive.locator(".archive-title")).toHaveText("Archive");
   await expect(archive.locator(".archive-count")).toHaveText("3 Features");
-  await expect(archive.locator(".archive-range")).toHaveText("01.01.2026 – 07.02.2026");
+  await expect(archive.locator(".archive-range")).toHaveText("01.01.26 – 07.02.26");
   await expect(archive.locator(".archive-swimlane-feature .archive-feature-title")).toHaveText(["Early feature", "Later feature"]);
   await expect(archive.locator(".archive-swimlane-version")).toHaveText(["v2.1.0", "v3.2.1"]);
   expect(await archive.locator(".archive-swimlane-label").evaluateAll(labels => labels.every(label => !label.textContent.includes("01.01.26")))).toBe(true);
@@ -1833,7 +1833,7 @@ test("Archive renders one chronological Date swimlane per dated feature and sepa
   await expect(archive.locator(".archive-date-point")).toHaveCount(1);
   await expect(archive.locator(".archive-pause-segment")).toHaveCount(2);
   await expect(archive.locator(".archive-pause-segment .archive-object-label")).toHaveText(["6 days", "2 days"]);
-  await expect(archive.locator(".archive-swimlane-label").first()).toHaveAccessibleName(/Early feature\. 01\.01\.2026 to 03\.01\.2026; 10\.01\.2026 to 12\.01\.2026; 15\.01\.2026; 6 days pause; 2 days pause\./);
+  await expect(archive.locator(".archive-swimlane-label").first()).toHaveAccessibleName(/Early feature\. 01\.01\.26 to 03\.01\.26; 10\.01\.26 to 12\.01\.26; 15\.01\.26; 6 days pause; 2 days pause\./);
   await expect(archive.locator("[data-archive-order],.archive-order,.archive-version-timeline,.archive-feature-details")).toHaveCount(0);
   await expect(archive.locator(".archive-active-segment[title],.archive-pause-segment[title],.archive-date-point[title]")).toHaveCount(0);
 
@@ -2032,7 +2032,7 @@ test("Archive crosshair snaps precisely, clamps its badge, coalesces work, and f
   const targetX = (bounds?.x || 0) + 10 / domain.span * (bounds?.width || 0);
   await page.mouse.move(targetX, (bounds?.y || 0) + (bounds?.height || 0) / 2);
   await expect(timeline).toHaveClass(/archive-crosshair-active/);
-  await expect(readout).toHaveText(new Date(targetDay * 24 * 60 * 60 * 1000).toLocaleDateString("de-DE", { timeZone: "UTC", day: "2-digit", month: "2-digit", year: "numeric" }));
+  await expect(readout).toHaveText(new Date(targetDay * 24 * 60 * 60 * 1000).toLocaleDateString("de-DE", { timeZone: "UTC", day: "2-digit", month: "2-digit", year: "2-digit" }));
   const aligned = await plot.evaluate((node, lineElement) => {
     const plot = node.getBoundingClientRect();
     const line = lineElement.getBoundingClientRect();
@@ -2051,14 +2051,14 @@ test("Archive crosshair snaps precisely, clamps its badge, coalesces work, and f
   expect(dateCenterDelta).toBeLessThanOrEqual(0.1);
 
   await page.mouse.move((bounds?.x || 0) + 1, (bounds?.y || 0) + 8);
-  await expect(readout).toHaveText(new Date(domain.start * 24 * 60 * 60 * 1000).toLocaleDateString("de-DE", { timeZone: "UTC", day: "2-digit", month: "2-digit", year: "numeric" }));
+  await expect(readout).toHaveText(new Date(domain.start * 24 * 60 * 60 * 1000).toLocaleDateString("de-DE", { timeZone: "UTC", day: "2-digit", month: "2-digit", year: "2-digit" }));
   expect(await readout.evaluate((node, plotElement) => {
     const badge = node.getBoundingClientRect();
     const plot = plotElement.getBoundingClientRect();
     return badge.left >= plot.left && badge.right <= plot.right;
   }, await plot.elementHandle())).toBe(true);
   await page.mouse.move((bounds?.x || 0) + (bounds?.width || 0) - 1, (bounds?.y || 0) + 8);
-  await expect(readout).toHaveText(new Date((domain.start + domain.span - 1) * 24 * 60 * 60 * 1000).toLocaleDateString("de-DE", { timeZone: "UTC", day: "2-digit", month: "2-digit", year: "numeric" }));
+  await expect(readout).toHaveText(new Date((domain.start + domain.span - 1) * 24 * 60 * 60 * 1000).toLocaleDateString("de-DE", { timeZone: "UTC", day: "2-digit", month: "2-digit", year: "2-digit" }));
   expect(await readout.evaluate((node, plotElement) => {
     const badge = node.getBoundingClientRect();
     const plot = plotElement.getBoundingClientRect();
@@ -2139,7 +2139,7 @@ test("Archive feature popover owns one expanded anchor, closes globally, and sta
   await expect(popover.locator(".archive-popover-version")).toHaveText("v2.1.0");
   await expect(popover.locator(".archive-feature-popover-content > .archive-popover-section > h4")).toHaveText(["Dates", "Timeline", "Tasks"]);
   await expect(popover.locator(".archive-popover-summary")).toHaveCount(0);
-  await expect(popover.locator(".archive-popover-dates > span")).toHaveText(["01.01.2026 - 03.01.2026", "10.01.2026 - 12.01.2026", "15.01.2026"]);
+  await expect(popover.locator(".archive-popover-dates > span")).toHaveText(["01.01.26 - 03.01.26", "10.01.26 - 12.01.26", "15.01.26"]);
   await expect(popover.locator(".archive-popover-timeline .archive-popover-metrics dt")).toHaveText(["Work", "Pause", "Total"]);
   await expect(popover.locator(".archive-popover-timeline .archive-popover-metrics dd")).toHaveText(["7 days", "8 days", "15 days"]);
   await expect(popover.locator(".archive-popover-tasks li")).toHaveText(["First task", "Second task"]);

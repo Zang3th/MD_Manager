@@ -229,7 +229,7 @@ window.MDManager = window.MDManager || {};
 
   /** @param {MDFeature} feature */
   function archiveFeatureDates(feature) {
-    return feature.dates.filter(date => date.from || date.to).map(date => [date.from, date.to && date.to !== date.from ? date.to : ""].filter(Boolean).map(app.archive.displayDate).join(" - "));
+    return feature.dates.filter(date => date.from || date.to).map(date => [date.from, date.to && date.to !== date.from ? date.to : ""].filter(Boolean).map(value => app.archive.displayDate(value, true)).join(" - "));
   }
 
   /** @param {MDFeature} feature @param {number} featureIndex */

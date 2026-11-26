@@ -8,19 +8,20 @@ const span = (from, to) => [{ title: "Span", version: "", dates: [{ from, to }],
 /** @param {string} title @param {Array<{from: string, to: string}>} dates */
 const feature = (title, dates) => ({ title, version: "", dates, tasks: [] });
 
-// Which formats parse is tested with MD_Libs dates; the archive only shows a parsed date as DD.MM.YYYY
+// Which formats parse is tested with MD_Libs dates; the archive only shows a parsed date as DD.MM.YY (DD.MM.YYYY outside it)
 // and anything else as written.
 test("display dates normalize parsed dates, keep the rest as written and leave metadata unchanged", () => {
   assert.equal(archive.displayDate("05.01.26"), "05.01.2026");
+  assert.equal(archive.displayDate("2026-01-05", true), "05.01.26");
   assert.equal(archive.displayDate("TBD"), "TBD");
   const source = feature("Source", [{ from: "05.01.26", to: "2026-01-07" }, { from: "2026-01-08", to: "" }]);
   const before = JSON.stringify(source);
   const timeline = archive.timeline([source]);
   assert.equal(JSON.stringify(source), before);
-  assert.equal(/** @type {any[]} */ (timeline.lanes)[0].points[0].label, "08.01.2026");
+  assert.equal(/** @type {any[]} */ (timeline.lanes)[0].points[0].label, "08.01.26");
 });
 
-test("calendar ruler dates keep four-digit years at every scale", () => {
+test("calendar ruler dates keep the archive date format at every scale", () => {
   for (const to of ["2026-01-20", "2026-06-30", "2027-12-31", "2036-12-31"]) {
     const timeline = archive.timeline(span("2026-01-01", to));
     const dates = /** @type {any[]} */ (timeline.ticks).filter(tick => tick.label);
@@ -46,7 +47,7 @@ test("header cells tile the padded plot with whole calendar periods", () => {
   }
   // The plot opens before the first date and closes after the last, so the outer cells are the
   // partial periods the padding reaches into. The reported range stays the real one.
-  assert.deepEqual([months.from, months.to], ["01.01.2026", "30.06.2026"]);
+  assert.deepEqual([months.from, months.to], ["01.01.26", "30.06.26"]);
   assert.deepEqual(Array.from(cells, (/** @type {any} */ cell) => cell.label), ["Dec 25", "Jan 26", "Feb 26", "Mar 26", "Apr 26", "May 26", "Jun 26", "Jul 26"]);
 
   // Coarser domains step up to whole quarters and years rather than inventing a grouping.
@@ -59,7 +60,7 @@ test("the ruler counts off the first archived date", () => {
   const minors = /** @type {any[]} */ (timeline.ticks).filter(tick => tick.level === "minor");
 
   // A ruler line marks the day the work started, not the nearest calendar boundary.
-  const opening = minors.find(tick => tick.label === "07.01.2026");
+  const opening = minors.find(tick => tick.label === "07.01.26");
   assert.ok(opening, "the first archived date is ruled");
   assert.ok(opening.position > 0, "the plot opens before the first date");
 
@@ -90,7 +91,7 @@ test("every ruler label names its month and cell edges stay unlabelled", () => {
   assert.ok(ticks.filter(tick => tick.level === "major").every(tick => tick.label === ""));
   // A bare day number is ambiguous once the coarse row groups by quarters, so every label carries
   // its month.
-  assert.ok(ticks.filter(tick => tick.level === "minor").every(tick => /^\d{2}\.\d{2}\.\d{4}$/.test(tick.label)));
+  assert.ok(ticks.filter(tick => tick.level === "minor").every(tick => /^\d{2}\.\d{2}\.\d{2}$/.test(tick.label)));
   assert.deepEqual(Array.from(ticks, (/** @type {any} */ tick) => tick.position).slice().sort((a, b) => a - b), Array.from(ticks, (/** @type {any} */ tick) => tick.position));
 });
 
@@ -147,7 +148,7 @@ test("a day view rules every day and names every week", () => {
   // The row above the timeline groups by calendar week rather than by the months it happens to
   // touch, and the ruler row keeps its day labels.
   assert.deepEqual(Array.from(/** @type {any[]} */ (timeline.headerCells), (/** @type {any} */ cell) => cell.label), ["KW 6", "KW 7", "KW 8", "KW 9"]);
-  assert.ok(ticks.filter(tick => tick.level === "minor").every(tick => /^\d{2}\.\d{2}\.\d{4}$/.test(tick.label)));
+  assert.ok(ticks.filter(tick => tick.level === "minor").every(tick => /^\d{2}\.\d{2}\.\d{2}$/.test(tick.label)));
 
   // Every day boundary in the plot is ruled, whether by a thin line or by the week's thick one.
   const positions = Array.from(ticks, (/** @type {any} */ tick) => tick.position).sort((a, b) => a - b);
@@ -179,12 +180,12 @@ test("date metadata becomes ranges, points, or unmatched lanes deterministically
   assert.equal(timeline.unmatched.length, 1);
   assert.equal(timeline.unmatched[0].title, "Invalid start");
   assert.equal(/** @type {any[]} */ (timeline.lanes)[0].ranges.length, 0);
-  assert.equal(/** @type {any[]} */ (timeline.lanes)[0].points[0].label, "15.02.2026");
+  assert.equal(/** @type {any[]} */ (timeline.lanes)[0].points[0].label, "15.02.26");
   assert.equal(/** @type {any[]} */ (timeline.lanes)[2].points.length, 1, "an invalid end keeps its valid start as a point");
   assert.equal(/** @type {any[]} */ (timeline.lanes)[3].points.length, 1, "a reversed end keeps its valid start as a point");
   assert.equal(/** @type {any[]} */ (timeline.lanes)[4].ranges[0].durationDays, 3);
   assert.deepEqual(Object.keys(/** @type {any[]} */ (timeline.lanes)[4].ranges[0]).sort(), ["durationDays", "endDay", "endExclusive", "position", "startDay", "width"]);
-  assert.deepEqual([timeline.from, timeline.to], ["15.02.2026", "03.03.2026"]);
+  assert.deepEqual([timeline.from, timeline.to], ["15.02.26", "03.03.26"]);
 });
 
 test("lanes on the same start day follow end date, then version, not input order", () => {

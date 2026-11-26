@@ -330,15 +330,15 @@ for (const [theme, ratio] of /** @type {const} */ ([["dark", 1], ["light", 2]]))
         });
         expect(Math.abs(geometry.actual - geometry.expected)).toBeLessThanOrEqual(index ? .51 / ratio : 1.02);
         await page.mouse.move(geometry.actual, before.y + before.height / 2 + 16);
-        await expect(page.locator(".archive-crosshair-readout")).toHaveText(index ? "31.12.2026" : "01.01.2026");
+        await expect(page.locator(".archive-crosshair-readout")).toHaveText(index ? "31.12.26" : "01.01.26");
         await point.hover();
         const label = point.locator(".archive-object-label");
         await expect(label).not.toHaveClass(/is-positioned/);
-        await expect(label).toHaveText(index ? "31.12.2026" : "01.01.2026");
+        await expect(label).toHaveText(index ? "31.12.26" : "01.01.26");
         await expect(label).toBeHidden();
         const readout = page.locator(".archive-crosshair-readout");
         await expect(readout).toHaveCSS("opacity", "1");
-        await expect(readout).toHaveText(index ? "31.12.2026" : "01.01.2026");
+        await expect(readout).toHaveText(index ? "31.12.26" : "01.01.26");
         expect(await point.evaluate(node => {
           const canvas = document.createElement("canvas");
           const context = /** @type {CanvasRenderingContext2D} */ (canvas.getContext("2d"));
@@ -398,7 +398,7 @@ test("Archive collision hover names all dense dates and restores isolated marks 
   await group.locator(".archive-mark-count").hover();
   const label = group.locator(".archive-object-label");
   await expect(label).toHaveClass(/is-positioned/);
-  await expect(label).toHaveText("01.01.2026 - 02.01.2026 (2 days)\n03.01.2026 - 04.01.2026 (2 days)\n05.01.2026\n06.01.2026\n07.01.2026");
+  await expect(label).toHaveText("01.01.26 - 02.01.26 (2 days)\n03.01.26 - 04.01.26 (2 days)\n05.01.26\n06.01.26\n07.01.26");
   for (const theme of ["dark", "light"]) {
     await setTheme(page, theme);
     expect(await label.evaluate(node => getComputedStyle(node).backgroundColor)).not.toMatch(/\/|rgba/);
@@ -413,7 +413,7 @@ test("Archive collision hover names all dense dates and restores isolated marks 
   await page.setViewportSize({ width: 2560, height: 1440 });
   await expect(page.locator(".archive-mark-count")).toHaveCount(0);
   await expect(page.locator(".archive-collision-member")).toHaveCount(0);
-  await expect(page.locator(".archive-date-point>.archive-object-label")).toHaveText(["10.01.2026", "14.01.2026"]);
+  await expect(page.locator(".archive-date-point>.archive-object-label")).toHaveText(["10.01.26", "14.01.26"]);
 });
 
 test("Archive crosshair reuses its date text and leaves unchanged days and root classes untouched", async ({ page }) => {
@@ -454,7 +454,7 @@ test("Archive crosshair reuses its date text and leaves unchanged days and root 
     };
   });
   expect(evidence.sameTextNode).toBe(true);
-  expect(evidence.text).toBe("10.01.2026");
+  expect(evidence.text).toBe("10.01.26");
   expect(evidence.archiveClasses).toBeLessThanOrEqual(1);
   expect(evidence.timelineClasses).toBe(1);
   expect(evidence.paths).toBe(2);

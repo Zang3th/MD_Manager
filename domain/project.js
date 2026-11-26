@@ -179,15 +179,17 @@ window.MDManager = window.MDManager || {};
     return 0;
   }
 
-  /** @param {number} day */
+  /** The Archive writes DD.MM.YY, so a daily ruler fits a label on every line. @param {number} day */
   function archiveDayLabel(day) {
-    return dates.format(dates.fromTime(day * dayMs));
+    const key = dates.fromTime(day * dayMs);
+    return `${key.slice(8, 10)}.${key.slice(5, 7)}.${key.slice(2, 4)}`;
   }
 
-  /** @param {string} value */
-  function archiveDisplayDate(value) {
+  /** @param {string} value @param {boolean} [short] DD.MM.YY as in the Archive instead of DD.MM.YYYY */
+  function archiveDisplayDate(value, short = false) {
     const parsed = parsedArchiveDate(value);
-    return parsed ? archiveDayLabel(parsed.time / dayMs) : value;
+    if (!parsed) return value;
+    return short ? archiveDayLabel(parsed.time / dayMs) : dates.format(dates.fromTime(parsed.time));
   }
 
   /** @param {MDArchiveUnit} unit @param {number} step @param {number} time @returns {number} */
