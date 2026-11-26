@@ -106,7 +106,7 @@ Stats und Backlog bleiben davon unberührt.
 ## Diverse Verbesserungen
 
 #Version
-- 0.9.1
+- 1.0.0
 
 #Date
 - 11.10.2026 - TBD
@@ -167,7 +167,7 @@ Stats und Backlog bleiben davon unberührt.
 ## Filtern und Controls
 
 #Version
-- 1.0.0
+- 1.1.0
 
 #Date
 - TBD
