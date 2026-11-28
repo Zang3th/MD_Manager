@@ -1,5 +1,5 @@
 import Sortable from "sortablejs/Sortable.min.js";
-import { keymap, popover as floating, segmented, sortable } from "@zang3th/md-libs/ui";
+import { keymap, modal, popover as floating, segmented, sortable } from "@zang3th/md-libs/ui";
 
 window.MDManager = window.MDManager || {};
 
@@ -207,9 +207,7 @@ window.MDManager = window.MDManager || {};
     if (!document.body.classList.contains("start-view")) document.querySelector("#projectStats .stats-expand")?.focus({ preventScroll: true });
   });
   document.getElementById("closeStatistics").addEventListener("click", () => statisticsDialog.close());
-  statisticsDialog.addEventListener("click", event => {
-    if (event.target === statisticsDialog) statisticsDialog.close();
-  });
+  modal.closeOnBackdrop({ dialog: statisticsDialog, close: () => statisticsDialog.close(), dismiss: "click" });
   statisticsDialog.addEventListener("pointerover", event => {
     const mark = eventElement(event).closest(".chart-mark");
     if (mark) showChartDetails(mark);

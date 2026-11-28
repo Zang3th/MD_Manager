@@ -1,4 +1,5 @@
 import { history, markdown } from "@zang3th/md-libs/core";
+import { modal } from "@zang3th/md-libs/ui";
 
 window.MDManager = window.MDManager || {};
 
@@ -675,9 +676,7 @@ window.MDManager = window.MDManager || {};
     event.preventDefault();
     close();
   });
-  dialog.addEventListener("pointerdown", event => {
-    if (event.target === dialog) close();
-  });
+  modal.closeOnBackdrop({ dialog, close });
 
   const featureDialog = /** @type {HTMLDialogElement} */ (document.getElementById("featureEditor"));
   const featureForm = /** @type {HTMLFormElement} */ (document.getElementById("featureEditorForm"));
@@ -769,9 +768,7 @@ window.MDManager = window.MDManager || {};
     event.preventDefault();
     closeFeature();
   });
-  featureDialog.addEventListener("pointerdown", event => {
-    if (event.target === featureDialog) closeFeature();
-  });
+  modal.closeOnBackdrop({ dialog: featureDialog, close: closeFeature });
 
   app.editor = {
     open,
