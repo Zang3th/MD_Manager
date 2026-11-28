@@ -10,7 +10,7 @@ const iconDirectory = path.join(root, "res", "icons");
 const iconNames = new Map([["checkmark", "check"], ["strikethrough", "strike"]]);
 
 test("local SVG files exactly match every inline icon symbol", () => {
-  assert.equal(Array.from(html.matchAll(/<symbol id="icon-/g)).length, 27);
+  assert.equal(Array.from(html.matchAll(/<symbol id="icon-/g)).length, 28);
   assert.deepEqual(compareIcons({ html, directory: iconDirectory, prefix: "icon-", names: iconNames }), []);
 });
 

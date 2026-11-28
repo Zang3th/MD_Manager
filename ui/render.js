@@ -11,6 +11,7 @@ window.MDManager = window.MDManager || {};
   const archiveIcon = '<svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-archive"></use></svg>';
   const unarchiveIcon = '<svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-undo"></use></svg>';
   const dotsIcon = '<svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-dots"></use></svg>';
+  const expandIcon = '<svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-expand"></use></svg>';
   const pinIcon = '<svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-pin"></use></svg>';
   const featureWidths = [380, 460, 540];
   let taskContentCache = new WeakMap();
@@ -377,7 +378,7 @@ window.MDManager = window.MDManager || {};
     /** @param {string} label @param {{done: number, active: number, open: number, backlog: number, archive: number}} counts */
     const row = (label, counts) => `<tr><th scope="row">${label}</th><td class="archive-stat">${counts.archive}</td><td class="done">${counts.done}</td><td class="active">${counts.active}</td><td class="open">${counts.open}</td><td class="backlog-stat">${counts.backlog}</td></tr>`;
     const statisticsTable = `<table><thead><tr><th></th><th class="archive-stat" scope="col">Archive</th><th class="done" scope="col">Done</th><th class="active" scope="col">Active</th><th class="open" scope="col">Open</th><th class="backlog-stat" scope="col">Backlog</th></tr></thead><tbody>${row("Features", counts.features)}${row("Tasks", counts.tasks)}${row("Todos", counts.entries)}</tbody></table>`;
-    return `<div class="stats-header"><span class="stats-title">Statistics</span><div class="stats-actions"><button class="stats-expand" type="button" aria-label="Expand statistics" aria-haspopup="dialog" aria-controls="statisticsDialog" data-tooltip="Expand statistics"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 32 32"><use href="#icon-zoom"></use></svg></button><button class="stats-close" type="button" aria-label="Close statistics" data-tooltip="Close statistics">${deleteIcon}</button></div></div>${statisticsTable}`;
+    return `<div class="stats-header"><span class="stats-title">Statistics</span><div class="stats-menu"><button class="stats-menu-button" type="button" aria-label="Statistics actions" data-tooltip="Statistics actions" aria-expanded="false" aria-controls="statsOptions">${dotsIcon}</button><div class="feature-options" id="statsOptions" hidden><button class="feature-option" data-stats-action="expand" type="button" aria-label="Expand statistics" aria-haspopup="dialog" aria-controls="statisticsDialog">${expandIcon}<span>Expand</span></button><button class="feature-option" data-stats-action="close" type="button" aria-label="Close statistics">${deleteIcon}<span>Close</span></button></div></div></div>${statisticsTable}`;
   }
 
   /** @param {MDProject} project @param {MDStatisticsCharts} data */
@@ -414,8 +415,8 @@ window.MDManager = window.MDManager || {};
     const excluded = data.excluded ? `<span class="statistics-excluded">${plural(data.excluded, "feature")} without valid dates</span>` : "";
     const empty = '<div class="statistics-chart-empty"><span>No duration data yet</span><p>Complete a feature with valid dates to see it here.</p></div>';
     document.getElementById("statisticsContent").innerHTML = `${kpis}
-      <section class="statistics-section statistics-status" aria-labelledby="statisticsStatusTitle"><div class="statistics-section-heading"><h3 id="statisticsStatusTitle">Status</h3>${legend}</div><div class="statistics-distribution">${row("Features", features, false)}${row("Tasks", tasks)}${row("Todos", entries)}</div></section>
-      <section class="statistics-section statistics-duration" aria-labelledby="statisticsDurationTitle"><div class="statistics-section-heading"><h3 id="statisticsDurationTitle">Feature duration</h3>${excluded}</div>
+      <section class="statistics-section statistics-status" aria-label="Status"><div class="statistics-section-heading">${legend}</div><div class="statistics-distribution">${row("Features", features, false)}${row("Tasks", tasks)}${row("Todos", entries)}</div></section>
+      <section class="statistics-section statistics-duration" aria-label="Feature duration">${excluded ? `<div class="statistics-section-heading">${excluded}</div>` : ""}
       <div class="statistics-chart-scroll"><div class="statistics-charts">
         <section class="statistics-chart statistics-scatter" aria-labelledby="scatterTitle"><header><h4 id="scatterTitle">Todos vs. recorded days</h4></header>${data.count ? '<div class="statistics-plot" data-chart="scatter"></div>' : empty}</section>
         <section class="statistics-chart statistics-histogram" aria-labelledby="histogramTitle"><header><h4 id="histogramTitle">Features by duration</h4></header>${data.count ? '<div class="statistics-plot" data-chart="histogram"></div>' : empty}</section>
@@ -426,14 +427,14 @@ window.MDManager = window.MDManager || {};
   function renderStatisticsPlot(data, kind, width, height, container) {
     const scatter = kind === "scatter";
     const scale = scatter ? data.sizeScale : data.frequencyScale;
-    const left = Math.max(58, String(scale.max).length * 7.5 + 22);
+    const left = Math.max(36, String(scale.max).length * 7.5 + 20);
     const right = width - Math.max(30, String(scatter ? data.durationScale.max : data.bins.at(-1)?.to).length * 4);
     const top = 24;
-    const bottom = height - 58;
+    const bottom = height - 34;
     const plotWidth = right - left;
     const plotHeight = bottom - top;
     const y = (/** @type {number} */ value) => bottom - value / scale.max * plotHeight;
-    let markup = scale.ticks.map(tick => `<g aria-hidden="true"><line class="chart-grid" x1="${left}" y1="${y(tick)}" x2="${right}" y2="${y(tick)}"/><text class="chart-tick" x="${left - 12}" y="${y(tick)}" text-anchor="end" dominant-baseline="central">${tick}</text></g>`).join("");
+    let markup = scale.ticks.map(tick => `<g aria-hidden="true">${scatter ? `<line class="chart-grid" x1="${left}" y1="${y(tick)}" x2="${right}" y2="${y(tick)}"/>` : ""}<text class="chart-tick" x="${left - 12}" y="${y(tick)}" text-anchor="end" dominant-baseline="central">${tick}</text></g>`).join("");
     if (scatter) {
       const x = (/** @type {number} */ value) => left + value / data.durationScale.max * plotWidth;
       markup += data.durationScale.ticks.map(tick => `<g aria-hidden="true"><text class="chart-tick" x="${x(tick)}" y="${bottom + 24}" text-anchor="middle">${tick}</text></g>`).join("");
@@ -453,7 +454,7 @@ window.MDManager = window.MDManager || {};
         return `<g class="chart-mark chart-bar" role="img" tabindex="0" aria-label="${label} ${bin.to === 1 ? "day" : "days"}: ${bin.count} ${bin.count === 1 ? "feature" : "features"}" data-chart-bin="${index}"><rect class="chart-hit" x="${start}" y="${top}" width="${column}" height="${plotHeight}"/><rect class="chart-bar-fill" x="${start + 2}" y="${y(bin.count)}" width="${Math.max(1, column - 4)}" height="${bottom - y(bin.count)}" rx="3"/>${bin.count && String(bin.count).length * 7.5 < column - 4 ? `<text class="chart-bar-count" x="${start + column / 2}" y="${y(bin.count) - 9}" text-anchor="middle">${bin.count}</text>` : ""}${index % labelStride === 0 ? `<text class="chart-tick chart-bin-label" x="${start + column / 2}" y="${bottom + 24}" text-anchor="middle">${label}</text>` : ""}</g>`;
       }).join("");
     }
-    markup += `<g aria-hidden="true"><path class="chart-axis" d="M${left} ${top}V${bottom}H${right}"/><text class="chart-axis-label" x="${left + plotWidth / 2}" y="${height - 10}" text-anchor="middle">${scatter ? "Recorded days" : "Duration (days)"}</text><text class="chart-axis-label" text-anchor="middle" transform="translate(16 ${top + plotHeight / 2}) rotate(-90)">${scatter ? "Todos" : "Features"}</text></g>`;
+    markup += `<g aria-hidden="true"><path class="chart-axis" d="M${left} ${top}V${bottom}H${right}"/></g>`;
     const focused = container.contains(document.activeElement) ? document.activeElement : null;
     const point = focused?.getAttribute("data-chart-point");
     const bin = focused?.getAttribute("data-chart-bin");

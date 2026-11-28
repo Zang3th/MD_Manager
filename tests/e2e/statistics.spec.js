@@ -79,6 +79,7 @@ async function openFixture(page, markdown = fixture, disk = false) {
 
 /** @param {import("@playwright/test").Page} page */
 async function openStatistics(page) {
+  await page.getByRole("button", { name: "Statistics actions" }).click();
   await page.getByRole("button", { name: "Expand statistics", exact: true }).click();
   await expect(page.locator("#statisticsDialog")).toBeVisible();
   await expect(page.locator("#statisticsDialog")).toHaveCSS("transform", "none");
@@ -91,20 +92,34 @@ async function closeStatistics(page) {
   await expect(page.locator("#statisticsDialog")).toBeHidden();
 }
 
-test("statistics expands beside its close control, summarizes the matrix as tiles and disjoint bars and follows the existing modal schema", async ({ page }) => {
+test("statistics expands from its actions menu, summarizes the matrix as tiles and disjoint bars and follows the existing modal schema", async ({ page }) => {
   await openFixture(page);
   const matrix = await page.locator("#projectStats table").innerText();
-  const controls = await page.locator(".stats-actions button").evaluateAll(buttons => buttons.map(button => ({ name: button.getAttribute("aria-label"), x: button.getBoundingClientRect().x, width: button.getBoundingClientRect().width, height: button.getBoundingClientRect().height })));
-  expect(controls.map(control => control.name)).toEqual(["Expand statistics", "Close statistics"]);
-  expect(controls[0].x).toBeLessThan(controls[1].x);
-  expect(controls.map(control => [control.width, control.height])).toEqual([[24, 24], [24, 24]]);
+  const menuButton = page.locator(".stats-header > .stats-menu > button");
+  await expect(menuButton).toHaveCount(1);
+  await expect(menuButton).toHaveAttribute("aria-label", "Statistics actions");
+  expect(await menuButton.evaluate(button => [button.getBoundingClientRect().width, button.getBoundingClientRect().height])).toEqual([24, 24]);
+  const options = page.locator("#statsOptions");
+  await expect(options).toBeHidden();
+  await menuButton.click();
+  await expect(menuButton).toHaveAttribute("aria-expanded", "true");
+  await expect(options.locator(".feature-option")).toHaveText(["Expand", "Close"]);
+  expect(await options.locator(".feature-option").evaluateAll(items => items.map(item => item.getAttribute("aria-label")))).toEqual(["Expand statistics", "Close statistics"]);
+  await page.keyboard.press("Escape");
+  await expect(options).toBeHidden();
+  await expect(menuButton).toHaveAttribute("aria-expanded", "false");
+  await menuButton.click();
+  await page.locator("#projectStats table").click();
+  await expect(options).toBeHidden();
   await openStatistics(page);
   await expect(page.locator(".statistics-kpi-label")).toHaveText(["Features completed", "Todos done", "Average duration"]);
   await expect(page.locator(".statistics-kpi-value")).toHaveText(["6/ 7", "92%", "6.5days"]);
   await expect(page.locator(".statistics-kpi-note")).toHaveText(["2 archived · 4 done", "11 of 12 · backlog excluded", "Shortest 3 daysLongest 17 days"]);
   await expect(page.locator(".statistics-duration-ends>span")).toHaveText(["Shortest 3 days", "Longest 17 days"]);
   expect(await page.locator(".statistics-duration-strip i").evaluateAll(marks => marks.map(mark => `${mark.className}:${(/** @type {HTMLElement} */ (mark)).style.left}`))).toEqual(["statistics-duration-dot:0%", "statistics-duration-dot:100%", "statistics-duration-mean:25%"]);
-  await expect(page.locator(".statistics-section-heading h3")).toHaveText(["Status", "Feature duration"]);
+  await expect(page.locator(".statistics-section-heading h3")).toHaveCount(0);
+  expect(await page.locator(".statistics-section").evaluateAll(sections => sections.map(section => section.getAttribute("aria-label")))).toEqual(["Status", "Feature duration"]);
+  expect(await page.locator(".statistics-kpi").evaluateAll(tiles => tiles.map(tile => [getComputedStyle(tile).backgroundColor, getComputedStyle(tile).boxShadow]))).toEqual(Array(3).fill(["rgba(0, 0, 0, 0)", "none"]));
   await expect(page.locator(".statistics-legend li")).toHaveText(["Archive", "Done", "Active", "Open", "Backlog"]);
   await expect(page.locator(".statistics-status-label")).toHaveText(["Features", "Tasks", "Todos"]);
   await expect(page.locator(".statistics-status-total")).toHaveText(["7", "8", "13"]);
@@ -121,7 +136,8 @@ test("statistics expands beside its close control, summarizes the matrix as tile
   await expect(page.locator(".statistics-excluded")).toHaveText("2 features without valid dates");
   expect(await page.locator(".statistics-status,.statistics-duration,.statistics-chart").evaluateAll(sections => sections.map(section => [getComputedStyle(section).borderTopWidth, getComputedStyle(section).backgroundColor]))).toEqual([["0px", "rgba(0, 0, 0, 0)"], ["0px", "rgba(0, 0, 0, 0)"], ["0px", "rgba(0, 0, 0, 0)"], ["0px", "rgba(0, 0, 0, 0)"]]);
   await expect(page.locator(".chart-point")).toHaveCount(3);
-  await expect(page.locator(".chart-grid")).toHaveCount(8);
+  await expect(page.locator(".chart-grid")).toHaveCount(4);
+  await expect(page.locator(".statistics-scatter .chart-grid")).toHaveCount(4);
   await expect(page.locator("#scatterTitle")).toHaveText("Todos vs. recorded days");
   await expect(page.locator("#histogramTitle")).toHaveText("Features by duration");
   const geometry = await page.locator("#statisticsDialog").evaluate(dialog => {
@@ -131,10 +147,7 @@ test("statistics expands beside its close control, summarizes the matrix as tile
   });
   expect(geometry).toEqual({ x: 288, y: 99, width: 864, height: 702, radius: "12px", blur: "blur(2px)", backdrop: "rgba(0, 0, 0, 0.54)", focused: true });
   await expect(page.locator(".statistics-chart footer")).toHaveCount(0);
-  await expect(page.locator('.statistics-scatter .chart-axis-label:not([transform])')).toHaveText("Recorded days");
-  await expect(page.locator('.statistics-scatter .chart-axis-label[transform]')).toHaveText("Todos");
-  await expect(page.locator('.statistics-histogram .chart-axis-label:not([transform])')).toHaveText("Duration (days)");
-  await expect(page.locator('.statistics-histogram .chart-axis-label[transform]')).toHaveText("Features");
+  await expect(page.locator(".chart-axis-label")).toHaveCount(0);
   const positions = await page.locator(".chart-point").evaluateAll(points => points.map(point => {
     const matrix = (/** @type {SVGGElement} */ (point)).transform.baseVal.consolidate()?.matrix;
     return { x: matrix?.e || 0, y: matrix?.f || 0 };
@@ -149,7 +162,7 @@ test("statistics expands beside its close control, summarizes the matrix as tile
   expect(await page.evaluate(() => document.getElementById("statisticsDialog").contains(document.activeElement))).toBe(true);
   await page.keyboard.press("Escape");
   await expect(page.locator("#statisticsDialog")).toBeHidden();
-  await expect(page.locator(".stats-expand")).toBeFocused();
+  await expect(page.locator(".stats-menu-button")).toBeFocused();
   await expect(page.locator("#projectStats")).toBeVisible();
   expect(await page.locator("#projectStats table").innerText()).toBe(matrix);
   const task = page.locator('#content .release[data-feature="0"] .card');
@@ -287,7 +300,7 @@ test("clicking the statistics backdrop closes without activating the project and
     await expect(page.locator("#statisticsDialog")).toBeVisible();
     await page.mouse.click(4, 4);
     await expect(page.locator("#statisticsDialog")).toBeHidden();
-    await expect(page.locator(".stats-expand")).toBeFocused();
+    await expect(page.locator(".stats-menu-button")).toBeFocused();
     await expect(page.locator("#projectTitle")).toHaveText("Statistics Project");
     await expect(page.locator("#saveFile")).toHaveAttribute("aria-label", "Saved");
     await expect(page.locator("#undoChange")).toBeDisabled();
@@ -315,14 +328,15 @@ test("opening preserves workspace context and cannot edit the inert project thro
   await expect(page.locator("#saveFile")).toHaveAttribute("aria-label", "Saved");
   await expect(page.locator("#undoChange")).toBeDisabled();
   await expect(page.locator("#redoChange")).toBeDisabled();
-  await page.locator(".stats-close").click();
+  await page.getByRole("button", { name: "Statistics actions" }).click();
+  await page.getByRole("button", { name: "Close statistics", exact: true }).click();
   await expect(page.locator("#projectStats")).toBeHidden();
   await page.locator("#toggleViewMenu").click();
   await page.locator("#toggleStats").click();
   await openStatistics(page);
   await closeStatistics(page);
   await page.locator("#showArchiveView").click();
-  await expect(page.locator(".stats-expand")).toBeHidden();
+  await expect(page.locator(".stats-menu-button")).toBeHidden();
 });
 
 test("chart aggregation is lazy, reused across reopen and resize, and invalidated by todo undo and redo", async ({ page }) => {
@@ -526,7 +540,7 @@ test("1080p portrait statistics fits both charts and the overview without unnece
     expect(countersFit).toBe(true);
     await expect(page.locator("#closeStatistics")).toBeInViewport();
     for (const title of ["#scatterTitle", "#histogramTitle"]) await expect(page.locator(title)).toBeInViewport();
-    for (const axis of [".statistics-scatter", ".statistics-histogram"]) await expect(page.locator(`${axis} .chart-axis-label:not([transform])`)).toBeInViewport();
+    for (const plot of await page.locator(".statistics-plot").all()) await expect(plot).toBeInViewport({ ratio: 1 });
   }
   await page.setViewportSize({ width: 1080, height: 1920 });
   await page.mouse.move(4, 4);
@@ -548,7 +562,7 @@ test("1080p portrait statistics fits both charts and the overview without unnece
   expect(await page.evaluate(() => (/** @type {any} */ (window)).statisticsProbe.calls)).toBe(1);
   await page.mouse.click(4, 4);
   await expect(page.locator("#statisticsDialog")).toBeHidden();
-  await expect(page.locator(".stats-expand")).toBeFocused();
+  await expect(page.locator(".stats-menu-button")).toBeFocused();
 });
 
 test("statistics maintains themed geometry and readable plots at wide and narrow viewports", async ({ page }) => {
@@ -573,7 +587,7 @@ test("statistics maintains themed geometry and readable plots at wide and narrow
   }
   await page.setViewportSize({ width: 1440, height: 900 });
   await expect.poll(() => page.locator("#statisticsContent").evaluate(content => content.scrollHeight === content.clientHeight)).toBe(true);
-  await expect(page.locator('.statistics-scatter .chart-axis-label:not([transform])')).toBeInViewport();
+  await expect(page.locator(".statistics-scatter .statistics-plot")).toBeInViewport({ ratio: 1 });
   await page.evaluate(() => { document.getElementById("statisticsContent").scrollTop = 0; document.querySelector(".statistics-chart-scroll").scrollLeft = 0; });
   await page.mouse.move(1000, 120);
   await page.evaluate(() => window.MDManager.theme.next());

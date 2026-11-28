@@ -281,6 +281,13 @@
         <circle cx="24" cy="24" r="2"/>
     </g>
 </symbol>
+    <symbol id="icon-expand" viewBox="0 0 32 32" fill="none">
+    <path d="M14 7H9a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5M19 7H25V13M25 7L15 17"
+          stroke="currentColor"
+          stroke-width="3.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"/>
+</symbol>
     <symbol id="icon-zoom" viewBox="0 0 32 32"
      fill="none">
     <path d="M13 13L6 6
@@ -469,12 +476,10 @@
         </div>
       </header>
       <div class="task-editor-content">
-        <label class="editor-field">
-          <span class="editor-label">Title</span>
-          <input id="taskEditorTitle" name="title" type="text" required autocomplete="off">
-        </label>
+        <div class="editor-field">
+          <input id="taskEditorTitle" name="title" type="text" aria-label="Title" required autocomplete="off">
+        </div>
         <div class="editor-field editor-field-grow editor-field-toolbar">
-          <span class="editor-label-row"><label class="editor-label" for="taskEditorMarkdown">Markdown</label></span>
           <div class="markdown-editor-shell">
             <div class="markdown-toolbar" id="taskMarkdownToolbar" role="toolbar" aria-label="Markdown formatting">
               <div class="markdown-tool-group" aria-label="Text formatting">
@@ -512,7 +517,7 @@
                 </aside>
               </div>
             </div>
-            <div class="markdown-editor-stack"><pre class="markdown-highlight" id="taskMarkdownHighlight" aria-hidden="true"></pre><textarea id="taskEditorMarkdown" name="markdown" spellcheck="false"></textarea></div>
+            <div class="markdown-editor-stack"><pre class="markdown-highlight" id="taskMarkdownHighlight" aria-hidden="true"></pre><textarea id="taskEditorMarkdown" name="markdown" aria-label="Markdown" spellcheck="false"></textarea></div>
           </div>
         </div>
       </div>
@@ -538,9 +543,8 @@
         </div>
       </header>
       <div class="feature-editor-content">
-        <label class="editor-field"><span class="editor-label">Title</span><input id="featureEditorTitle" name="title" type="text" required autocomplete="off"></label>
+        <div class="editor-field"><input id="featureEditorTitle" name="title" type="text" aria-label="Title" required autocomplete="off"></div>
         <div class="metadata-editor-field editor-field-toolbar">
-          <span class="editor-label-row"><label class="editor-label" for="featureEditorMetadata">Markdown</label></span>
           <div class="markdown-editor-shell">
             <div class="markdown-toolbar" id="featureMarkdownToolbar" role="toolbar" aria-label="Markdown formatting">
               <div class="markdown-tool-group" aria-label="Text formatting">
@@ -580,7 +584,7 @@
                 </aside>
               </div>
             </div>
-            <div class="markdown-editor-stack"><pre class="markdown-highlight" id="featureMarkdownHighlight" aria-hidden="true"></pre><textarea id="featureEditorMetadata" name="metadata" spellcheck="false"></textarea></div>
+            <div class="markdown-editor-stack"><pre class="markdown-highlight" id="featureMarkdownHighlight" aria-hidden="true"></pre><textarea id="featureEditorMetadata" name="metadata" aria-label="Markdown" spellcheck="false"></textarea></div>
           </div>
         </div>
       </div>

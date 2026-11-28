@@ -127,7 +127,7 @@ Stats und Backlog bleiben davon unberührt.
 - [x] ~Tastaturnavigation bis zum expliziten Ausbau abklemmen~
 - [x] ~Save-Animation um Schreibzyklen zu maskieren~
 - [x] ~Neu angelegte Tasks mit ToDos automatisch öffnen~
-- [ ] Title/Markdown dimmen
+- [x] ~Title/Markdown Überschriften raus~
 
 ### Archiv-Zeitstrahl
 
@@ -138,8 +138,8 @@ Stats und Backlog bleiben davon unberührt.
 ### Statistik-Fenster
 
 - [x] ~Visualisierung der Daten verbessern~
-- [ ] Übersichtlichkeit verbessern
-- [ ] Expand-Icon + Submenü einführen
+- [x] ~Expand-Icon + Submenü einführen~
+- [x] ~Übersichtlichkeit verbessern~
 
 ### MD_Libs
 

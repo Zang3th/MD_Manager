@@ -204,7 +204,7 @@ window.MDManager = window.MDManager || {};
     statisticsObserver.disconnect();
     if (statisticsFrame !== null) cancelAnimationFrame(statisticsFrame);
     statisticsFrame = null;
-    if (!document.body.classList.contains("start-view")) document.querySelector("#projectStats .stats-expand")?.focus({ preventScroll: true });
+    if (!document.body.classList.contains("start-view")) document.querySelector("#projectStats .stats-menu-button")?.focus({ preventScroll: true });
   });
   document.getElementById("closeStatistics").addEventListener("click", () => statisticsDialog.close());
   modal.closeOnBackdrop({ dialog: statisticsDialog, close: () => statisticsDialog.close(), dismiss: "click" });
@@ -727,11 +727,11 @@ window.MDManager = window.MDManager || {};
 
   /** @param {HTMLElement | null} [except] */
   function closeFeatureMenus(except = null) {
-    document.querySelectorAll(".feature-menu").forEach(menu => {
+    document.querySelectorAll(".feature-menu,.stats-menu").forEach(menu => {
       if (menu === except) return;
       const options = /** @type {HTMLElement} */ (menu.querySelector(".feature-options"));
       options.hidden = true;
-      menu.querySelector(".feature-menu-button")?.setAttribute("aria-expanded", "false");
+      menu.querySelector(".feature-menu-button,.stats-menu-button")?.setAttribute("aria-expanded", "false");
     });
   }
 
@@ -1987,8 +1987,21 @@ window.MDManager = window.MDManager || {};
     (/** @type {HTMLElement} */ (event.currentTarget)).setAttribute("aria-pressed", String(active));
   });
   document.getElementById("projectStats").addEventListener("click", event => {
-    if (eventElement(event).closest(".stats-expand")) { event.stopPropagation(); openStatistics(); return; }
-    if (!eventElement(event).closest(".stats-close")) return;
+    const menuButton = eventElement(event).closest(".stats-menu-button");
+    if (menuButton) {
+      event.stopPropagation();
+      const menu = requiredClosest(menuButton, ".stats-menu");
+      const options = /** @type {HTMLElement} */ (menu.querySelector(".feature-options"));
+      const open = options.hidden;
+      closeFeatureMenus(menu);
+      options.hidden = !open;
+      menuButton.setAttribute("aria-expanded", String(open));
+      return;
+    }
+    const action = eventElement(event).closest("[data-stats-action]")?.getAttribute("data-stats-action");
+    if (!action) return;
+    closeFeatureMenus();
+    if (action === "expand") { event.stopPropagation(); openStatistics(); return; }
     document.body.classList.add("hide-stats");
     document.getElementById("toggleStats").setAttribute("aria-pressed", "false");
   });
@@ -2011,7 +2024,7 @@ window.MDManager = window.MDManager || {};
   document.getElementById("overwriteExternal").addEventListener("click", () => { void resolveExternalFile("overwrite"); });
   document.addEventListener("click", event => {
     const target = eventElement(event);
-    if (!target.closest(".feature-menu")) closeFeatureMenus();
+    if (!target.closest(".feature-menu,.stats-menu")) closeFeatureMenus();
     if (!target.closest(".workspace-zoom")) closeWorkspaceZoom();
     if (!target.closest(".release,.card,.archive-feature,.archive-feature-popover,.task-editor-dialog,.feature-editor-dialog,.statistics-dialog")) {
       hoveredElement = null;

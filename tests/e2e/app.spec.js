@@ -2297,7 +2297,8 @@ test("statistics can close and reopen in Workspace and are unavailable in Archiv
   const statsBottom = await stats.evaluate(node => node.getBoundingClientRect().bottom);
   await expect.poll(async () => (await stats.boundingBox()).x).toBe((await firstRelease.boundingBox()).x);
   await expect.poll(() => content.evaluate(node => node.getBoundingClientRect().left)).toBe(0);
-  await page.locator(".stats-close").click();
+  await page.getByRole("button", { name: "Statistics actions" }).click();
+  await page.getByRole("button", { name: "Close statistics", exact: true }).click();
   await expect(stats).toBeHidden();
   await expect.poll(() => content.evaluate(node => node.getBoundingClientRect().left)).toBe(0);
   await page.locator("#toggleViewMenu").click();
@@ -2536,7 +2537,8 @@ test("Archive round-trips preserve open and closed Workspace panels", async ({ p
   await expect(stats).toBeVisible();
 
   await toggleBacklogFromView(page);
-  await page.locator(".stats-close").click();
+  await page.getByRole("button", { name: "Statistics actions" }).click();
+  await page.getByRole("button", { name: "Close statistics", exact: true }).click();
   await expect(backlog).toBeHidden();
   await expect(stats).toBeHidden();
   await page.keyboard.press("a");
